@@ -1,0 +1,13 @@
+# Coverage gate for common. Threshold 0: nothing is measured on 19.x
+# (COVERAGE.md). tests/coverage.sh and the bats suite arrive with
+# fix/postfix-local-fatal; raise the threshold when it merges.
+name: tests
+on:
+  pull_request:
+  push:
+    branches: [19.x]
+jobs:
+  tests:
+    uses: keel-linux/.github/.github/workflows/test-shell.yml@main
+    with:
+      threshold: 0
