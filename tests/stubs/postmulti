@@ -1,0 +1,3 @@
+#!/bin/bash
+# Stand-in for postmulti: records the call in STUB_LOG.
+echo "postmulti $*" >> "${STUB_LOG:?}"

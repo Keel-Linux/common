@@ -1,0 +1,5 @@
+#!/bin/bash
+# Stand-in for postconf: records the call in STUB_LOG and fails when the
+# arguments contain STUB_POSTCONF_FAIL.
+echo "postconf $*" >> "${STUB_LOG:?}"
+[[ -z ${STUB_POSTCONF_FAIL:-} || " $* " != *"$STUB_POSTCONF_FAIL"* ]]

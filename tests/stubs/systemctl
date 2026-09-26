@@ -1,0 +1,3 @@
+#!/bin/bash
+# Stand-in for systemctl: records the call in STUB_LOG.
+echo "systemctl $*" >> "${STUB_LOG:?}"

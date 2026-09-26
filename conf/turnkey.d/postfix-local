@@ -1,13 +1,13 @@
 #!/bin/bash -e
 
-fatal() { "'$(basename "$0")' Error: $*" >&2; exit 1; }
+fatal() { echo "'$(basename "$0")' Error: $*" >&2; exit 1; }
 
 if [[ -z "$HOSTNAME" ]]; then
     fatal "Hostname not defined"
 fi
 
 if grep -q ':25' <(ss -tlnp); then
-    fatal "Port 25 is already in use - must be available to set up postfix"
+    fatal "Port 25 is already in use - must be available to set up postfix (the chroot shares the build host network; e.g. 'systemctl stop postfix' on the build host)"
 fi
 
 postconf -e inet_interfaces=localhost

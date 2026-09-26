@@ -1,0 +1,4 @@
+#!/bin/bash
+# Stand-in for ss: records the call in STUB_LOG and prints STUB_SS_OUTPUT.
+echo "ss $*" >> "${STUB_LOG:?}"
+printf '%s\n' "${STUB_SS_OUTPUT:-}"
