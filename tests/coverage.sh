@@ -3,7 +3,7 @@
 # in this directory, measured with kcov. Exits 1 when the covered share of
 # the script is below the threshold (default 95), 2 when a tool is missing.
 #
-#   tests/coverage.sh [THRESHOLD]
+#   tests/coverage.sh [THRESHOLD]     (or COVERAGE_THRESHOLD in the environment)
 #
 # COVERAGE_DIR keeps the kcov report (default: a temporary directory).
 # Needs the Debian packages kcov and bats.
@@ -11,7 +11,7 @@ set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 target="$(cd "$here/.." && pwd)/conf/turnkey.d/postfix-local"
-threshold="${1:-95}"
+threshold="${1:-${COVERAGE_THRESHOLD:-95}}"
 
 for tool in kcov bats; do
     if ! command -v "$tool" >/dev/null; then
