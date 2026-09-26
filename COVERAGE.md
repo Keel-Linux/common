@@ -4,7 +4,15 @@ Measured on 2026-09-24 against upstream 19.x (b60dd23), following the
 project decision 0003 (90 percent floor per repository, 95 percent for every
 file our changes touch).
 
-## Baseline: 0 percent, nothing measured
+## Measured baseline on the default branch: 100 percent (2026-09-26)
+
+Pull request #2 merged on 2026-09-26 (merge commit 5a0a381) and brought
+`tests/coverage.sh` with it: conf/turnkey.d/postfix-local 17 of 17 lines under kcov, 100 percent, 7 bats. The gate in
+`.github/workflows/tests.yml` is set to 100, the measured number rounded
+down, and is only ever raised. The sections that follow record the state
+before the merge.
+
+## Baseline before the merge: 0 percent, nothing measured
 
 This repository has no test suite and no coverage tool wired up, so nothing
 is measured. Line counts are lines that are neither blank nor comment.
