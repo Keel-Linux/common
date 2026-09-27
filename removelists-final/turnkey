@@ -33,3 +33,10 @@
 # rm tmp contents
 ~/tmp/*
 ~/tmp/.*
+
+# rm the captured package pool a pinned build installed from, its apt
+# source and its pin (decision 0012). The '~' prefix is a glob, so a build
+# that used no pool passes over these three silently.
+~/etc/apt/sources.list.d/keel-pool.sources
+~/etc/apt/preferences.d/keel-pool
+~/keel-pool
