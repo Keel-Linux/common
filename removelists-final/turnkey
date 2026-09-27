@@ -30,6 +30,22 @@
 # rm bashlib
 /usr/local/src/tkl-bashlib
 
+# rm the build time source of the project's own packages: the copy of the
+# staging archive a layer recipe installs inithooks, confconsole and keel
+# from, the apt source that names it, and the keyring the build verified that
+# archive with (tracker#7). None of the three is for an installed appliance:
+# the staging key signs whatever the build host produced, so an image that
+# kept it would carry trust in a nightly.
+#
+# A recipe's own conf script removes all three as well. This is the
+# arrangement that holds whether or not a recipe remembers to, which is why it
+# belongs here: the same defect has now had to be fixed in four recipes. The
+# '~' prefix is a glob, so a build that used no staging archive passes over
+# these three silently.
+~/etc/apt/sources.list.d/keel-staging.list
+~/etc/apt/keyrings/keel-staging-keyring.asc
+~/srv/keel-apt
+
 # rm tmp contents
 ~/tmp/*
 ~/tmp/.*
