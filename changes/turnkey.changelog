@@ -1,5 +1,28 @@
 turnkey-core-19.0 (1) turnkey; urgency=low
 
+  * An appliance no longer carries an account that can be authenticated
+    before its first boot has set a password. A build given no 'ROOT_PASS'
+    wrote a password field into the root account that a submitted password
+    could match; it now writes one that no password matches, and the first
+    boot writes over it as before. The field is deliberately not '!', which
+    shadow reads as a locked account: 'passwd --unlock root', which
+    turnkey-sudoadmin runs on every first boot, refuses to unlock a field of
+    exactly '!', exits 3 and leaves the rest of that hook undone.
+
+  * A build time 'ROOT_PASS' holding a glob character is now set as written.
+    It was expanded against the build directory before reaching chpasswd.
+
+  * 'nullok' is removed from the PAM stack the webmin package installs, in
+    the new 'webmin-pam' conf script. It allowed an account whose password
+    is not set to be authenticated without one, which no appliance account
+    is meant to be, and nothing in an appliance asked for it.
+
+  * Webmin waits for the first boot scripts before it starts. Its unit gains
+    a condition on the marker inithooks writes when its boot scripts have
+    run, and a path unit starts it when that marker appears, so the web
+    interface is not exposed before the appliance has been configured. An
+    image carrying no inithooks at all is unaffected.
+
   * Upgraded base distribution to Debian 13.x/Trixie.
 
   * Replace TurnKey custom Debian-Installer based 'di-live' with new custom

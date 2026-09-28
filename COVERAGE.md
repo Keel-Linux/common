@@ -4,6 +4,48 @@ Measured on 2026-09-24 against upstream 19.x (b60dd23), following the
 project decision 0003 (90 percent floor per repository, 95 percent for every
 file our changes touch).
 
+## Branch fix/webmin-auth-hardening: 100 percent, four files (2026-09-28)
+
+`tests/coverage.sh` now measures a list of files rather than one, and every
+file this branch touches is on it. Measured with kcov 43 over 36 bats:
+
+| File | Lines | Covered | Percent |
+|------|-------|---------|---------|
+| conf/turnkey.d/postfix-local | 17 | 17 | 100 |
+| conf/turnkey.d/rootpass | 6 | 6 | 100 |
+| conf/turnkey.d/webmin-enable | 9 | 9 | 100 |
+| conf/turnkey.d/webmin-pam | 7 | 7 | 100 |
+| Total | 39 | 39 | 100 |
+
+`conf/turnkey.d/rootpass` and `conf/turnkey.d/webmin-enable` changed shebang
+from `/bin/sh` to `/bin/bash`, because kcov measures bash and not dash and
+decision 0003 gives no exemption for a file a change touches. rootpass uses
+no bash construct; webmin-enable is new code in a file that was one line.
+
+The gate in `.github/workflows/tests.yml` stays at 100, the measured number.
+
+Every exit path is covered: `rootpass` in its three branches (a build
+password, no build password, chroot only), `webmin-pam` on both of its
+`fatal` paths and the happy one, `webmin-enable` on its single path with the
+three verdicts systemd gives its conditions.
+
+The suite asserts behaviour and not configuration. The question "can this
+password get in" is answered by the real `crypt(3)` through perl, which is
+the function pam_unix compares with, wrapped in the two rules Linux-PAM
+applies around it; those rules were confirmed against `unix_chkpwd`, the
+helper pam_unix itself runs, with a scratch shadow file bind mounted over
+`/etc/shadow` under `unshare -r -m`. The verdict on whether the web
+interface would start is `systemd-analyze condition`, systemd's own
+evaluator, and the units are handed to `systemd-analyze verify`. The shadow
+tools are the one thing stubbed, because `usermod`, `chpasswd` and `passwd`
+chroot into the root they are given and cannot be pointed at a scratch tree
+by an ordinary user; each stub records the behaviour it reproduces and the
+command that measured it.
+
+`tests/before-firstboot.bats` runs the three conf scripts over one scratch
+image in the order a build runs them and asks the whole question of the
+result, because no single script owns the answer.
+
 ## Measured baseline on the default branch: 100 percent (2026-09-26)
 
 Pull request #2 merged on 2026-09-26 (merge commit 5a0a381) and brought
