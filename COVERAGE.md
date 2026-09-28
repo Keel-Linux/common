@@ -4,13 +4,52 @@ Measured on 2026-09-24 against upstream 19.x (b60dd23), following the
 project decision 0003 (90 percent floor per repository, 95 percent for every
 file our changes touch).
 
-## Measured baseline on the default branch: 100 percent (2026-09-26)
+## Measured baseline on the default branch: 100 percent (2026-09-28)
 
 Pull request #2 merged on 2026-09-26 (merge commit 5a0a381) and brought
-`tests/coverage.sh` with it: conf/turnkey.d/postfix-local 17 of 17 lines under kcov, 100 percent, 7 bats. The gate in
-`.github/workflows/tests.yml` is set to 100, the measured number rounded
-down, and is only ever raised. The sections that follow record the state
-before the merge.
+`tests/coverage.sh` with it. Every file it measures is at 100 percent:
+
+| File | What it is | Measured |
+| --- | --- | --- |
+| `conf/turnkey.d/postfix-local` | the build-time postfix configuration | 100 percent, 17 of 17 lines, 7 bats |
+| `conf/turnkey.d/dpkg-vendor` | points the dpkg vendor at Keel | 100 percent, 6 of 6 lines, 15 bats |
+| `conf/turnkey.d/apt-identity` | keeps the shipped apt User-Agent the one in force | 100 percent, 4 of 4 lines, 11 bats |
+
+33 bats, measured on 2026-09-28 with kcov 43 and bats 1.11. The gate in
+`.github/workflows/tests.yml` is set to 100, the measured number, and is
+only ever raised. The sections that follow record the state before the
+first merge.
+
+## The apt and vendor identity of an image
+
+Three things used to tell an archive, or a bug reporting tool, that this
+machine is a TurnKey appliance (Keel-Linux/common#6). None of the
+assertions below reads back a file the code under test wrote:
+
+- **the vendor.** `conf/turnkey.d/dpkg-vendor` points the origins `default`
+  entry at the `Keel` file the matching overlay ships. Every verdict in
+  `tests/dpkg-vendor.bats` is an answer from the real `dpkg-vendor`, pointed
+  at the tree the script produced through dpkg's own `DPKG_ORIGINS_DIR`:
+  `--query Vendor`, `--query Bugs`, `--is`, `--derives-from`. The `Keel`
+  file keeps `Parent: Debian`, so `dpkg-dev` resolves the same vendor object
+  it did before and package building is unaffected.
+- **the apt User-Agent.** The header is a fixed file the overlay ships,
+  `/etc/apt/apt.conf.d/01keel`; `mk/turnkey.mk` and `mk/turnkey-desktop.mk`
+  no longer write a per-appliance `01turnkey`. Every verdict in
+  `tests/apt-identity.bats` is read off the wire: `tests/ua-recorder.py`
+  records the header a real `apt-get update` sent, over http and over TLS.
+  One test measures the hazard the conf script exists for: with a stale
+  `01turnkey` beside `01keel`, apt sends TurnKey's header, because
+  `apt.conf.d` is read in lexical order and the last assignment wins.
+- **the source URIs.** The stanzas are extracted from `conf/bootstrap_apt`
+  itself, rendered with a build's variables and handed to apt, which is
+  asked with `apt-get indextargets` what it would fetch. No network.
+
+Refutations in both suites are written `run ! cmd`, never a bare `! cmd`:
+bash does not apply errexit to a negated command, so a bare one passes
+whatever happens. Measured on this branch before the fix; shellcheck names
+it SC2314. `tests/postfix-local.bats` still has three of them (lines 66, 96
+and 97) and they are left for the pull request that owns that file.
 
 ## Baseline before the merge: 0 percent, nothing measured
 
