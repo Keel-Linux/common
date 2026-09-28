@@ -12,6 +12,16 @@ Pull request #2 merged on 2026-09-26 (merge commit 5a0a381) and brought
 down, and is only ever raised. The sections that follow record the state
 before the merge.
 
+A refutation is written `run ! cmd`, never a bare `! cmd`: bash does not
+apply errexit to a negated command, so a bare one is inert unless it happens
+to be the last command of the test body, where it alone decides the verdict.
+shellcheck names the class SC2314 and grades the two cases apart, error for
+the inert ones and note for the rest. `tests/postfix-local.bats` had three
+bare negations: line 96 was inert and lines 66 and 97 did assert, because
+they were last. All three are `run !` now, so none of them depends on its
+position, and the check runs for every repository in the reusable
+`test-shell` workflow.
+
 ## Baseline before the merge: 0 percent, nothing measured
 
 This repository has no test suite and no coverage tool wired up, so nothing
