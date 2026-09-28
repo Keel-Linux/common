@@ -37,6 +37,8 @@ targets=(
     "overlays/turnkey.d/resolvconf-ifupdown-ng/etc/network/if-down.d/resolvconf-ifupdown-ng:tests/resolvconf-ifupdown-ng.bats"
     "packages/coraza/state:tests/coraza-state.bats"
     "packages/anubis/signing-key:tests/anubis-signing-key.bats"
+    "lib/version-files.sh:tests/version-files.bats"
+    "bin/keel-version-files:tests/version-files.bats"
 )
 
 for tool in kcov bats; do

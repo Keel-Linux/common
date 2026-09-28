@@ -1,0 +1,87 @@
+#!/bin/bash
+# Writes the two identity files of an image being built: the compatibility
+# file /etc/turnkey_version and the Keel file /etc/keel_version (decision
+# 0014). Called once per product by mk/turnkey.mk, in root.patched/post,
+# with the version string fab's turnkey-version.py derived from the first
+# line of the product changelog and the root of the tree being built.
+#
+# This is the thin main of lib/version-files.sh (decision 0004): it parses
+# the arguments, refuses what it cannot name and writes the two files; the
+# grammar and the prefix rules are in the library and are unit tested.
+#
+# exit 0  both files written
+# exit 1  bad usage, or a version string that is not an appliance identity
+# exit 2  the tree cannot be written to
+# exit 3  the library is missing
+set -euo pipefail
+
+here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+lib=${KVF_LIB:-$here/../lib/version-files.sh}
+
+usage() {
+    cat <<USAGE
+usage: keel-version-files RELEASE_VERSION ROOTDIR
+
+Writes ROOTDIR/etc/turnkey_version and ROOTDIR/etc/keel_version from
+RELEASE_VERSION, the string turnkey-version.py builds from the product
+changelog (turnkey-core-19.0-trixie-amd64, keel-core-19.0-trixie-amd64).
+Whatever prefix it carries, the compatibility file is written with the
+turnkey- prefix its parsers require and the Keel file with keel-.
+USAGE
+}
+
+case "${1-}" in
+    -h|--help)
+        usage
+        exit 0
+        ;;
+esac
+
+if [ "$#" -ne 2 ]; then
+    usage >&2
+    echo "keel-version-files: two arguments are required, got $#" >&2
+    exit 1
+fi
+
+if [ ! -r "$lib" ]; then
+    echo "keel-version-files: $lib is missing; it is lib/version-files.sh of common" >&2
+    exit 3
+fi
+# shellcheck source=../lib/version-files.sh
+. "$lib"
+
+release=$1
+root=$2
+
+app_version=$(kvf_app_version "$release")
+if ! kvf_is_app_version "$app_version"; then
+    echo "keel-version-files: '$release' is not an appliance identity; the" \
+         "first line of the changelog must name a release whose version" \
+         "string is app-version-codename-architecture, as in" \
+         "turnkey-core-19.0 or keel-core-19.0" >&2
+    exit 1
+fi
+
+if [ ! -d "$root" ]; then
+    echo "keel-version-files: '$root' is not a directory" >&2
+    exit 2
+fi
+
+etc=$root/etc
+mkdir -p "$etc" 2>/dev/null || true
+if [ ! -d "$etc" ] || [ ! -w "$etc" ]; then
+    echo "keel-version-files: cannot write into '$etc'" >&2
+    exit 2
+fi
+
+write_identity() {
+    # write_identity PREFIX FILE
+    local string
+    string=$(kvf_version_string "$1" "$app_version")
+    printf '%s\n' "$string" > "$etc/$2"
+    chmod 0644 "$etc/$2"
+    echo "$etc/$2: $string"
+}
+
+write_identity "$KVF_TURNKEY_PREFIX" turnkey_version
+write_identity "$KVF_KEEL_PREFIX" keel_version

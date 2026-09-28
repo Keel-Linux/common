@@ -148,8 +148,10 @@ Pull request #2 merged on 2026-09-26 (merge commit 5a0a381) and brought
 | `conf/turnkey.d/postfix-local` | the build-time postfix configuration | 100 percent, 17 of 17 lines, 7 bats |
 | `conf/turnkey.d/dpkg-vendor` | points the dpkg vendor at Keel, and removes an inherited TurnKey origin | 100 percent, 7 of 7 lines, 16 bats |
 | `conf/turnkey.d/apt-identity` | keeps the shipped apt User-Agent the one in force | 100 percent, 4 of 4 lines, 11 bats |
+| `lib/version-files.sh` | the grammar and the prefix rules of the two identity files (decision 0014) | 100 percent, 15 of 15 lines |
+| `bin/keel-version-files` | the thin main `mk/turnkey.mk` calls in `root.patched/post` to write `/etc/turnkey_version` and `/etc/keel_version` | 100 percent, 36 of 36 lines |
 
-34 bats, measured on 2026-09-29 with kcov 43 and bats 1.11. The gate in
+34 bats, measured on 2026-09-29 with kcov 43 and bats 1.11, plus the 33 bats of the identity files (`tests/version-files.bats`, `tests/mk-identity.bats`), measured on 2026-09-28. The gate in
 `.github/workflows/tests.yml` is set to 100, the measured number, and is
 only ever raised. The sections that follow record the state before the
 first merge.
@@ -192,6 +194,26 @@ bare negations: line 96 was inert and lines 66 and 97 did assert, because
 they were last. All three are `run !` now, so none of them depends on its
 position, and the check runs for every repository in the reusable
 `test-shell` workflow.
+
+## The two identity files
+
+`mk/turnkey.mk` writes both in `root.patched/post`, after every overlay,
+conf script, patch and removelist of the build, so nothing can clobber
+them. The version string comes from the first line of the product
+changelog through fab's `turnkey-version.py`, and its prefix is normalised
+before either file is written:
+
+- `/etc/turnkey_version` always begins `turnkey-`, because it is an
+  interface: `sysversion`, the `turnkey-version` command, inithooks'
+  `29tagid` and `keel inspect` all parse it by prefix, and `keel inspect`
+  drops the appliance identity outright for a string that begins with
+  anything else.
+- `/etc/keel_version` is the same four fields with the `keel-` prefix, and
+  is what the appliance reads when it says what it is.
+
+Without the normalisation a repository that renames its release package
+(`keel-core-19.0`, as keel-core did on 2026-09-27) silently produces an
+`/etc/turnkey_version` that none of those parsers accepts.
 
 ## Baseline before the merge: 0 percent, nothing measured
 
