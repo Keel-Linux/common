@@ -1,0 +1,23 @@
+#!/bin/bash
+# Stand-in for usermod: records the call in STUB_LOG and, for '-p FIELD
+# USER', writes FIELD into the password field of SHADOW_FILE exactly as
+# usermod does, without interpreting it.
+echo "usermod $*" >> "${STUB_LOG:?}"
+
+field=
+user=
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -p) field=$2; shift 2 ;;
+        -*) shift ;;
+        *)  user=$1; shift ;;
+    esac
+done
+
+[[ -n "$user" ]] || exit 1
+[[ -n "$field" ]] || exit 0
+
+awk -F: -v user="$user" -v field="$field" 'BEGIN { OFS=":" }
+    $1 == user { $2 = field }
+    { print }' "${SHADOW_FILE:?}" > "$SHADOW_FILE.new"
+mv "$SHADOW_FILE.new" "$SHADOW_FILE"
