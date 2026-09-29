@@ -59,7 +59,11 @@
 # the snakeoil pair ssl-cert makes for PostgreSQL and Apache. The machine
 # generates its own before any service reads them (inithooks,
 # keel-host-keys.service), and bt-layer refuses a layer that still carries
-# one. dpkg.cfg.d/keel-no-shared-keys stops turnkey-ssl putting its copy back.
+# one. turnkey-ssl's own copy is removed from the layer too, but not kept
+# out of an installed machine: its postinst copies it into /etc/ssl/private
+# under sh -e whenever that is empty, so excluding it would fail a later
+# install of the package. It is public in the package anyway; what matters is
+# that no service reads it, which keel-host-keys ensures.
 ~/etc/ssh/ssh_host_*_key
 ~/etc/ssh/ssh_host_*_key.pub
 ~/etc/ssl/private/cert.key
