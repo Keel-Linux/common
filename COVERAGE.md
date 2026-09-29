@@ -53,9 +53,11 @@ not the last command of its test passes whatever happens; as the last
 command it does decide the test, because bats takes the last status as the
 verdict. `run !` asserts wherever it stands, which is why it is the
 convention. shellcheck grades the two cases differently: SC2314 is an error
-for the inert one and a note otherwise. Of the three bare negations in
-`tests/postfix-local.bats`, only line 96 is inert; lines 66 and 97 are last
-in their tests. It is left for the pull request that owns that file.
+for the inert one and a note otherwise. `tests/postfix-local.bats` had three
+bare negations: line 96 was inert and lines 66 and 97 did assert, because
+they were last. All three are `run !` now, so none of them depends on its
+position, and the check runs for every repository in the reusable
+`test-shell` workflow.
 
 ## Baseline before the merge: 0 percent, nothing measured
 
