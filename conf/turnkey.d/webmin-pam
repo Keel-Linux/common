@@ -4,7 +4,9 @@
 # carries 'nullok' on the pam_unix line, which tells pam_unix that an
 # account whose password is not set may be authenticated without one. No
 # appliance account is meant to be reachable that way, and nothing in an
-# appliance asks for the option, so it goes.
+# appliance asks for the option, so it goes. Debian's common-auth carries it
+# too and keeps it for now: pam-auth-update regenerates that file, so it
+# needs a profile rather than an edit (Keel-Linux/common#13).
 #
 # PAM_WEBMIN is a test hook; a build leaves it unset.
 
