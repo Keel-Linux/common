@@ -21,7 +21,23 @@ setup() {
     mkdir -p "$IMAGE/run" "$IMAGE/usr/lib/inithooks"
     touch "$INITHOOKS_RUN"
 
+    export WEBMIN_OPENED=$IMAGE/var/lib/webmin-after-firstboot/opened
     DROPIN=$SYSTEMD_DIR/webmin.service.d/after-firstboot.conf
+    ONESHOT=$SYSTEMD_DIR/webmin-after-firstboot.service
+
+    # webmin.service as the webmin package installs it, beside the drop-in
+    # the way it is in an image, so that systemd reads the two together.
+    # Only the program is swapped for one that exists here, which
+    # 'systemd-analyze verify' checks and nothing else depends on.
+    sed 's|^ExecStart=/usr/share/webmin/miniserv.pl|ExecStart=/bin/true|' \
+        "$FIXTURES/webmin.service" > "$SYSTEMD_DIR/webmin.service"
+    UNIT=$SYSTEMD_DIR/webmin.service
+}
+
+# next_boot
+# What a reboot does to the state these units read: /run is emptied.
+next_boot() {
+    rm -f "$INITHOOKS_MARKER"
 }
 
 @test "webmin does not start while the first boot scripts have not run" {
@@ -56,6 +72,80 @@ setup() {
     [ -z "$output" ]
 }
 
+@test "systemd accepts webmin.service with the drop-in in place" {
+    run "$SCRIPT"
+    [ "$status" -eq 0 ]
+    run systemd-analyze verify --man=no "$UNIT"
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "the verdict is the merged unit's, the packaged conditions included" {
+    run "$SCRIPT"
+    [ "$status" -eq 0 ]
+    run ! unit_would_start "$UNIT" "$DROPIN"
+    touch "$INITHOOKS_MARKER"
+    run unit_would_start "$UNIT" "$DROPIN"
+    [ "$status" -eq 0 ]
+
+    # a plain condition in the packaged unit would AND with the drop-in's
+    printf '[Unit]\nConditionPathExists=%s\n' "$IMAGE/nowhere" >> "$UNIT"
+    run ! unit_would_start "$UNIT" "$DROPIN"
+}
+
+@test "the first boot opening the interface leaves nothing for later boots to wait on" {
+    run "$SCRIPT"
+    [ "$status" -eq 0 ]
+    touch "$INITHOOKS_MARKER"
+    run run_exec_start "$ONESHOT"
+    [ "$status" -eq 0 ]
+    grep -qx "systemctl --no-block start webmin.service" "$STUB_LOG"
+
+    next_boot
+    run unit_would_start "$UNIT" "$DROPIN"
+    [ "$status" -eq 0 ]
+}
+
+@test "a boot whose inithooks never finish still has the interface, after one that did" {
+    run "$SCRIPT"
+    [ "$status" -eq 0 ]
+    touch "$INITHOOKS_MARKER"
+    run_exec_start "$ONESHOT"
+    next_boot
+    next_boot
+    [ ! -e "$INITHOOKS_MARKER" ]
+    run unit_would_start "$UNIT" "$DROPIN"
+    [ "$status" -eq 0 ]
+}
+
+@test "the build itself opens nothing: no record of a first boot is left in the image" {
+    run "$SCRIPT"
+    [ "$status" -eq 0 ]
+    [ ! -e "$WEBMIN_OPENED" ]
+    next_boot
+    run ! unit_would_start "$UNIT" "$DROPIN"
+}
+
+@test "a first boot that never finishes keeps it shut on the boots after it" {
+    run "$SCRIPT"
+    [ "$status" -eq 0 ]
+    next_boot
+    run ! unit_would_start "$UNIT" "$DROPIN"
+    next_boot
+    run ! unit_would_start "$UNIT" "$DROPIN"
+}
+
+@test "the recovery the script's comment names opens it" {
+    run "$SCRIPT"
+    [ "$status" -eq 0 ]
+    grep -q "systemctl start webmin-after-firstboot.service" "$SCRIPT"
+    run run_exec_start "$ONESHOT"
+    [ "$status" -eq 0 ]
+    next_boot
+    run unit_would_start "$UNIT" "$DROPIN"
+    [ "$status" -eq 0 ]
+}
+
 @test "the marker is what the path unit waits for, and it fires once" {
     run "$SCRIPT"
     [ "$status" -eq 0 ]
@@ -82,4 +172,5 @@ EXPECTED
     run "$SCRIPT"
     [ "$status" -eq 0 ]
     [ "$(cat "$DROPIN" "$SYSTEMD_DIR"/webmin-after-firstboot.*)" = "$first" ]
+    [ ! -e "$WEBMIN_OPENED" ]
 }

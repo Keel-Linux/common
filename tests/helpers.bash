@@ -156,18 +156,36 @@ nothing_authenticates() {
     done
 }
 
-# conditions_of UNIT_FILE
-# The Condition lines of a unit file, as arguments for systemd-analyze.
+# conditions_of UNIT_FILE...
+# The Condition lines of a unit and its drop-ins, as arguments for
+# systemd-analyze. systemd merges them into one unit, so they are read
+# together: a plain condition in any of the files is ANDed with the
+# triggering ones of all of them.
 conditions_of() {
-    grep -E '^Condition' "$1"
+    cat "$@" | grep -E '^Condition' || true
 }
 
-# unit_would_start UNIT_FILE
+# unit_would_start UNIT_FILE...
 # systemd's own verdict on whether a unit with those conditions would run,
 # taken from systemd-analyze, not from reading the file.
 unit_would_start() {
     local -a conditions
-    readarray -t conditions < <(conditions_of "$1")
+    readarray -t conditions < <(conditions_of "$@")
     [[ ${#conditions[@]} -gt 0 ]] || return 0
     systemd-analyze condition "${conditions[@]}" >/dev/null
+}
+
+# run_exec_start UNIT_FILE
+# Runs the ExecStart lines of a oneshot unit in order, stopping at the
+# first that fails, as systemd does. Each command is looked up by its name
+# on PATH, so a stub stands in for systemctl and touch and mkdir are the
+# real ones.
+run_exec_start() {
+    local line
+    local -a argv
+    while IFS= read -r line; do
+        read -r -a argv <<< "${line#ExecStart=}"
+        argv[0]=$(basename "${argv[0]}")
+        "${argv[@]}" || return
+    done < <(grep -E '^ExecStart=' "$1")
 }
