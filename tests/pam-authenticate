@@ -6,12 +6,12 @@
 Loads libpam.so.0, starts SERVICE with its stack read from CONFDIR
 (pam_start_confdir, Linux-PAM 1.4 and later) and calls pam_authenticate,
 answering every prompt with PASSWORD. The modules in the stack are the ones
-installed on this machine, pam_unix included, running in this process,
-which is how Webmin's miniserv runs them: as root, reading the shadow file
-itself rather than through unix_chkpwd.
+installed on this machine, and they do what they do in any application,
+Webmin's miniserv included: pam_unix runs unix_chkpwd for a shadowed
+account, as root or not.
 
-Run it as root of a user namespace with a scratch shadow file bind mounted
-over /etc/shadow (helpers.bash does), never as the real root.
+Run it inside a private mount namespace with a scratch shadow file bind
+mounted over /etc/shadow (helpers.bash does), never against the real one.
 
 Exit status: 0 authenticated, 1 refused (PAM_AUTH_ERR), 3 anything else,
 so that a sandbox or stack that does not work is never read as a refusal.
