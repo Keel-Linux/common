@@ -45,6 +45,16 @@ build_image() {
     [ "$status" -eq 0 ]
 }
 
+# Webmin is one way in. The console login, su and everything else that
+# includes common-auth are the others, and common-auth keeps nullok
+# (Keel-Linux/common#13), so this is the question only the account field
+# answers.
+@test "and none gets in through the stack everything else uses either" {
+    build_image
+    run nothing_authenticates root "$PAM_COMMON_AUTH"
+    [ "$status" -eq 0 ]
+}
+
 @test "and the interface is not up to be asked" {
     build_image
     run ! unit_would_start "$DROPIN"
