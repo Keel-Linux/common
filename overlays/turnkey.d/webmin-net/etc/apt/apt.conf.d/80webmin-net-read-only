@@ -1,0 +1,5 @@
+// webmin-net's postinst reinstalls the Network Configuration module on every
+// upgrade, and with it the module's defaultacl, which lets every Webmin user
+// rewrite /etc/network/interfaces. Put the read-only defaults back after
+// each dpkg run; see /usr/local/sbin/webmin-net-read-only.
+DPkg::Post-Invoke { "if [ -x /usr/local/sbin/webmin-net-read-only ]; then /usr/local/sbin/webmin-net-read-only; fi"; };

@@ -1,24 +1,7 @@
 #!/bin/bash -e
 
-# Webmin's Network Configuration module (webmin-net) is installed read-only
-# for root: it shows interfaces, routing and DNS, and still edits
-# /etc/hosts, but it does not write the network configuration.
-#
-# Its Debian backend is not safe on Keel. Saving an interface, even with
-# nothing changed, drops that interface's 'iface ... inet6 dhcp' stanza (a
-# method it does not know), its hostname and dns-nameservers options, and
-# its 'auto' line; dhcpcd-ifupdown-glue then writes 'noipv6' for it into
-# dhcpcd.conf at the next ifup. Its apply runs /etc/init.d/networking,
-# which ifupdown-ng does not have. The network configuration belongs to
-# inithooks and confconsole. See turnkeylinux/tracker#2118 and
-# tests/webmin-net.bats, which measure all of this on the module itself.
+# Webmin's Network Configuration module (webmin-net) is installed read-only:
+# see overlays/turnkey.d/webmin-net/usr/local/sbin/webmin-net-read-only,
+# which apt also runs after every dpkg run, and tests/webmin-net.bats.
 
-WEBMIN_CONFIG=${WEBMIN_CONFIG:-/etc/webmin}
-acl=$WEBMIN_CONFIG/net/root.acl
-
-mkdir -p "$WEBMIN_CONFIG/net"
-touch "$acl"
-for setting in ifcs=1 routes=1 dns=1 apply=0; do
-    sed -i "/^${setting%%=*}=/d" "$acl"
-    echo "$setting" >> "$acl"
-done
+webmin-net-read-only

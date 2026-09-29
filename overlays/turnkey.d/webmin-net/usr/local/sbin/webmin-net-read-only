@@ -1,0 +1,48 @@
+#!/bin/bash -e
+
+# webmin-net-read-only: makes Webmin's Network Configuration module
+# (webmin-net) read-only for every Webmin user that has no ACL of its own
+# for it: root on a fresh image, and any user created later on the Webmin
+# Users page. It shows interfaces and DNS and still edits /etc/hosts, but
+# it does not write the network configuration, which belongs to inithooks
+# and confconsole.
+#
+# It does so in the module's defaultacl, the one file Webmin reads for a
+# user or group with no ACL file for the module (get_module_acl and
+# get_group_module_acl in web-lib-funcs.pl). An ACL an administrator sets
+# for a user later is that user's own file and is left alone.
+#
+#   ifcs=1    interfaces to view: every save, delete and activation,
+#             boot-time or live, is refused
+#   dns=1     DNS client and hostname to view
+#   routes=0  no routing page: create_route.cgi and delete_routes.cgi add
+#             and delete live routes whenever routes is not 0, so 0 is the
+#             only value that refuses them
+#   apply=0   no apply, which would run /etc/init.d/networking
+#
+# Why: saving an interface, even unchanged, drops its 'iface ... inet6
+# dhcp' stanza and its hostname and dns-nameservers options on Keel's
+# interfaces files, after which IPv6 is off on it (turnkeylinux/tracker#2118;
+# tests/webmin-net.bats measures it on the module itself).
+#
+# Run by conf/turnkey.d/webmin-net at build, and by apt after every dpkg
+# run (/etc/apt/apt.conf.d/80webmin-net-read-only), because webmin-net's
+# postinst reinstalls the module, defaultacl included, on every upgrade.
+# Does nothing where Webmin or the module is not installed.
+
+WEBMIN_CONFIG=${WEBMIN_CONFIG:-/etc/webmin}
+if [ -z "${WEBMIN_ROOT:-}" ]; then
+    [ -r "$WEBMIN_CONFIG/miniserv.conf" ] || exit 0
+    WEBMIN_ROOT=$(sed -n 's/^root=//p' "$WEBMIN_CONFIG/miniserv.conf")
+fi
+defaults=$WEBMIN_ROOT/net/defaultacl
+[ -f "$defaults" ] || exit 0
+
+# the packaged file has no newline after its last line
+if [ -n "$(tail -c 1 "$defaults")" ]; then
+    echo >> "$defaults"
+fi
+for setting in ifcs=1 dns=1 routes=0 apply=0; do
+    sed -i "/^${setting%%=*}=/d" "$defaults"
+    echo "$setting" >> "$defaults"
+done
