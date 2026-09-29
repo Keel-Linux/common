@@ -1,0 +1,59 @@
+#!/bin/bash
+# Pass the dns-* options of an interface to resolvconf under ifupdown-ng.
+#
+# resolvconf's own hook, 000resolvconf, exits unless ADDRFAM is inet or
+# inet6, and ifupdown-ng never sets ADDRFAM: it merges an interface's
+# stanzas and runs this directory once per interface. So the name servers
+# of a static stanza never reached /etc/resolv.conf, and a machine moved
+# from DHCP to a static address lost name resolution (Keel-Linux/common#15,
+# turnkeylinux/tracker#2140). DHCP was not affected: dhcpcd registers with
+# resolvconf from its own hook.
+#
+# This does what 000resolvconf would, only when ADDRFAM is missing, under
+# the record name it would use, so the order in
+# /etc/resolvconf/interface-order still applies. Under classic ifupdown it
+# does nothing and leaves the job to 000resolvconf.
+#
+# The options are asked of ifquery, not taken from the environment: with an
+# inet and an inet6 stanza, as confconsole writes for a static address of
+# each family, ifupdown-ng exports only the last stanza's dns-nameservers,
+# and the other family's servers were lost. ifquery lists every stanza's.
+# -l: this runs inside ifup, which holds the lock ifquery would wait for.
+
+RESOLVCONF="${RESOLVCONF:-/usr/sbin/resolvconf}"
+IFQUERY="${IFQUERY:-/usr/sbin/ifquery}"
+
+[ -z "${ADDRFAM:-}" ] || exit 0
+[ -x "$RESOLVCONF" ] || exit 0
+
+# option NAME FALLBACK: every value of dns-NAME on one line, from ifquery
+# when it answers, else the value ifupdown-ng exported
+option() {
+    if [ -x "$IFQUERY" ]; then
+        "$IFQUERY" -l -i "${INTERFACES_FILE:-/etc/network/interfaces}" \
+            -p "$1" "$IFACE" 2>/dev/null | tr '\n' ' ' | sed 's/ *$//'
+    else
+        printf '%s' "$2" | tr '\n' ' '
+    fi
+}
+
+NL=$'\n'
+R=""
+value=$(option dns-domain "${IF_DNS_DOMAIN:-}")
+[ -n "$value" ] && R="${R}domain $value$NL"
+value=$(option dns-search "${IF_DNS_SEARCH:-}")
+[ -n "$value" ] && R="${R}search $value$NL"
+value=$(option dns-sortlist "${IF_DNS_SORTLIST:-}")
+[ -n "$value" ] && R="${R}sortlist $value$NL"
+value=$(option dns-options "${IF_DNS_OPTIONS:-}")
+[ -n "$value" ] && R="${R}options $value$NL"
+# dns-nameservers holds a list, and several dns-nameserver lines may stand
+# beside it; every word of either is one address
+for NS in $(option dns-nameservers "${IF_DNS_NAMESERVERS:-}") \
+          $(option dns-nameserver "${IF_DNS_NAMESERVER:-}"); do
+    R="${R}nameserver $NS$NL"
+done
+
+[ -n "$R" ] || exit 0
+printf '%s' "$R" | "$RESOLVCONF" -a "${IFACE}.inet" || :
+exit 0
