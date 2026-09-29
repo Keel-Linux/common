@@ -1,0 +1,15 @@
+#!/bin/bash
+# Withdraw what if-up.d/000resolvconf-ifupdown-ng registered with
+# resolvconf, under ifupdown-ng only (Keel-Linux/common#15). resolvconf's
+# own if-down.d hook exits without ADDRFAM, as its if-up.d hook does.
+# Both family records are withdrawn; resolvconf -d on a record that was
+# never added does nothing.
+
+RESOLVCONF="${RESOLVCONF:-/usr/sbin/resolvconf}"
+
+[ -z "${ADDRFAM:-}" ] || exit 0
+[ -x "$RESOLVCONF" ] || exit 0
+
+"$RESOLVCONF" -d "${IFACE}.inet6" || :
+"$RESOLVCONF" -d "${IFACE}.inet" || :
+exit 0
