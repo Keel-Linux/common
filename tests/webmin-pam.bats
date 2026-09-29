@@ -23,18 +23,30 @@ setup() {
     run "$SCRIPT"
     [ "$status" -eq 0 ]
 
-    run ! authenticates "anything at all"
+    run refuses "anything at all"
+    [ "$status" -eq 0 ]
 }
 
-@test "what is left is the field itself, which is rootpass's half" {
-    run "$SCRIPT"
-    [ "$status" -eq 0 ]
-
+@test "the empty password stops getting in as well, through this stack" {
     run authenticates ""
     [ "$status" -eq 0 ]
 
-    printf 'root:*:20718:0:99999:7:::\n' > "$SHADOW_FILE"
+    run "$SCRIPT"
+    [ "$status" -eq 0 ]
+
     run nothing_authenticates
+    [ "$status" -eq 0 ]
+}
+
+@test "a stack that keeps the option still lets anything in, which is what the field is for" {
+    run "$SCRIPT"
+    [ "$status" -eq 0 ]
+
+    run authenticates "anything at all" root "$PAM_COMMON_AUTH"
+    [ "$status" -eq 0 ]
+
+    printf 'root:*:20718:0:99999:7:::\n' > "$SHADOW_FILE"
+    run nothing_authenticates root "$PAM_COMMON_AUTH"
     [ "$status" -eq 0 ]
 }
 

@@ -27,7 +27,8 @@ setup() {
     stack_allows_blank
     run "$SCRIPT"
     [ "$status" -eq 0 ]
-    run ! authenticates ""
+    run refuses ""
+    [ "$status" -eq 0 ]
 }
 
 @test "the field left behind is one passwd --unlock accepts" {
@@ -55,8 +56,10 @@ setup() {
     echo 'root:hunter2' | chpasswd
     run authenticates "hunter2"
     [ "$status" -eq 0 ]
-    run ! authenticates ""
-    run ! authenticates "hunter3"
+    run refuses ""
+    [ "$status" -eq 0 ]
+    run refuses "hunter3"
+    [ "$status" -eq 0 ]
 }
 
 @test "a build time ROOT_PASS is the password, and nothing else is" {
@@ -65,7 +68,8 @@ setup() {
     [ "$status" -eq 0 ]
     run authenticates "s3cret"
     [ "$status" -eq 0 ]
-    run ! authenticates ""
+    run refuses ""
+    [ "$status" -eq 0 ]
 }
 
 @test "a ROOT_PASS holding a glob character is set as written" {
@@ -77,7 +81,8 @@ setup() {
     [ "$status" -eq 0 ]
     run authenticates 'p*ss'
     [ "$status" -eq 0 ]
-    run ! authenticates 'pass'
+    run refuses 'pass'
+    [ "$status" -eq 0 ]
 }
 
 @test "a chroot only build locks the account instead" {
