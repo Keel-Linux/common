@@ -59,6 +59,27 @@ setup() {
     [ -z "$output" ]
 }
 
+# the one prefix rule both helpers apply
+
+@test "has_prefix: each product prefix followed by a hyphen" {
+    kvf_has_prefix turnkey-core-19.0-trixie-amd64
+    kvf_has_prefix keel-core-19.0-trixie-amd64
+}
+
+@test "has_prefix: a prefix without its hyphen is not one" {
+    run kvf_has_prefix keelson-19.0-trixie-amd64
+    [ "$status" -eq 1 ]
+    run kvf_has_prefix turnkey
+    [ "$status" -eq 1 ]
+}
+
+@test "has_prefix: an empty string and no argument have none" {
+    run kvf_has_prefix ""
+    [ "$status" -eq 1 ]
+    run kvf_has_prefix
+    [ "$status" -eq 1 ]
+}
+
 # the grammar of the four fields
 
 @test "is_app_version: the four fields of an appliance" {
@@ -193,6 +214,14 @@ setup() {
     run "$SCRIPT" turnkey-core-19.0-trixie-amd64 "$SCRATCH" extra
     [ "$status" -eq 1 ]
     [[ $output == *"usage: keel-version-files"* ]]
+}
+
+@test "script: a hyphenated release tag is refused, and the usage says why" {
+    run "$SCRIPT" turnkey-core-19.0-rc1-trixie-amd64 "$SCRATCH"
+    [ "$status" -eq 1 ]
+    run "$SCRIPT" -h
+    [[ $output == *"VERSION_TAG"* ]]
+    [[ $output == *"no hyphen"* ]]
 }
 
 @test "script: -h prints the usage and succeeds" {

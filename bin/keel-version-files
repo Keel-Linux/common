@@ -27,6 +27,10 @@ RELEASE_VERSION, the string turnkey-version.py builds from the product
 changelog (turnkey-core-19.0-trixie-amd64, keel-core-19.0-trixie-amd64).
 Whatever prefix it carries, the compatibility file is written with the
 turnkey- prefix its parsers require and the Keel file with keel-.
+
+The release tag a build passes as VERSION_TAG is appended to the version
+field, so it must contain no hyphen: --tag=rc gives core-19.0rc-trixie-amd64
+and is accepted, --tag=-rc1 gives a fifth field and is refused.
 USAGE
 }
 

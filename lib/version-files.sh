@@ -30,6 +30,20 @@ KVF_PREFIXES="turnkey keel"
 KVF_TURNKEY_PREFIX=turnkey
 KVF_KEEL_PREFIX=keel
 
+# kvf_has_prefix TEXT
+# TEXT begins with one of the product prefixes and its hyphen. The one rule
+# both helpers below apply: kvf_app_version removes such a prefix, and
+# kvf_is_app_version refuses a string that still carries one.
+kvf_has_prefix() {
+    local text=${1-} prefix
+    for prefix in $KVF_PREFIXES; do
+        if [ "${text#"$prefix"-}" != "$text" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
 # kvf_app_version RELEASE_NAME
 # The <app>-<version>-<codename>-<arch> part of a release version string,
 # with at most one product prefix removed: turnkey-wordpress-19.0-trixie-amd64
@@ -37,13 +51,10 @@ KVF_KEEL_PREFIX=keel
 # neither prefix is returned whole, and an app whose own name starts with
 # the other product's name keeps it.
 kvf_app_version() {
-    local text=${1-} prefix
-    for prefix in $KVF_PREFIXES; do
-        if [ "${text#"$prefix"-}" != "$text" ]; then
-            printf '%s\n' "${text#"$prefix"-}"
-            return 0
-        fi
-    done
+    local text=${1-}
+    if kvf_has_prefix "$text"; then
+        text=${text#*-}
+    fi
     printf '%s\n' "$text"
 }
 
@@ -55,12 +66,10 @@ kvf_app_version() {
 # that still carries a product prefix fails, because "turnkey" would then
 # be read as the app: the prefix comes off first, with kvf_app_version.
 kvf_is_app_version() {
-    local text=${1-} prefix
-    for prefix in $KVF_PREFIXES; do
-        if [ "${text#"$prefix"-}" != "$text" ]; then
-            return 1
-        fi
-    done
+    local text=${1-}
+    if kvf_has_prefix "$text"; then
+        return 1
+    fi
     [[ $text =~ ^[a-z0-9][a-z0-9.+-]*-[0-9][^-]*-[a-z][a-z0-9]*-[a-z0-9]+$ ]]
 }
 
