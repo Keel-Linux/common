@@ -1,0 +1,7 @@
+#!/bin/bash -e
+
+# Webmin's Network Configuration module (webmin-net) is installed read-only:
+# see overlays/turnkey.d/webmin-net/usr/local/sbin/webmin-net-read-only,
+# which apt also runs after every dpkg run, and tests/webmin-net.bats.
+
+webmin-net-read-only

@@ -4,6 +4,25 @@ Measured on 2026-09-24 against upstream 19.x (b60dd23), following the
 project decision 0003 (90 percent floor per repository, 95 percent for every
 file our changes touch).
 
+## Branch fix/webmin-net-read-only: 100 percent, two new files (2026-09-29)
+
+`tests/webmin-net.bats` (32 bats, kcov 43 on Debian 13) measures
+`overlays/turnkey.d/webmin-net/usr/local/sbin/webmin-net-read-only`,
+11 of 11 lines, and `conf/turnkey.d/webmin-net`, 1 of 1 line, which runs
+it at build. The apt hook beside it is configuration; the suite reads it
+back through `apt-config` and runs the command apt would run. Every other
+target is unchanged at 100.
+
+The suite does not model Webmin. It fetches the two packages a core build
+installs (`webmin` and `webmin-net` 2.660.turnkey0, pinned by SHA-256;
+`WEBMIN_DEB_CACHE` keeps them between runs, so it needs the network once)
+and runs the module's own CGIs, and the acl module's user creation,
+chrooted in a scratch appliance root, in a private mount, UTS and network
+namespace, over interfaces files Keel writes. Four tests pin what the
+module does without the script (two for root, one for a user created
+later, one for Module Config), so a scratch root that stopped reproducing
+turnkeylinux/tracker#2118 would fail rather than pass.
+
 ## Branch fix/webmin-auth-hardening: 100 percent, five files (2026-09-29)
 
 Every file this branch touches has a target in `tests/coverage.sh`, and the

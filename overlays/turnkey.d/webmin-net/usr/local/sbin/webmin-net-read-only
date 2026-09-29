@@ -1,0 +1,64 @@
+#!/bin/bash -e
+
+# webmin-net-read-only: makes Webmin's Network Configuration module
+# (webmin-net) read-only for every Webmin user that has no ACL of its own
+# for it: root on a fresh image, and any user created later on the Webmin
+# Users page. It shows interfaces and DNS and still edits /etc/hosts, but
+# it does not write the network configuration, which belongs to inithooks
+# and confconsole.
+#
+# It does so in the module's defaultacl, the one file Webmin reads for a
+# user or group with no ACL file for the module (get_module_acl and
+# get_group_module_acl in web-lib-funcs.pl). An ACL an administrator sets
+# for a user later is that user's own file and is left alone.
+#
+# Why the module's own file, under /usr/share/webmin: no file under
+# /etc/webmin reaches both root's default and users created later. A
+# <user>.acl covers one existing user; the acl module copies its creator's
+# files to a new user only with perms=1, which is off by default; negativeacl
+# and safeacl apply only to users flagged negative or safe. The file is not
+# one dpkg knows: webmin-net ships net.wbm.gz and its postinst unpacks it
+# with install-module.pl, so 'dpkg --verify webmin-net' and debsums, which
+# check module-archives/net.wbm.gz, report nothing (measured). The same
+# postinst overwrites it on every upgrade, hence the apt hook. Once Keel
+# builds its own webmin package (Keel-Linux/tracker#17), these defaults
+# belong in that package's defaultacl and this script goes away.
+#
+#   ifcs=1    interfaces to view: every save, delete and activation,
+#             boot-time or live, is refused
+#   dns=1     DNS client and hostname to view
+#   routes=0  no routing page: create_route.cgi and delete_routes.cgi add
+#             and delete live routes whenever routes is not 0, so 0 is the
+#             only value that refuses them
+#   apply=0   no apply, which would run /etc/init.d/networking
+#   noconfig=1  no Module Config (Webmin's config.cgi and config_save.cgi):
+#             there hosts_file names the file the hosts page rewrites, and
+#             the hosts page stays writable, so without this any file root
+#             can write would take lines from that page
+#
+# Why: saving an interface, even unchanged, drops its 'iface ... inet6
+# dhcp' stanza and its hostname and dns-nameservers options on Keel's
+# interfaces files, after which IPv6 is off on it (turnkeylinux/tracker#2118;
+# tests/webmin-net.bats measures it on the module itself).
+#
+# Run by conf/turnkey.d/webmin-net at build, and by apt after every dpkg
+# run (/etc/apt/apt.conf.d/80webmin-net-read-only), because webmin-net's
+# postinst reinstalls the module, defaultacl included, on every upgrade.
+# Does nothing where Webmin or the module is not installed.
+
+WEBMIN_CONFIG=${WEBMIN_CONFIG:-/etc/webmin}
+if [ -z "${WEBMIN_ROOT:-}" ]; then
+    [ -r "$WEBMIN_CONFIG/miniserv.conf" ] || exit 0
+    WEBMIN_ROOT=$(sed -n 's/^root=//p' "$WEBMIN_CONFIG/miniserv.conf")
+fi
+defaults=$WEBMIN_ROOT/net/defaultacl
+[ -f "$defaults" ] || exit 0
+
+# the packaged file has no newline after its last line
+if [ -n "$(tail -c 1 "$defaults")" ]; then
+    echo >> "$defaults"
+fi
+for setting in ifcs=1 dns=1 routes=0 apply=0 noconfig=1; do
+    sed -i "/^${setting%%=*}=/d" "$defaults"
+    echo "$setting" >> "$defaults"
+done

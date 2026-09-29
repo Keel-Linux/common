@@ -24,6 +24,8 @@ targets=(
     "conf/turnkey.d/rootpass:tests/rootpass.bats"
     "conf/turnkey.d/webmin-enable:tests/webmin-enable.bats"
     "conf/turnkey.d/webmin-pam:tests/webmin-pam.bats"
+    "conf/turnkey.d/webmin-net:tests/webmin-net.bats"
+    "overlays/turnkey.d/webmin-net/usr/local/sbin/webmin-net-read-only:tests/webmin-net.bats"
     "overlays/turnkey.d/resolvconf-ifupdown-ng/etc/network/if-up.d/000resolvconf-ifupdown-ng:tests/resolvconf-ifupdown-ng.bats"
     "overlays/turnkey.d/resolvconf-ifupdown-ng/etc/network/if-down.d/resolvconf-ifupdown-ng:tests/resolvconf-ifupdown-ng.bats"
 )
