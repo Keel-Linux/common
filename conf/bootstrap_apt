@@ -205,7 +205,7 @@ if [[ $deb_ver -ge 13 ]]; then
     # Main repos
     cat > $SOURCES_LIST/sources.sources <<EOF
 Types: deb
-URIs: http://archive.turnkeylinux.org/debian
+URIs: https://archive.turnkeylinux.org/debian
 Suites: $KEY_CODENAME
 Components: main
 Architectures: ${SUPPORTED_ARCH[*]}
@@ -222,7 +222,7 @@ EOF
     # Security repos
     cat > $SOURCES_LIST/security.sources.sources <<EOF
 Types: deb
-URIs: http://archive.turnkeylinux.org/debian
+URIs: https://archive.turnkeylinux.org/debian
 Suites: $KEY_CODENAME-security
 Components: main
 Enabled: $tkl_apt_repo_enabled
@@ -248,7 +248,7 @@ EOF
     # TurnKey testing repo
     cat > $SOURCES_LIST/turnkey-testing.sources <<EOF
 Types: deb
-URIs: http://archive.turnkeylinux.org/debian
+URIs: https://archive.turnkeylinux.org/debian
 Suites: $KEY_CODENAME-testing
 Components: main
 Enabled: $tkl_apt_testing_enabled
@@ -258,14 +258,14 @@ EOF
 else
     # legacy sources.list files for bookworm and earlier
     cat > $SOURCES_LIST/sources.list <<EOF
-deb [signed-by=$key_dir/tkl-$KEY_CODENAME-main.gpg] http://archive.turnkeylinux.org/debian $KEY_CODENAME main
+deb [signed-by=$key_dir/tkl-$KEY_CODENAME-main.gpg] https://archive.turnkeylinux.org/debian $KEY_CODENAME main
 
 deb $MIRROR_URL $CODENAME ${MAIN[*]}
 deb $MIRROR_URL $CODENAME ${CONTRIB[*]}
 #deb $MIRROR_URL $CODENAME ${NON_FREE[*]}
 EOF
     cat > $SOURCES_LIST/security.sources.list <<EOF
-deb [signed-by=$key_dir/tkl-$KEY_CODENAME-security.gpg] http://archive.turnkeylinux.org/debian $KEY_CODENAME-security main
+deb [signed-by=$key_dir/tkl-$KEY_CODENAME-security.gpg] https://archive.turnkeylinux.org/debian $KEY_CODENAME-security main
 
 deb $SEC_MIRROR $sec_repo ${MAIN[*]}
 deb $MIRROR_URL $CODENAME ${CONTRIB[*]}
@@ -276,7 +276,7 @@ EOF
         TKL_TESTING_LIST=$TKL_TESTING_LIST.disabled
     fi
     cat > $SOURCES_LIST/$TKL_TESTING_LIST <<EOF
-deb [signed-by=$key_dir/tkl-$KEY_CODENAME-testing.gpg] http://archive.turnkeylinux.org/debian $KEY_CODENAME-testing main
+deb [signed-by=$key_dir/tkl-$KEY_CODENAME-testing.gpg] https://archive.turnkeylinux.org/debian $KEY_CODENAME-testing main
 EOF
     DEB_BACKPORT_LIST=$SOURCES_LIST/debian-backports.list
     if [[ -z "$BACKPORTS" ]]; then
