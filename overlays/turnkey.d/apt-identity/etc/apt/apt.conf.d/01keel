@@ -1,0 +1,13 @@
+// The User-Agent apt announces to every archive it contacts.
+//
+// It names the distribution and nothing else. What used to stand here was
+// /etc/apt/apt.conf.d/01turnkey, written per appliance by mk/turnkey.mk:
+//
+//   Acquire::http::User-Agent "TurnKey APT-HTTP/1.3 (turnkey-wordpress-19.0-trixie-amd64)";
+//
+// so deb.debian.org, security.debian.org, every mirror in between and anyone
+// watching the connection were told which appliance this machine is and which
+// version it runs, on every apt run it ever made. Keel-Linux/common#6.
+//
+// The https method of apt reads this same setting, so one line covers both.
+Acquire::http::User-Agent "Keel APT-HTTP/1.3";
