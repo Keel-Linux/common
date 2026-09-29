@@ -4,43 +4,44 @@ Measured on 2026-09-24 against upstream 19.x (b60dd23), following the
 project decision 0003 (90 percent floor per repository, 95 percent for every
 file our changes touch).
 
-## Branch fix/webmin-auth-hardening: 100 percent, four files (2026-09-28)
+## Branch fix/webmin-auth-hardening: 100 percent, five files (2026-09-29)
 
 `tests/coverage.sh` now measures a list of files rather than one, and every
-file this branch touches is on it. Measured with kcov 43 over 36 bats:
+file this branch touches is on it. Measured with kcov 43 over 57 bats on
+Debian 13:
 
 | File | Lines | Covered | Percent |
 |------|-------|---------|---------|
+| conf/samba-rootpass | 8 | 8 | 100 |
 | conf/turnkey.d/postfix-local | 17 | 17 | 100 |
 | conf/turnkey.d/rootpass | 6 | 6 | 100 |
-| conf/turnkey.d/webmin-enable | 9 | 9 | 100 |
+| conf/turnkey.d/webmin-enable | 10 | 10 | 100 |
 | conf/turnkey.d/webmin-pam | 7 | 7 | 100 |
-| Total | 39 | 39 | 100 |
+| Total | 48 | 48 | 100 |
 
-`conf/turnkey.d/rootpass` and `conf/turnkey.d/webmin-enable` changed shebang
-from `/bin/sh` to `/bin/bash`, because kcov measures bash and not dash and
-decision 0003 gives no exemption for a file a change touches. rootpass uses
-no bash construct; webmin-enable is new code in a file that was one line.
+`conf/turnkey.d/rootpass`, `conf/turnkey.d/webmin-enable` and
+`conf/samba-rootpass` changed shebang from `/bin/sh` to `/bin/bash`, because
+kcov measures bash and not dash and decision 0003 gives no exemption for a
+file a change touches.
 
 The gate in `.github/workflows/tests.yml` stays at 100, the measured number.
 
-Every exit path is covered: `rootpass` in its three branches (a build
-password, no build password, chroot only), `webmin-pam` on both of its
-`fatal` paths and the happy one, `webmin-enable` on its single path with the
-three verdicts systemd gives its conditions.
-
 The suite asserts behaviour and not configuration. The question "can this
-password get in" is answered by the real `crypt(3)` through perl, which is
-the function pam_unix compares with, wrapped in the two rules Linux-PAM
-applies around it; those rules were confirmed against `unix_chkpwd`, the
-helper pam_unix itself runs, with a scratch shadow file bind mounted over
-`/etc/shadow` under `unshare -r -m`. The verdict on whether the web
-interface would start is `systemd-analyze condition`, systemd's own
-evaluator, and the units are handed to `systemd-analyze verify`. The shadow
-tools are the one thing stubbed, because `usermod`, `chpasswd` and `passwd`
-chroot into the root they are given and cannot be pointed at a scratch tree
-by an ordinary user; each stub records the behaviour it reproduces and the
-command that measured it.
+password get in" is put to the real Linux-PAM: `tests/pam-authenticate`
+calls `pam_authenticate` through libpam over the scratch image's own stack,
+in a private mount namespace with the scratch shadow and passwd files bind
+mounted over the real ones, so pam_unix and its unix_chkpwd helper are the
+installed ones. An earlier version of the suite modelled pam_unix by hand
+and reported an acceptance the module does not make; nothing is modelled
+now. What pam_unix makes of the crypt() of the empty string differs between
+libpam 1.5 and 1.7, so the five tests that depend on it run on 1.7, the
+appliance's, and skip by name elsewhere: the CI runner has 1.5.3 and skips
+them. The verdict on whether the web interface would start is
+`systemd-analyze condition` over the packaged `webmin.service` and the
+drop-in together, both handed to `systemd-analyze verify`. The shadow tools
+and `smbpasswd` are the things stubbed, because they chroot into the root
+they are given or talk to a daemon; each stub records the behaviour it
+reproduces.
 
 `tests/before-firstboot.bats` runs the three conf scripts over one scratch
 image in the order a build runs them and asks the whole question of the
