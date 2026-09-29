@@ -53,15 +53,7 @@ not the last command of its test passes whatever happens; as the last
 command it does decide the test, because bats takes the last status as the
 verdict. `run !` asserts wherever it stands, which is why it is the
 convention. shellcheck grades the two cases differently: SC2314 is an error
-for the inert one and a note otherwise. Of the three bare negations in
-`tests/postfix-local.bats`, only line 96 is inert; lines 66 and 97 are last
-in their tests. It is left for the pull request that owns that file.
-
-A refutation is written `run ! cmd`, never a bare `! cmd`: bash does not
-apply errexit to a negated command, so a bare one is inert unless it happens
-to be the last command of the test body, where it alone decides the verdict.
-shellcheck names the class SC2314 and grades the two cases apart, error for
-the inert ones and note for the rest. `tests/postfix-local.bats` had three
+for the inert one and a note otherwise. `tests/postfix-local.bats` had three
 bare negations: line 96 was inert and lines 66 and 97 did assert, because
 they were last. All three are `run !` now, so none of them depends on its
 position, and the check runs for every repository in the reusable
