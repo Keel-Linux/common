@@ -17,6 +17,7 @@ setup() {
 }
 
 @test "a wrong password stops getting in" {
+    require_measured_libpam
     run authenticates "anything at all"
     [ "$status" -eq 0 ]
 
@@ -28,6 +29,7 @@ setup() {
 }
 
 @test "the empty password stops getting in as well, through this stack" {
+    require_measured_libpam
     run authenticates ""
     [ "$status" -eq 0 ]
 
@@ -39,6 +41,7 @@ setup() {
 }
 
 @test "a stack that keeps the option still lets anything in, which is what the field is for" {
+    require_measured_libpam
     run "$SCRIPT"
     [ "$status" -eq 0 ]
 

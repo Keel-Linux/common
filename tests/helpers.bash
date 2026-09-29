@@ -5,17 +5,19 @@
 # pam_unix that takes it: tests/pam-authenticate loads the real libpam,
 # starts the scratch image's own stack and calls pam_authenticate, in a
 # private mount namespace where the scratch shadow and passwd files are bind
-# mounted over /etc/shadow and /etc/passwd (sandbox_mount_ns). pam_unix runs
-# in that process as root, which is the path Webmin's miniserv takes: it reads
-# the shadow file itself and does not go through unix_chkpwd.
+# mounted over /etc/shadow and /etc/passwd (sandbox_mount_ns). Everything
+# pam_unix does is the real thing, including running unix_chkpwd, which it
+# does for every shadowed account even as root.
 #
-# That matters, because the two paths disagree. Measured on libpam 1.7.0-5
-# with a blank equivalent field ('' or 'U6aMy0wojraho', which crypt()
-# returns for the empty string) and nullok in the stack, pam_unix in process
-# accepts any password without asking for one, while unix_chkpwd refuses a
-# non-empty one. An earlier version of these helpers modelled pam_unix by
-# hand and reported acceptances the module does not make; nothing here is a
-# model any more.
+# It runs it twice, and that is what a hand model of it missed. Before it
+# asks for a password at all, _unix_blankpasswd() hands the helper an empty
+# one, with nullok when the stack carries it; if the helper accepts, the
+# account "has a blank password" and is authenticated without being asked.
+# On libpam 1.7 the helper accepts the empty password against any field
+# crypt() returns for it, so with nullok a field of 'U6aMy0wojraho' lets any
+# password in. Libpam 1.5 refuses that same empty password under nullok,
+# and accepts it without. Which one a verdict holds for is therefore a
+# property of the libpam that gave it: see require_measured_libpam.
 #
 # The shadow tools are stubs, because usermod, chpasswd and passwd chroot
 # into the root they are given and so cannot touch a scratch tree as an
@@ -50,6 +52,24 @@ scratch_image() {
     export PAM_WEBMIN=$IMAGE/etc/pam.d/webmin
     export PAM_COMMON_AUTH=$IMAGE/etc/pam.d/common-auth
     export SYSTEMD_DIR=$IMAGE/etc/systemd/system
+}
+
+# MEASURED_LIBPAM
+# The libpam the version dependent facts in these suites were measured on:
+# Debian 13's, which is the one an appliance runs.
+MEASURED_LIBPAM=1.7
+
+# require_measured_libpam
+# Skips the calling test, naming both versions, when the libpam-modules
+# installed here is not MEASURED_LIBPAM. For a test whose verdict differs
+# between libpam versions; a test that holds on every version does not call
+# it.
+require_measured_libpam() {
+    local here
+    here=$(dpkg-query -W -f '${Version}' libpam-modules 2>/dev/null || true)
+    if [[ "$here" != "$MEASURED_LIBPAM".* ]]; then
+        skip "libpam-modules ${here:-unknown} here; measured on $MEASURED_LIBPAM"
+    fi
 }
 
 # field_of USER
