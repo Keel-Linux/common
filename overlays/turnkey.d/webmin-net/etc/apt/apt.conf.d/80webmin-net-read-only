@@ -2,4 +2,7 @@
 // upgrade, and with it the module's defaultacl, which lets every Webmin user
 // rewrite /etc/network/interfaces. Put the read-only defaults back after
 // each dpkg run; see /usr/local/sbin/webmin-net-read-only.
-DPkg::Post-Invoke { "if [ -x /usr/local/sbin/webmin-net-read-only ]; then /usr/local/sbin/webmin-net-read-only; fi"; };
+//
+// The command never fails apt or dpkg: if the script fails, it says so on
+// standard error and in the journal (tag webmin-net-read-only), and exits 0.
+DPkg::Post-Invoke { "if [ -x /usr/local/sbin/webmin-net-read-only ]; then /usr/local/sbin/webmin-net-read-only || { echo 'webmin-net-read-only failed: the Webmin network module may be writable' >&2; logger -t webmin-net-read-only 'failed after a dpkg run' 2>/dev/null; true; }; fi"; };

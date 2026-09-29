@@ -102,11 +102,12 @@ hook_command() {
 }
 
 @test "running the script twice writes each setting once" {
-    lines_before=$(grep -c '' "$WEBMIN_TREE/net/defaultacl")
     "$SCRIPT"
+    cp "$WEBMIN_TREE/net/defaultacl" "$BATS_TEST_TMPDIR/once"
     "$SCRIPT"
-    run grep -c '' "$WEBMIN_TREE/net/defaultacl"
-    [ "$output" = "$lines_before" ]
+    cmp "$BATS_TEST_TMPDIR/once" "$WEBMIN_TREE/net/defaultacl"
+    run sh -c "cut -d= -f1 '$WEBMIN_TREE/net/defaultacl' | sort | uniq -d"
+    [ -z "$output" ]
 }
 
 @test "the script keeps the defaults it does not own" {

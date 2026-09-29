@@ -12,6 +12,18 @@
 # get_group_module_acl in web-lib-funcs.pl). An ACL an administrator sets
 # for a user later is that user's own file and is left alone.
 #
+# Why the module's own file, under /usr/share/webmin: no file under
+# /etc/webmin reaches both root's default and users created later. A
+# <user>.acl covers one existing user; the acl module copies its creator's
+# files to a new user only with perms=1, which is off by default; negativeacl
+# and safeacl apply only to users flagged negative or safe. The file is not
+# one dpkg knows: webmin-net ships net.wbm.gz and its postinst unpacks it
+# with install-module.pl, so 'dpkg --verify webmin-net' and debsums, which
+# check module-archives/net.wbm.gz, report nothing (measured). The same
+# postinst overwrites it on every upgrade, hence the apt hook. Once Keel
+# builds its own webmin package (Keel-Linux/tracker#17), these defaults
+# belong in that package's defaultacl and this script goes away.
+#
 #   ifcs=1    interfaces to view: every save, delete and activation,
 #             boot-time or live, is refused
 #   dns=1     DNS client and hostname to view
@@ -19,6 +31,10 @@
 #             and delete live routes whenever routes is not 0, so 0 is the
 #             only value that refuses them
 #   apply=0   no apply, which would run /etc/init.d/networking
+#   noconfig=1  no Module Config (Webmin's config.cgi and config_save.cgi):
+#             there hosts_file names the file the hosts page rewrites, and
+#             the hosts page stays writable, so without this any file root
+#             can write would take lines from that page
 #
 # Why: saving an interface, even unchanged, drops its 'iface ... inet6
 # dhcp' stanza and its hostname and dns-nameservers options on Keel's
@@ -42,7 +58,7 @@ defaults=$WEBMIN_ROOT/net/defaultacl
 if [ -n "$(tail -c 1 "$defaults")" ]; then
     echo >> "$defaults"
 fi
-for setting in ifcs=1 dns=1 routes=0 apply=0; do
+for setting in ifcs=1 dns=1 routes=0 apply=0 noconfig=1; do
     sed -i "/^${setting%%=*}=/d" "$defaults"
     echo "$setting" >> "$defaults"
 done
