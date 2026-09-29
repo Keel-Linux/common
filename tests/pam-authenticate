@@ -1,0 +1,125 @@
+#!/usr/bin/python3
+"""Ask the real Linux-PAM whether a password gets a user in.
+
+    pam-authenticate CONFDIR SERVICE USER PASSWORD
+
+Loads libpam.so.0, starts SERVICE with its stack read from CONFDIR
+(pam_start_confdir, Linux-PAM 1.4 and later) and calls pam_authenticate,
+answering every prompt with PASSWORD. The modules in the stack are the ones
+installed on this machine, and they do what they do in any application,
+Webmin's miniserv included: pam_unix runs unix_chkpwd for a shadowed
+account, as root or not.
+
+Run it inside a private mount namespace with a scratch shadow file bind
+mounted over /etc/shadow (helpers.bash does), never against the real one.
+
+Exit status: 0 authenticated, 1 refused (PAM_AUTH_ERR), 3 anything else,
+so that a sandbox or stack that does not work is never read as a refusal.
+Prints one line: the PAM return code and whether the stack asked for a
+password at all.
+"""
+
+import ctypes
+import ctypes.util
+import sys
+
+PAM_SUCCESS = 0
+PAM_AUTH_ERR = 7
+PAM_PROMPT_ECHO_OFF = 1
+PAM_PROMPT_ECHO_ON = 2
+PAM_FAIL_DELAY = 10
+
+
+class PamMessage(ctypes.Structure):
+    _fields_ = [("msg_style", ctypes.c_int), ("msg", ctypes.c_char_p)]
+
+
+class PamResponse(ctypes.Structure):
+    _fields_ = [("resp", ctypes.c_void_p), ("resp_retcode", ctypes.c_int)]
+
+
+CONV_FUNC = ctypes.CFUNCTYPE(
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.POINTER(ctypes.POINTER(PamMessage)),
+    ctypes.POINTER(ctypes.POINTER(PamResponse)),
+    ctypes.c_void_p,
+)
+
+
+# void (*)(int retval, unsigned usec_delay, void *appdata_ptr)
+DELAY_FUNC = ctypes.CFUNCTYPE(None, ctypes.c_int, ctypes.c_uint,
+                              ctypes.c_void_p)
+
+
+class PamConv(ctypes.Structure):
+    _fields_ = [("conv", CONV_FUNC), ("appdata_ptr", ctypes.c_void_p)]
+
+
+def main(argv):
+    if len(argv) != 5:
+        print(__doc__.strip().splitlines()[2].strip(), file=sys.stderr)
+        return 3
+    confdir, service, user, password = argv[1:]
+
+    libpam = ctypes.CDLL("libpam.so.0")
+    libc = ctypes.CDLL(ctypes.util.find_library("c"))
+    libc.calloc.restype = ctypes.c_void_p
+    libc.calloc.argtypes = [ctypes.c_size_t, ctypes.c_size_t]
+    libc.strdup.restype = ctypes.c_void_p
+    libc.strdup.argtypes = [ctypes.c_char_p]
+    libpam.pam_start_confdir.argtypes = [
+        ctypes.c_char_p, ctypes.c_char_p, ctypes.POINTER(PamConv),
+        ctypes.c_char_p, ctypes.POINTER(ctypes.c_void_p)]
+    libpam.pam_authenticate.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    libpam.pam_end.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    libpam.pam_set_item.argtypes = [ctypes.c_void_p, ctypes.c_int,
+                                    ctypes.c_void_p]
+
+    prompted = []
+
+    # libpam frees the responses, so they are allocated with its allocator.
+    def converse(count, messages, responses, _appdata):
+        array = libc.calloc(count, ctypes.sizeof(PamResponse))
+        if not array:
+            return 5
+        reply = ctypes.cast(array, ctypes.POINTER(PamResponse))
+        for i in range(count):
+            style = messages[i].contents.msg_style
+            if style in (PAM_PROMPT_ECHO_OFF, PAM_PROMPT_ECHO_ON):
+                prompted.append(style)
+                reply[i].resp = libc.strdup(password.encode())
+        responses[0] = reply
+        return PAM_SUCCESS
+
+    conv = PamConv(CONV_FUNC(converse), None)
+    handle = ctypes.c_void_p()
+    rc = libpam.pam_start_confdir(service.encode(), user.encode(),
+                                  ctypes.byref(conv), confdir.encode(),
+                                  ctypes.byref(handle))
+    if rc != PAM_SUCCESS:
+        print("pam_start_confdir failed: %d" % rc, file=sys.stderr)
+        return 3
+    # pam_unix asks for a delay of about two seconds after a refusal. An
+    # application that sets PAM_FAIL_DELAY is handed the delay instead of
+    # libpam sleeping it; this one ignores it. The verdict is unchanged.
+    no_delay = DELAY_FUNC(lambda _rc, _usec, _appdata: None)
+    rc = libpam.pam_set_item(handle, PAM_FAIL_DELAY,
+                             ctypes.cast(no_delay, ctypes.c_void_p))
+    if rc != PAM_SUCCESS:
+        print("pam_set_item(PAM_FAIL_DELAY) failed: %d" % rc, file=sys.stderr)
+        libpam.pam_end(handle, rc)
+        return 3
+    rc = libpam.pam_authenticate(handle, 0)
+    libpam.pam_end(handle, rc)
+
+    print("pam=%d prompted=%s" % (rc, "yes" if prompted else "no"))
+    if rc == PAM_SUCCESS:
+        return 0
+    if rc == PAM_AUTH_ERR:
+        return 1
+    return 3
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

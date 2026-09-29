@@ -1,7 +1,38 @@
 #!/bin/bash -e
 #
-# Creates required symlink so dpkg-vendor --query vendor 
-# returns the correct string
+# Makes a vendor query answer Keel.
+#
+# dpkg reads the vendor of the running system from the 'default' entry of the
+# origins directory (Dpkg::Vendor), which has to resolve to one of the files
+# beside it. The Keel file itself is shipped by the matching overlay,
+# overlays/turnkey.d/dpkg-vendor. Everything a vendor query answers comes out
+# of the file this points at: the name dpkg-vendor reports, and the tracker
+# that bug reporting tools address. It used to point at TurnKey, so both
+# named TurnKey (Keel-Linux/common#6).
+#
+# The Keel file keeps "Parent: Debian", and that line is not decoration.
+# There is no Dpkg::Vendor::Keel perl module, so Dpkg::Vendor falls back to
+# the parent's object, Dpkg::Vendor::Debian, the one TurnKey resolved to:
+# Debian's hardening defaults, update-buildflags hook and changelog
+# handling. Without Parent it would fall to Dpkg::Vendor::Default instead.
+#
+# DPKG_ORIGINS_DIR is dpkg's own override of that directory, honoured here so
+# tests/dpkg-vendor.bats can arrange a tree and then ask the real dpkg-vendor
+# what it makes of it, rather than reading back the link this wrote. A build
+# leaves it unset and the directory is /etc/dpkg/origins.
 
-rm -rf /etc/dpkg/origins/default
-ln -s /etc/dpkg/origins/TurnKey /etc/dpkg/origins/default
+fatal() { echo "'$(basename "$0")' Error: $*" >&2; exit 1; }
+
+origins="${DPKG_ORIGINS_DIR:-/etc/dpkg/origins}"
+vendor="Keel"
+
+[ -d "$origins" ] || fatal "the dpkg origins directory '$origins' does not exist"
+[ -f "$origins/$vendor" ] || fatal "'$origins/$vendor' is missing - it is shipped by overlays/turnkey.d/dpkg-vendor"
+
+rm -rf "$origins/default"
+ln -s "$origins/$vendor" "$origins/default"
+
+# An overlay only adds files, so a parent layer built before this change
+# leaves its TurnKey origin file behind, and dpkg keeps knowing that vendor
+# by name. Remove it, as apt-identity removes a stale 01turnkey.
+rm -f "$origins/TurnKey"

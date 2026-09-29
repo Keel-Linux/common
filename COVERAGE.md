@@ -4,13 +4,123 @@ Measured on 2026-09-24 against upstream 19.x (b60dd23), following the
 project decision 0003 (90 percent floor per repository, 95 percent for every
 file our changes touch).
 
-## Measured baseline on the default branch: 100 percent (2026-09-26)
+## Branch fix/webmin-net-read-only: 100 percent, two new files (2026-09-29)
+
+`tests/webmin-net.bats` (32 bats, kcov 43 on Debian 13) measures
+`overlays/turnkey.d/webmin-net/usr/local/sbin/webmin-net-read-only`,
+11 of 11 lines, and `conf/turnkey.d/webmin-net`, 1 of 1 line, which runs
+it at build. The apt hook beside it is configuration; the suite reads it
+back through `apt-config` and runs the command apt would run. Every other
+target is unchanged at 100.
+
+The suite does not model Webmin. It fetches the two packages a core build
+installs (`webmin` and `webmin-net` 2.660.turnkey0, pinned by SHA-256;
+`WEBMIN_DEB_CACHE` keeps them between runs, so it needs the network once)
+and runs the module's own CGIs, and the acl module's user creation,
+chrooted in a scratch appliance root, in a private mount, UTS and network
+namespace, over interfaces files Keel writes. Four tests pin what the
+module does without the script (two for root, one for a user created
+later, one for Module Config), so a scratch root that stopped reproducing
+turnkeylinux/tracker#2118 would fail rather than pass.
+
+## Branch fix/webmin-auth-hardening: 100 percent, five files (2026-09-29)
+
+Every file this branch touches has a target in `tests/coverage.sh`, and the
+two suites that measure no file of their own run after them. Measured with
+kcov 43 on Debian 13, 85 bats after the merge of 19.x (#8 and #10), the
+five files of this branch:
+
+| File | Lines | Covered | Percent |
+|------|-------|---------|---------|
+| conf/samba-rootpass | 8 | 8 | 100 |
+| conf/turnkey.d/postfix-local | 17 | 17 | 100 |
+| conf/turnkey.d/rootpass | 6 | 6 | 100 |
+| conf/turnkey.d/webmin-enable | 10 | 10 | 100 |
+| conf/turnkey.d/webmin-pam | 7 | 7 | 100 |
+| Total | 48 | 48 | 100 |
+
+`conf/turnkey.d/rootpass`, `conf/turnkey.d/webmin-enable` and
+`conf/samba-rootpass` changed shebang from `/bin/sh` to `/bin/bash`, because
+kcov measures bash and not dash and decision 0003 gives no exemption for a
+file a change touches.
+
+The gate in `.github/workflows/tests.yml` stays at 100, the measured number.
+
+The suite asserts behaviour and not configuration. The question "can this
+password get in" is put to the real Linux-PAM: `tests/pam-authenticate`
+calls `pam_authenticate` through libpam over the scratch image's own stack,
+in a private mount namespace with the scratch shadow and passwd files bind
+mounted over the real ones, so pam_unix and its unix_chkpwd helper are the
+installed ones. An earlier version of the suite modelled pam_unix by hand
+and reported an acceptance the module does not make; nothing is modelled
+now. What pam_unix makes of the crypt() of the empty string differs between
+libpam 1.5 and 1.7, so the five tests that depend on it run on 1.7, the
+appliance's, and skip by name elsewhere: the CI runner has 1.5.3 and skips
+them. The verdict on whether the web interface would start is
+`systemd-analyze condition` over the packaged `webmin.service` and the
+drop-in together, both handed to `systemd-analyze verify`. The shadow tools
+and `smbpasswd` are the things stubbed, because they chroot into the root
+they are given or talk to a daemon; each stub records the behaviour it
+reproduces.
+
+`tests/before-firstboot.bats` runs the three conf scripts over one scratch
+image in the order a build runs them and asks the whole question of the
+result, because no single script owns the answer.
+
+## Measured baseline on the default branch: 100 percent (2026-09-28)
 
 Pull request #2 merged on 2026-09-26 (merge commit 5a0a381) and brought
-`tests/coverage.sh` with it: conf/turnkey.d/postfix-local 17 of 17 lines under kcov, 100 percent, 7 bats. The gate in
-`.github/workflows/tests.yml` is set to 100, the measured number rounded
-down, and is only ever raised. The sections that follow record the state
-before the merge.
+`tests/coverage.sh` with it. Every file it measures is at 100 percent:
+
+| File | What it is | Measured |
+| --- | --- | --- |
+| `conf/turnkey.d/postfix-local` | the build-time postfix configuration | 100 percent, 17 of 17 lines, 7 bats |
+| `conf/turnkey.d/dpkg-vendor` | points the dpkg vendor at Keel, and removes an inherited TurnKey origin | 100 percent, 7 of 7 lines, 16 bats |
+| `conf/turnkey.d/apt-identity` | keeps the shipped apt User-Agent the one in force | 100 percent, 4 of 4 lines, 11 bats |
+
+34 bats, measured on 2026-09-29 with kcov 43 and bats 1.11. The gate in
+`.github/workflows/tests.yml` is set to 100, the measured number, and is
+only ever raised. The sections that follow record the state before the
+first merge.
+
+## The apt and vendor identity of an image
+
+Three things used to tell an archive, or a bug reporting tool, that this
+machine is a TurnKey appliance (Keel-Linux/common#6). None of the
+assertions below reads back a file the code under test wrote:
+
+- **the vendor.** `conf/turnkey.d/dpkg-vendor` points the origins `default`
+  entry at the `Keel` file the matching overlay ships. Every verdict in
+  `tests/dpkg-vendor.bats` is an answer from the real `dpkg-vendor`, pointed
+  at the tree the script produced through dpkg's own `DPKG_ORIGINS_DIR`:
+  `--query Vendor`, `--query Bugs`, `--is`, `--derives-from`. The `Keel`
+  file keeps `Parent: Debian`, so `dpkg-dev` resolves the same vendor object
+  it did before and package building is unaffected. A `TurnKey` origin file
+  inherited from a parent layer is removed, so dpkg no longer knows that
+  vendor by name.
+- **the apt User-Agent.** The header is a fixed file the overlay ships,
+  `/etc/apt/apt.conf.d/01keel`; `mk/turnkey.mk` and `mk/turnkey-desktop.mk`
+  no longer write a per-appliance `01turnkey`. Every verdict in
+  `tests/apt-identity.bats` is read off the wire: `tests/ua-recorder.py`
+  records the header a real `apt-get update` sent, over http and over TLS.
+  One test measures the hazard the conf script exists for: with a stale
+  `01turnkey` beside `01keel`, apt sends TurnKey's header, because
+  `apt.conf.d` is read in lexical order and the last assignment wins.
+- **the source URIs.** The stanzas are extracted from `conf/bootstrap_apt`
+  itself, rendered with a build's variables and handed to apt, which is
+  asked with `apt-get indextargets` what it would fetch. No network.
+
+Refutations in both suites are written `run ! cmd`, never a bare `! cmd`.
+bash does not apply errexit to a negated command, so a bare one that is
+not the last command of its test passes whatever happens; as the last
+command it does decide the test, because bats takes the last status as the
+verdict. `run !` asserts wherever it stands, which is why it is the
+convention. shellcheck grades the two cases differently: SC2314 is an error
+for the inert one and a note otherwise. `tests/postfix-local.bats` had three
+bare negations: line 96 was inert and lines 66 and 97 did assert, because
+they were last. All three are `run !` now, so none of them depends on its
+position, and the check runs for every repository in the reusable
+`test-shell` workflow.
 
 ## Baseline before the merge: 0 percent, nothing measured
 
@@ -94,3 +204,24 @@ large above):
 
 The repository total is remeasured after each step and replaces the
 0 percent above.
+
+## 2026-09-29: resolvconf under ifupdown-ng (common#15)
+
+`tests/resolvconf-ifupdown-ng.bats`, 19 tests, measures both hooks of
+`overlays/turnkey.d/resolvconf-ifupdown-ng` at 100 percent (32 and 6
+lines), with resolvconf and ifquery as stubs. They are bash scripts so that
+kcov can measure them; a `/bin/sh` script gives kcov nothing and
+`tests/coverage.sh` stopped without a message.
+
+The behaviour is proved against the real ifupdown-ng and resolvconf of the
+core layer, in an overlay of it in private mount and network namespaces on
+the build host, with a dummy interface carrying an `inet` and an `inet6`
+static stanza, each with its own `dns-nameservers`:
+
+    T=$(mktemp -d); mkdir -p $T/upper $T/work $T/merged
+    unshare -m -n sh -c "mount -t overlay overlay -o lowerdir=/mnt/builds/layers/core.rootfs,upperdir=$T/upper,workdir=$T/work $T/merged && mount -t tmpfs tmpfs $T/merged/run && mount -t proc proc $T/merged/proc && mount -t sysfs sys $T/merged/sys && cp -a overlays/turnkey.d/resolvconf-ifupdown-ng/etc/network/. $T/merged/etc/network/ && chroot $T/merged sh -c '...'"
+
+Without the hooks: `ifup` brings both addresses up and `/etc/resolv.conf`
+holds no name server. With them: both families' name servers are in
+`/etc/resolv.conf` after `ifup`, and the record is gone after `ifdown`.
+Asking ifquery from inside ifup does not wait on ifup's lock (`-l`).

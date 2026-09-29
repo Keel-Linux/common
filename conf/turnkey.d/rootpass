@@ -1,12 +1,22 @@
-#!/bin/sh -e
+#!/bin/bash -e
+
+# The password field written into an image the build gives no root password
+# to. crypt() returns no such string for any input, so nothing a caller can
+# submit matches it and the account cannot be authenticated until the first
+# boot sets a password over it with chpasswd.
+#
+# Deliberately not '!': shadow reads a field of exactly '!' as a locked
+# account, and 'passwd --unlock root', which turnkey-sudoadmin runs on every
+# first boot, then refuses it ("unlocking the password would result in a
+# passwordless account"), exits 3 and leaves the rest of that hook undone.
+NO_PASSWORD='*'
 
 # chroot only environments don't need a root password
 if [ ! "$CHROOT_ONLY" ]; then
     if [ -n "$ROOT_PASS" ]; then
-        echo root:$ROOT_PASS | chpasswd
+        echo "root:$ROOT_PASS" | chpasswd
     else
-        # this is a blank password
-        usermod -p U6aMy0wojraho root
+        usermod -p "$NO_PASSWORD" root
     fi
 else
     passwd --lock root

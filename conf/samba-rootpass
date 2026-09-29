@@ -1,18 +1,30 @@
-#!/bin/sh -ex
+#!/bin/bash -e
 
 # set samba root password
+#
+# The same account field as conf/turnkey.d/rootpass writes, for the same
+# reason: '*' is a field no password matches, through any PAM stack, until
+# the first boot sets a password over it. The old value, 'U6aMy0wojraho',
+# is what crypt() returns for the empty string, and a stack carrying nullok
+# (Debian's common-auth does) let any password in against it.
+#
+# No xtrace: it printed ROOT_PASS into the build log.
+#
+# 'smbpasswd -n' gives the Samba account a null password, which Samba
+# refuses to authenticate unless 'null passwords = yes' is set in smb.conf;
+# nothing in this tree sets it. That call is unchanged.
+NO_PASSWORD='*'
+
 passwd --unlock root                      # useful when testing in chroot
 
 if [ -n "$ROOT_PASS" ]; then
-    echo root:$ROOT_PASS | chpasswd
+    echo "root:$ROOT_PASS" | chpasswd
 else
-    # this is a blank password
-    usermod -p U6aMy0wojraho root
+    usermod -p "$NO_PASSWORD" root
 fi
 
-if [ "$ROOT_PASS" ]; then
+if [ -n "$ROOT_PASS" ]; then
     (echo "$ROOT_PASS" ; echo "$ROOT_PASS" ) | smbpasswd -a -s root
 else
     smbpasswd -a -n root
 fi
-
