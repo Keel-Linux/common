@@ -16,6 +16,7 @@ threshold="${1:-${COVERAGE_THRESHOLD:-95}}"
 # Every file the suite is expected to cover. A file that is not listed is
 # not measured, so a new script arrives here with its tests.
 measured=(
+    conf/samba-rootpass
     conf/turnkey.d/postfix-local
     conf/turnkey.d/rootpass
     conf/turnkey.d/webmin-enable
