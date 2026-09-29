@@ -24,6 +24,7 @@ targets=(
     "conf/turnkey.d/rootpass:tests/rootpass.bats"
     "conf/turnkey.d/webmin-enable:tests/webmin-enable.bats"
     "conf/turnkey.d/webmin-pam:tests/webmin-pam.bats"
+    "conf/turnkey.d/webmin-net:tests/webmin-net.bats"
 )
 
 for tool in kcov bats; do
