@@ -10,9 +10,10 @@
 # resolvconf from its own hook.
 #
 # This does what 000resolvconf would, only when ADDRFAM is missing, under
-# the record name it would use, so the order in
-# /etc/resolvconf/interface-order still applies. Under classic ifupdown it
-# does nothing and leaves the job to 000resolvconf.
+# the record names it would use: IFACE.inet6 for the IPv6 servers and
+# IFACE.inet for the IPv4 ones, so /etc/resolvconf/interface-order, which
+# ranks inet6 ahead of inet, still applies. Under classic ifupdown it does
+# nothing and leaves the job to 000resolvconf.
 #
 # The options are asked of ifquery, not taken from the environment: with an
 # inet and an inet6 stanza, as confconsole writes for a static address of
@@ -25,35 +26,58 @@ IFQUERY="${IFQUERY:-/usr/sbin/ifquery}"
 
 [ -z "${ADDRFAM:-}" ] || exit 0
 [ -x "$RESOLVCONF" ] || exit 0
+# ifupdown-ng exports an option when any stanza of the interface sets it,
+# so an interface with none of these has no dns option at all
+[ -n "${IF_DNS_NAMESERVERS:-}${IF_DNS_NAMESERVER:-}${IF_DNS_SEARCH:-}${IF_DNS_DOMAIN:-}${IF_DNS_SORTLIST:-}${IF_DNS_OPTIONS:-}" ] || exit 0
 
-# option NAME FALLBACK: every value of dns-NAME on one line, from ifquery
-# when it answers, else the value ifupdown-ng exported
+# option NAME FALLBACK: every value of dns-NAME on one line, from ifquery,
+# else the value ifupdown-ng exported. The real ifquery exits 1, printing
+# nothing, for an interface not written out in the file (a template, a
+# hotplugged NIC), which is when the environment has to answer.
 option() {
-    if [ -x "$IFQUERY" ]; then
-        "$IFQUERY" -l -i "${INTERFACES_FILE:-/etc/network/interfaces}" \
-            -p "$1" "$IFACE" 2>/dev/null | tr '\n' ' ' | sed 's/ *$//'
+    local out
+    if [ -x "$IFQUERY" ] && out=$("$IFQUERY" -l \
+            -i "${INTERFACES_FILE:-/etc/network/interfaces}" \
+            -p "$1" "$IFACE" 2>/dev/null); then
+        printf '%s' "$out" | tr '\n' ' ' | sed 's/ *$//'
     else
         printf '%s' "$2" | tr '\n' ' '
     fi
 }
 
 NL=$'\n'
-R=""
+common=""
 value=$(option dns-domain "${IF_DNS_DOMAIN:-}")
-[ -n "$value" ] && R="${R}domain $value$NL"
+[ -n "$value" ] && common="${common}domain $value$NL"
 value=$(option dns-search "${IF_DNS_SEARCH:-}")
-[ -n "$value" ] && R="${R}search $value$NL"
+[ -n "$value" ] && common="${common}search $value$NL"
 value=$(option dns-sortlist "${IF_DNS_SORTLIST:-}")
-[ -n "$value" ] && R="${R}sortlist $value$NL"
+[ -n "$value" ] && common="${common}sortlist $value$NL"
 value=$(option dns-options "${IF_DNS_OPTIONS:-}")
-[ -n "$value" ] && R="${R}options $value$NL"
+[ -n "$value" ] && common="${common}options $value$NL"
+
 # dns-nameservers holds a list, and several dns-nameserver lines may stand
-# beside it; every word of either is one address
+# beside it; every word of either is one address, sorted by family
+v6="" v4=""
 for NS in $(option dns-nameservers "${IF_DNS_NAMESERVERS:-}") \
           $(option dns-nameserver "${IF_DNS_NAMESERVER:-}"); do
-    R="${R}nameserver $NS$NL"
+    case "$NS" in
+        *:*) v6="${v6}nameserver $NS$NL" ;;
+        *) v4="${v4}nameserver $NS$NL" ;;
+    esac
 done
 
-[ -n "$R" ] || exit 0
-printf '%s' "$R" | "$RESOLVCONF" -a "${IFACE}.inet" || :
+# register FAMILY SERVERS: one resolvconf record, the common options first
+register() {
+    [ -n "$2" ] || return 0
+    printf '%s' "$common$2" | "$RESOLVCONF" -a "${IFACE}.$1" || :
+}
+# no name server, but a search list or options: one record, as
+# 000resolvconf would have made for the stanza
+if [ -z "$v6$v4" ]; then
+    printf '%s' "$common" | "$RESOLVCONF" -a "${IFACE}.inet" || :
+    exit 0
+fi
+register inet6 "$v6"
+register inet "$v4"
 exit 0

@@ -188,8 +188,8 @@ The repository total is remeasured after each step and replaces the
 
 ## 2026-09-29: resolvconf under ifupdown-ng (common#15)
 
-`tests/resolvconf-ifupdown-ng.bats` measures both hooks of
-`overlays/turnkey.d/resolvconf-ifupdown-ng` at 100 percent (22 and 5
+`tests/resolvconf-ifupdown-ng.bats`, 19 tests, measures both hooks of
+`overlays/turnkey.d/resolvconf-ifupdown-ng` at 100 percent (32 and 6
 lines), with resolvconf and ifquery as stubs. They are bash scripts so that
 kcov can measure them; a `/bin/sh` script gives kcov nothing and
 `tests/coverage.sh` stopped without a message.

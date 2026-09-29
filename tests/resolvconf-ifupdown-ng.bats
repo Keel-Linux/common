@@ -30,7 +30,10 @@ setup() {
 #!/bin/sh
 printf '%s\n' "\$*" >> "$BATS_TEST_TMPDIR/calls"
 # resolvconf reads a record only for -a; -d gets nothing on standard input
-[ "\$1" = -a ] && cat > "$BATS_TEST_TMPDIR/stdin"
+if [ "\$1" = -a ]; then
+    cat > "$BATS_TEST_TMPDIR/stdin.\$2"
+    cat "$BATS_TEST_TMPDIR/stdin.\$2" >> "$BATS_TEST_TMPDIR/stdin"
+fi
 exit \${RESOLVCONF_EXIT:-0}
 STUB
     chmod +x "$RESOLVCONF"
@@ -48,12 +51,14 @@ STUB
 
 calls() { cat "$BATS_TEST_TMPDIR/calls" 2>/dev/null || true; }
 fed() { cat "$BATS_TEST_TMPDIR/stdin" 2>/dev/null || true; }
+fed_as() { cat "$BATS_TEST_TMPDIR/stdin.$1" 2>/dev/null || true; }
 
 @test "the name servers of a static stanza reach resolvconf under ifupdown-ng" {
     IF_DNS_NAMESERVERS="2001:db8:1::53 192.0.2.53" run "$UP"
     [ "$status" -eq 0 ]
-    [ "$(calls)" = "-a eth0.inet" ]
-    [ "$(fed)" = "$(printf 'nameserver 2001:db8:1::53\nnameserver 192.0.2.53')" ]
+    [ "$(calls)" = "$(printf '%s\n' '-a eth0.inet6' '-a eth0.inet')" ]
+    [ "$(fed_as eth0.inet6)" = "nameserver 2001:db8:1::53" ]
+    [ "$(fed_as eth0.inet)" = "nameserver 192.0.2.53" ]
 }
 
 @test "search, domain, sortlist and options are passed as resolvconf's hook passes them" {
@@ -74,7 +79,8 @@ fed() { cat "$BATS_TEST_TMPDIR/stdin" 2>/dev/null || true; }
 
 @test "a list the environment gives newline separated is split into addresses" {
     IF_DNS_NAMESERVERS="$(printf '192.0.2.53\n2001:db8:1::53')" run "$UP"
-    [ "$(fed)" = "$(printf 'nameserver 192.0.2.53\nnameserver 2001:db8:1::53')" ]
+    [ "$(fed_as eth0.inet)" = "nameserver 192.0.2.53" ]
+    [ "$(fed_as eth0.inet6)" = "nameserver 2001:db8:1::53" ]
 }
 
 # ifquery ARGS...: an ifquery stub answering from $BATS_TEST_TMPDIR/props/NAME
@@ -87,7 +93,7 @@ while [ "\$#" -gt 0 ]; do
     case "\$1" in -p) prop=\$2; shift 2 ;; *) shift ;; esac
 done
 cat "$BATS_TEST_TMPDIR/props/\$prop" 2>/dev/null
-exit 0
+exit \${IFQUERY_EXIT:-0}
 STUB
     chmod +x "$IFQUERY"
 }
@@ -100,14 +106,16 @@ STUB
         > "$BATS_TEST_TMPDIR/props/dns-nameservers"
     IF_DNS_NAMESERVERS="2001:db8:1::53 2001:db8:1::54" run "$UP"
     [ "$status" -eq 0 ]
-    [ "$(fed)" = "$(printf '%s\n' 'nameserver 192.0.2.53' \
-        'nameserver 2001:db8:1::53' 'nameserver 2001:db8:1::54')" ]
+    [ "$(fed_as eth0.inet)" = "nameserver 192.0.2.53" ]
+    [ "$(fed_as eth0.inet6)" = "$(printf '%s\n' 'nameserver 2001:db8:1::53' \
+        'nameserver 2001:db8:1::54')" ]
 }
 
 @test "ifquery is asked without taking ifup's lock, and for this interface" {
     ifquery_answers
     echo 192.0.2.53 > "$BATS_TEST_TMPDIR/props/dns-nameservers"
-    INTERFACES_FILE=/etc/network/interfaces.test run "$UP"
+    INTERFACES_FILE=/etc/network/interfaces.test \
+        IF_DNS_NAMESERVERS=192.0.2.53 run "$UP"
     grep -q -- "-l -i /etc/network/interfaces.test -p dns-nameservers eth0" \
         "$BATS_TEST_TMPDIR/ifquery.calls"
 }
@@ -117,9 +125,40 @@ STUB
     echo example.org > "$BATS_TEST_TMPDIR/props/dns-domain"
     printf 'example.org\ncorp.example\n' > "$BATS_TEST_TMPDIR/props/dns-search"
     echo 2001:db8:1::53 > "$BATS_TEST_TMPDIR/props/dns-nameserver"
-    run "$UP"
+    # ifupdown-ng exports the last stanza's value of each option it saw
+    IF_DNS_DOMAIN=example.org IF_DNS_SEARCH=corp.example \
+        IF_DNS_NAMESERVER=2001:db8:1::53 run "$UP"
     [ "$(fed)" = "$(printf '%s\n' 'domain example.org' \
         'search example.org corp.example' 'nameserver 2001:db8:1::53')" ]
+}
+
+@test "an ifquery that fails leaves the environment to answer" {
+    # the real ifquery exits 1, printing nothing, for an interface that is
+    # not written out in the file (a template, a hotplugged NIC)
+    ifquery_answers
+    IFQUERY_EXIT=1 IF_DNS_NAMESERVERS=2001:db8:1::53 run "$UP"
+    [ "$status" -eq 0 ]
+    [ "$(fed_as eth0.inet6)" = "nameserver 2001:db8:1::53" ]
+}
+
+@test "an interface with no dns option asks ifquery nothing" {
+    ifquery_answers
+    IFACE=lo run "$UP"
+    [ "$status" -eq 0 ]
+    [ ! -e "$BATS_TEST_TMPDIR/ifquery.calls" ]
+}
+
+@test "search and domain go with each family's record" {
+    IF_DNS_SEARCH=example.org IF_DNS_NAMESERVERS="192.0.2.53 2001:db8:1::53" run "$UP"
+    [ "$(fed_as eth0.inet6)" = "$(printf 'search example.org\nnameserver 2001:db8:1::53')" ]
+    [ "$(fed_as eth0.inet)" = "$(printf 'search example.org\nnameserver 192.0.2.53')" ]
+}
+
+@test "search with no name server still reaches resolvconf, once" {
+    IF_DNS_SEARCH=example.org run "$UP"
+    [ "$status" -eq 0 ]
+    [ "$(calls)" = "-a eth0.inet" ]
+    [ "$(fed_as eth0.inet)" = "search example.org" ]
 }
 
 @test "without ifquery the environment is used" {
@@ -159,7 +198,7 @@ STUB
 @test "bringing the interface down withdraws what it registered" {
     PHASE=down MODE=stop run "$DOWN"
     [ "$status" -eq 0 ]
-    [ "$(calls)" = "-d eth0.inet" ]
+    [ "$(calls)" = "$(printf '%s\n' '-d eth0.inet6' '-d eth0.inet')" ]
 }
 
 @test "the hooks are executable, as run-parts requires" {
