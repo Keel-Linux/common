@@ -7,7 +7,7 @@ file our changes touch).
 ## Branch fix/webmin-auth-hardening: 100 percent, five files (2026-09-29)
 
 `tests/coverage.sh` now measures a list of files rather than one, and every
-file this branch touches is on it. Measured with kcov 43 over 57 bats on
+file this branch touches is on it. Measured with kcov 43 over 58 bats on
 Debian 13:
 
 | File | Lines | Covered | Percent |
