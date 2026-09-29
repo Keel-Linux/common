@@ -1,0 +1,22 @@
+#!/bin/bash -e
+#
+# Keeps the apt User-Agent of the image the one the overlay ships.
+#
+# The header itself is overlays/turnkey.d/apt-identity's 01keel. This exists
+# because apt reads /etc/apt/apt.conf.d in lexical order and the last
+# assignment of a scalar wins, so a 01turnkey inherited from a parent layer
+# built before Keel-Linux/common#6 silently beats the 01keel beside it and the
+# appliance goes back to announcing which appliance and which version it is.
+# Measured: with both files in place apt sends TurnKey's header, and
+# tests/apt-identity.bats takes that verdict off the wire.
+#
+# APT_CONF_DIR is a test hook; a build leaves it unset.
+
+fatal() { echo "'$(basename "$0")' Error: $*" >&2; exit 1; }
+
+conf_dir="${APT_CONF_DIR:-/etc/apt/apt.conf.d}"
+
+[ -d "$conf_dir" ] || fatal "the apt configuration directory '$conf_dir' does not exist"
+[ -f "$conf_dir/01keel" ] || fatal "'$conf_dir/01keel' is missing - it is shipped by overlays/turnkey.d/apt-identity"
+
+rm -f "$conf_dir/01turnkey"
