@@ -48,8 +48,10 @@ fetch_webmin() {
 # A scratch appliance root in ROOT: the interfaces file under test, the
 # files the module reads and writes beside it, and Webmin's configuration
 # for the module as the image has it after webmin-net is installed (its
-# config file is the module's config-ALL-linux). Sets WEBMIN_CONFIG to the
-# root's /etc/webmin, which is what the conf script is run against.
+# config file is the module's config-ALL-linux), with the acl module so
+# that Webmin users can be created. Sets WEBMIN_CONFIG to the root's
+# /etc/webmin and WEBMIN_ROOT to the test's own copy of the Webmin tree,
+# which is what the scripts under test are run against.
 scratch_root() {
     ROOT=$BATS_TEST_TMPDIR/root
     rm -rf "$ROOT"
@@ -83,20 +85,38 @@ real_os_type=Debian Linux
 real_os_version=13
 path=/bin:/usr/bin:/sbin:/usr/sbin:/usr/local/bin
 CONFIG
-    printf 'root=/opt/webmin\n' > "$WEBMIN_CONFIG/miniserv.conf"
-    printf 'root: net\n' > "$WEBMIN_CONFIG/webmin.acl"
-    cp "$WEBMIN_TREE/net/config-ALL-linux" "$WEBMIN_CONFIG/net/config"
+    cat > "$WEBMIN_CONFIG/miniserv.conf" << 'MINISERV'
+root=/opt/webmin
+userfile=/etc/webmin/miniserv.users
+pidfile=/var/webmin/miniserv.pid
+MINISERV
+    printf '/var/webmin\n' > "$WEBMIN_CONFIG/var-path"
+    printf 'root:x:0\n' > "$WEBMIN_CONFIG/miniserv.users"
+    printf 'root: acl net\n' > "$WEBMIN_CONFIG/webmin.acl"
+    mkdir -p "$WEBMIN_CONFIG/acl"
+    cp "$WEBMIN_PRISTINE/acl/config-ALL-linux" "$WEBMIN_CONFIG/acl/config"
+    cp "$WEBMIN_PRISTINE/net/config-ALL-linux" "$WEBMIN_CONFIG/net/config"
+
+    # The Webmin root is the test's own copy: the module's defaultacl, and
+    # a reinstall of the module, are written into it.
+    WEBMIN_TREE=$BATS_TEST_TMPDIR/webmin
+    rm -rf "$WEBMIN_TREE"
+    cp -a "$WEBMIN_PRISTINE" "$WEBMIN_TREE"
+    export WEBMIN_ROOT=$WEBMIN_TREE
     cp "$HELPERS_DIR/webmin-form.py" "$ROOT/kwn/webmin-form.py"
     cat > "$ROOT/kwn/cgi.sh" << 'CGI'
-# cgi SCRIPT QUERY: one request to a CGI of the module, as user root, the
-# way miniserv runs it (a GET, from a page of the same server)
+# cgi SCRIPT QUERY: one request to a CGI, as Webmin user WEBMIN_USER (root
+# by default), the way miniserv runs it (a GET, from a page of the same
+# server). SCRIPT is relative to the module directory WEBMIN_MODULE (net).
 cgi() {
-    (cd /opt/webmin/net && env WEBMIN_CONFIG=/etc/webmin WEBMIN_VAR=/var/webmin \
-        REMOTE_USER=root SERVER_ROOT=/opt/webmin SERVER_NAME=localhost \
-        SERVER_PORT=12321 HTTP_HOST=localhost:12321 \
-        HTTP_REFERER=https://localhost:12321/net/ REQUEST_METHOD=GET \
-        SCRIPT_NAME="/net/$1" SCRIPT_FILENAME="/opt/webmin/net/$1" \
-        QUERY_STRING="$2" perl "/opt/webmin/net/$1")
+    local module=${WEBMIN_MODULE:-net}
+    (cd "/opt/webmin/$module" && env WEBMIN_CONFIG=/etc/webmin \
+        WEBMIN_VAR=/var/webmin REMOTE_USER="${WEBMIN_USER:-root}" \
+        SERVER_ROOT=/opt/webmin SERVER_NAME=localhost SERVER_PORT=12321 \
+        HTTP_HOST=localhost:12321 \
+        HTTP_REFERER="https://localhost:12321/$module/" REQUEST_METHOD=GET \
+        SCRIPT_NAME="/$module/$1" SCRIPT_FILENAME="/opt/webmin/$module/$1" \
+        QUERY_STRING="$2" perl "/opt/webmin/$module/$1")
 }
 # press_save PAGE PAGE_QUERY ACTION [NAME=VALUE...]: open PAGE, submit its
 # form for ACTION as it was filled in, with the given fields changed
@@ -112,9 +132,10 @@ CGI
 
 # webmin_net_run SHELL_COMMAND
 # Runs SHELL_COMMAND in bash inside the scratch root, with cgi and
-# press_save from /kwn/cgi.sh defined.
+# press_save from /kwn/cgi.sh defined. The namespace has its own network
+# stack too: a route or address the module sets must not reach the host.
 webmin_net_run() {
-    sandbox_mount_ns unshare --uts -- "$HELPERS_DIR/webmin-net-chroot" \
+    sandbox_mount_ns unshare --uts --net -- "$HELPERS_DIR/webmin-net-chroot" \
         "$ROOT" "$WEBMIN_TREE" /bin/bash -c "source /kwn/cgi.sh; $1"
 }
 
