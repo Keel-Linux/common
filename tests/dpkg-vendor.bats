@@ -10,7 +10,8 @@
 # anything else asking "who is the vendor of this machine" is told.
 #
 # Refutations are written "run ! cmd", never a bare "! cmd": bash does not
-# apply errexit to a negated command, so a bare one asserts nothing.
+# apply errexit to a negated command, so a bare one asserts nothing unless
+# it happens to be the last command of its test.
 
 bats_require_minimum_version 1.5.0
 
@@ -125,6 +126,23 @@ vendor() {
     run vendor --query Vendor
     [ "$output" = TurnKey ]
     "$SCRIPT"
+    run vendor --query Vendor
+    [ "$output" = Keel ]
+}
+
+@test "an inherited TurnKey origin file is removed, not only unselected" {
+    # an overlay only adds, so a parent layer built before this change
+    # leaves its TurnKey file on the image; dpkg still knows that vendor by
+    # name until the file is gone
+    printf 'Vendor: TurnKey\nVendor-URL: https://www.turnkeylinux.org/\nBugs: https://github.com/turnkeylinux/tracker/issues\nParent: Debian\n' \
+        > "$DPKG_ORIGINS_DIR/TurnKey"
+    ln -sf "$DPKG_ORIGINS_DIR/TurnKey" "$DPKG_ORIGINS_DIR/default"
+    run dpkg-vendor --vendor TurnKey --query Bugs
+    [ "$output" = https://github.com/turnkeylinux/tracker/issues ]
+    "$SCRIPT"
+    run dpkg-vendor --vendor TurnKey --query Bugs
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"vendor TurnKey doesn't exist"* ]]
     run vendor --query Vendor
     [ "$output" = Keel ]
 }

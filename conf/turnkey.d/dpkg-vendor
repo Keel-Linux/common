@@ -10,6 +10,12 @@
 # that bug reporting tools address. It used to point at TurnKey, so both
 # named TurnKey (Keel-Linux/common#6).
 #
+# The Keel file keeps "Parent: Debian", and that line is not decoration.
+# There is no Dpkg::Vendor::Keel perl module, so Dpkg::Vendor falls back to
+# the parent's object, Dpkg::Vendor::Debian, the one TurnKey resolved to:
+# Debian's hardening defaults, update-buildflags hook and changelog
+# handling. Without Parent it would fall to Dpkg::Vendor::Default instead.
+#
 # DPKG_ORIGINS_DIR is dpkg's own override of that directory, honoured here so
 # tests/dpkg-vendor.bats can arrange a tree and then ask the real dpkg-vendor
 # what it makes of it, rather than reading back the link this wrote. A build
@@ -25,3 +31,8 @@ vendor="Keel"
 
 rm -rf "$origins/default"
 ln -s "$origins/$vendor" "$origins/default"
+
+# An overlay only adds files, so a parent layer built before this change
+# leaves its TurnKey origin file behind, and dpkg keeps knowing that vendor
+# by name. Remove it, as apt-identity removes a stale 01turnkey.
+rm -f "$origins/TurnKey"
