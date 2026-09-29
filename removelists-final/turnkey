@@ -49,3 +49,27 @@
 # rm tmp contents
 ~/tmp/*
 ~/tmp/.*
+
+# rm every private key the build generated or a package shipped (keel-core#8).
+# Every image built from a layer holds the same bytes, so a key left here is
+# one every machine shares and anyone who downloads the layer has: the SSH
+# host keys openssh-server makes at install, the certificate and key
+# turnkey-ssl ships and its postinst copies into /etc/ssl/private, Webmin's
+# miniserv.pem (unused: miniserv.conf reads /etc/ssl/private/cert.pem), and
+# the snakeoil pair ssl-cert makes for PostgreSQL and Apache. The machine
+# generates its own before any service reads them (inithooks,
+# keel-host-keys.service), and bt-layer refuses a layer that still carries
+# one. turnkey-ssl's own copy is removed from the layer too, but not kept
+# out of an installed machine: its postinst copies it into /etc/ssl/private
+# under sh -e whenever that is empty, so excluding it would fail a later
+# install of the package. It is public in the package anyway; what matters is
+# that no service reads it, which keel-host-keys ensures.
+~/etc/ssh/ssh_host_*_key
+~/etc/ssh/ssh_host_*_key.pub
+~/etc/ssl/private/cert.key
+~/etc/ssl/private/cert.pem
+~/etc/ssl/private/ssl-cert-snakeoil.key
+~/etc/ssl/certs/ssl-cert-snakeoil.pem
+~/etc/webmin/miniserv.pem
+~/usr/share/turnkey-ssl/cert.key
+~/usr/share/turnkey-ssl/cert.pem
