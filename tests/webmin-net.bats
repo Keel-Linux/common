@@ -60,10 +60,16 @@ new_user() {
 }
 
 # hook_command: the command apt runs after every dpkg run, as apt itself
-# reads it from the hook file and no other configuration
+# reads it from the hook file and no other configuration. The host's
+# apt.conf.d is kept out through APT_CONFIG: apt reads the parts directory
+# before it applies -o, so '-o Dir::Etc::parts=...' comes too late (the
+# Ubuntu CI runner has Post-Invoke hooks of its own there).
 hook_command() {
-    apt-config -o Dir::Etc::main=/dev/null -o Dir::Etc::parts=/nonexistent \
-        -c "$HOOK" dump DPkg::Post-Invoke \
+    mkdir -p "$BATS_TEST_TMPDIR/apt.conf.d"
+    printf 'Dir::Etc::parts "%s";\n' "$BATS_TEST_TMPDIR/apt.conf.d" \
+        > "$BATS_TEST_TMPDIR/apt.conf"
+    APT_CONFIG=$BATS_TEST_TMPDIR/apt.conf apt-config -c "$HOOK" \
+        dump DPkg::Post-Invoke \
         | sed -n 's/^DPkg::Post-Invoke:: "\(.*\)";$/\1/p'
 }
 
@@ -265,7 +271,9 @@ hook_command() {
     webmin_net_run 'cd /opt/webmin && PERL5LIB=/opt/webmin ./install-module.pl module-archives/net.wbm.gz'
     [ "$(default_value ifcs)" = "2" ]
 
-    sh -c "$(hook_command | sed "s|/usr/local/sbin/webmin-net-read-only|$SCRIPT|g")"
+    hook=$(hook_command | sed "s|/usr/local/sbin/webmin-net-read-only|$SCRIPT|g")
+    [[ "$hook" == *"$SCRIPT"* ]]
+    sh -c "$hook"
     new_user bob
     run webmin_net_run 'WEBMIN_USER=bob press_save edit_bifc.cgi idx=1 save_bifc.cgi'
     refused_with "edit this network interface"
