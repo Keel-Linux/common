@@ -71,7 +71,8 @@ build_image() {
     [ "$status" -eq 0 ]
     run authenticates "hunter2"
     [ "$status" -eq 0 ]
-    run ! authenticates ""
+    run refuses ""
+    [ "$status" -eq 0 ]
 }
 
 @test "a build given a root password is held shut the same way" {
@@ -80,5 +81,6 @@ build_image() {
     run ! unit_would_start "$DROPIN"
     run authenticates "s3cret"
     [ "$status" -eq 0 ]
-    run ! authenticates ""
+    run refuses ""
+    [ "$status" -eq 0 ]
 }
