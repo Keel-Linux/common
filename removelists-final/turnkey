@@ -50,6 +50,13 @@
 ~/tmp/*
 ~/tmp/.*
 
+# rm the captured package pool a pinned build installed from, its apt
+# source and its pin (decision 0012). The '~' prefix is a glob, so a build
+# that used no pool passes over these three silently.
+~/etc/apt/sources.list.d/keel-pool.sources
+~/etc/apt/preferences.d/keel-pool
+~/keel-pool
+
 # rm every private key the build generated or a package shipped (keel-core#8).
 # Every image built from a layer holds the same bytes, so a key left here is
 # one every machine shares and anyone who downloads the layer has: the SSH
