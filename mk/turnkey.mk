@@ -44,20 +44,24 @@ endef
 bootstrap/post += $(_bootstrap/post)
 
 # tag package management system with release package
-# set /etc/turnkey_version and apt user-agent
+# set /etc/turnkey_version
+#
+# The apt User-Agent is no longer written here. It used to carry the appliance
+# and its version to every archive the machine ever contacted; it is now a
+# fixed header naming the distribution and nothing else, shipped by
+# overlays/turnkey.d/apt-identity as /etc/apt/apt.conf.d/01keel
+# (Keel-Linux/common#6).
 define _root.patched/post
-	
-	# 
+
+	#
 	# tagging package management system with release package
-	# setting /etc/turnkey_version and apt user-agent
+	# setting /etc/turnkey_version
 	#
 	@if [ -f ./changelog ]; then \
 		echo $(FAB_SHARE_PATH)/make-release-deb.py ./changelog $O/root.patched; \
 		$(FAB_SHARE_PATH)/make-release-deb.py ./changelog $O/root.patched; \
 		turnkey_version=$$($(FAB_SHARE_PATH)/turnkey-version.py --dist=$(CODENAME) --tag=$(VERSION_TAG) ./changelog $(FAB_ARCH)); \
-		turnkey_aptconf="Acquire::http::User-Agent \"TurnKey APT-HTTP/1.3 ($$turnkey_version)\";"; \
 		echo $$turnkey_version > $O/root.patched/etc/turnkey_version; \
-		echo $$turnkey_aptconf > $O/root.patched/etc/apt/apt.conf.d/01turnkey; \
 	else \
 		echo; \
 		echo "WARNING: can't tag local release (./changelog doesn't exist)"; \
