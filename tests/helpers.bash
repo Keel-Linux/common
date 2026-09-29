@@ -3,10 +3,10 @@
 #
 # The verdict these tests take is the one pam_unix takes, because it is
 # pam_unix that takes it: tests/pam-authenticate loads the real libpam,
-# starts the scratch image's own stack and calls pam_authenticate, in a user
-# and mount namespace where the scratch shadow and passwd files are bind
-# mounted over /etc/shadow and /etc/passwd. pam_unix runs in that process as
-# root of the namespace, which is the path Webmin's miniserv takes: it reads
+# starts the scratch image's own stack and calls pam_authenticate, in a
+# private mount namespace where the scratch shadow and passwd files are bind
+# mounted over /etc/shadow and /etc/passwd (sandbox_mount_ns). pam_unix runs
+# in that process as root, which is the path Webmin's miniserv takes: it reads
 # the shadow file itself and does not go through unix_chkpwd.
 #
 # That matters, because the two paths disagree. Measured on libpam 1.7.0-5
@@ -66,6 +66,26 @@ stack_allows_blank() {
         | grep -qE '\bnullok(_secure)?\b'
 }
 
+# sandbox_mount_ns COMMAND...
+# Runs COMMAND as root of a private mount namespace: an unprivileged user
+# namespace where the kernel allows one to mount (Debian), otherwise
+# 'sudo -n unshare --mount' where sudo needs no password (the Ubuntu CI
+# runner, whose AppArmor policy leaves an unprivileged user namespace
+# without the right to mount). Either way nothing mounted is visible
+# outside the namespace. Exits 77 when neither is available.
+sandbox_mount_ns() {
+    if unshare --user --map-root-user --mount -- \
+            /bin/sh -c 'mount -t tmpfs none /mnt' 2>/dev/null; then
+        unshare --user --map-root-user --mount -- "$@"
+    elif sudo -n unshare --mount -- \
+            /bin/sh -c 'mount -t tmpfs none /mnt' 2>/dev/null; then
+        sudo -n unshare --mount -- "$@"
+    else
+        echo "sandbox_mount_ns: no mount namespace available here" >&2
+        return 77
+    fi
+}
+
 # pam_verdict PASSWORD [USER] [PAM_FILE]
 # The real pam_authenticate over PAM_FILE (the scratch image's webmin stack
 # by default) for USER with PASSWORD, against the scratch image's accounts.
@@ -80,7 +100,7 @@ pam_verdict() {
     local user=${2:-root}
     local pam_file=${3:-$PAM_WEBMIN}
     local output
-    output=$(unshare --user --map-root-user --mount -- /bin/bash -c '
+    output=$(sandbox_mount_ns /bin/bash -c '
         mount --bind "$1" /etc/shadow || exit 4
         mount --bind "$2" /etc/passwd || exit 4
         exec "$3" "$4" "$5" "$6" "$7"
