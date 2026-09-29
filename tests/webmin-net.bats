@@ -59,6 +59,13 @@ new_user() {
     grep -q "^$1: net$" "$WEBMIN_CONFIG/webmin.acl"
 }
 
+# etc_digest: a digest of every file under the scratch root's /etc but
+# /etc/hosts, to show that a page wrote nothing else
+etc_digest() {
+    (cd "$ROOT/etc" && find . -type f ! -path ./hosts -print0 | sort -z \
+        | xargs -0 sha256sum)
+}
+
 # hook_command: the command apt runs after every dpkg run, as apt itself
 # reads it from the hook file and no other configuration. The host's
 # apt.conf.d is kept out through APT_CONFIG: apt reads the parts directory
@@ -84,13 +91,14 @@ hook_command() {
     [ "$(default_value ifcs)" = "1" ]
 }
 
-@test "the default ACL leaves interfaces and DNS to view, routing and apply off" {
+@test "the default ACL leaves interfaces and DNS to view, routing, apply and Module Config off" {
     run "$SCRIPT"
     [ "$status" -eq 0 ]
     [ "$(default_value ifcs)" = "1" ]
     [ "$(default_value routes)" = "0" ]
     [ "$(default_value dns)" = "1" ]
     [ "$(default_value apply)" = "0" ]
+    [ "$(default_value noconfig)" = "1" ]
 }
 
 @test "running the script twice writes each setting once" {
@@ -260,9 +268,68 @@ hook_command() {
     interfaces_unchanged
 }
 
+# Module Config: Webmin's own config.cgi and config_save.cgi, gated only on
+# the module ACL's noconfig. hosts_file there decides which file the hosts
+# page, which stays writable, rewrites.
+@test "without the script, Module Config points the hosts page at the interfaces file" {
+    webmin_net_run 'WEBMIN_MODULE= press_save config.cgi module=net config_save.cgi hosts_file=/etc/network/interfaces'
+    webmin_net_run 'press_save edit_host.cgi new=1 save_host.cgi address=2001:db8:1::66 hosts=injected'
+    run tail -n 1 "$ROOT/etc/network/interfaces"
+    [[ "$output" == "2001:db8:1::66"*"injected" ]]
+}
+
+@test "with the script, Module Config is refused to root and the module config is unchanged" {
+    "$SCRIPT"
+    cp "$WEBMIN_CONFIG/net/config" "$BATS_TEST_TMPDIR/config.before"
+    run webmin_net_run 'WEBMIN_MODULE= cgi config.cgi module=net'
+    refused_with "configure this module"
+    run webmin_net_run 'WEBMIN_MODULE= cgi config_save.cgi "module=net&hosts_file=/etc/network/interfaces&ipnodes_file=/etc/network/interfaces&def_netmask=255.255.255.0"'
+    refused_with "configure this module"
+    cmp "$BATS_TEST_TMPDIR/config.before" "$WEBMIN_CONFIG/net/config"
+}
+
+@test "with the script, Module Config is refused to a Webmin user created later" {
+    "$SCRIPT"
+    new_user alice
+    cp "$WEBMIN_CONFIG/net/config" "$BATS_TEST_TMPDIR/config.before"
+    run webmin_net_run 'WEBMIN_USER=alice WEBMIN_MODULE= cgi config_save.cgi "module=net&hosts_file=/etc/network/interfaces&ipnodes_file=&def_netmask=255.255.255.0"'
+    refused_with "configure this module"
+    cmp "$BATS_TEST_TMPDIR/config.before" "$WEBMIN_CONFIG/net/config"
+}
+
+@test "with the script, the hosts page writes /etc/hosts and nothing else" {
+    "$SCRIPT"
+    before=$(etc_digest)
+    run webmin_net_run 'press_save edit_host.cgi new=1 save_host.cgi address=2001:db8:1::21 hosts=peer2'
+    [ "$status" -eq 0 ]
+    grep -qE '^2001:db8:1::21[[:space:]]+peer2$' "$ROOT/etc/hosts"
+    [ "$(etc_digest)" = "$before" ]
+}
+
+@test "with the script, the IPv6 hosts page (ipnodes) writes nothing" {
+    "$SCRIPT"
+    before=$(etc_digest)
+    hosts_before=$(cat "$ROOT/etc/hosts")
+    run webmin_net_run 'cgi save_ipnode.cgi "new=1&address=2001:db8:1::22&ipnodes=peer3"'
+    [ "$(etc_digest)" = "$before" ]
+    [ "$(cat "$ROOT/etc/hosts")" = "$hosts_before" ]
+}
+
 @test "apt runs the script after every dpkg run" {
     run hook_command
-    [ "$output" = "if [ -x /usr/local/sbin/webmin-net-read-only ]; then /usr/local/sbin/webmin-net-read-only; fi" ]
+    [ "${#lines[@]}" -eq 1 ]
+    [[ "$output" == "if [ -x /usr/local/sbin/webmin-net-read-only ]; then /usr/local/sbin/webmin-net-read-only || "* ]]
+}
+
+@test "apt and dpkg do not fail when the script fails, and the failure is reported" {
+    printf '#!/bin/sh\nexit 3\n' > "$BATS_TEST_TMPDIR/failing"
+    chmod +x "$BATS_TEST_TMPDIR/failing"
+    hook=$(hook_command | sed "s|/usr/local/sbin/webmin-net-read-only|$BATS_TEST_TMPDIR/failing|g")
+    [[ "$hook" == *"$BATS_TEST_TMPDIR/failing"* ]]
+    run --separate-stderr sh -c "$hook"
+    [ "$status" -eq 0 ]
+    # shellcheck disable=SC2154  # set by run --separate-stderr
+    [[ "$stderr" == *"webmin-net-read-only failed"* ]]
 }
 
 @test "an upgrade of webmin-net resets the default ACL, and the apt hook restores it" {

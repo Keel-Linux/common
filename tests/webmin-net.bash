@@ -107,16 +107,19 @@ MINISERV
     cat > "$ROOT/kwn/cgi.sh" << 'CGI'
 # cgi SCRIPT QUERY: one request to a CGI, as Webmin user WEBMIN_USER (root
 # by default), the way miniserv runs it (a GET, from a page of the same
-# server). SCRIPT is relative to the module directory WEBMIN_MODULE (net).
+# server). SCRIPT is relative to the module directory WEBMIN_MODULE (net
+# when unset; set and empty for Webmin's own top-level CGIs, such as the
+# Module Config pages config.cgi and config_save.cgi).
 cgi() {
-    local module=${WEBMIN_MODULE:-net}
-    (cd "/opt/webmin/$module" && env WEBMIN_CONFIG=/etc/webmin \
+    local path=/${WEBMIN_MODULE-net}
+    path=${path%/}
+    (cd "/opt/webmin$path" && env WEBMIN_CONFIG=/etc/webmin \
         WEBMIN_VAR=/var/webmin REMOTE_USER="${WEBMIN_USER:-root}" \
         SERVER_ROOT=/opt/webmin SERVER_NAME=localhost SERVER_PORT=12321 \
         HTTP_HOST=localhost:12321 \
-        HTTP_REFERER="https://localhost:12321/$module/" REQUEST_METHOD=GET \
-        SCRIPT_NAME="/$module/$1" SCRIPT_FILENAME="/opt/webmin/$module/$1" \
-        QUERY_STRING="$2" perl "/opt/webmin/$module/$1")
+        HTTP_REFERER="https://localhost:12321$path/" REQUEST_METHOD=GET \
+        SCRIPT_NAME="$path/$1" SCRIPT_FILENAME="/opt/webmin$path/$1" \
+        QUERY_STRING="$2" perl "/opt/webmin$path/$1")
 }
 # press_save PAGE PAGE_QUERY ACTION [NAME=VALUE...]: open PAGE, submit its
 # form for ACTION as it was filled in, with the given fields changed
