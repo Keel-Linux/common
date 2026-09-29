@@ -148,10 +148,10 @@ Pull request #2 merged on 2026-09-26 (merge commit 5a0a381) and brought
 | `conf/turnkey.d/postfix-local` | the build-time postfix configuration | 100 percent, 17 of 17 lines, 7 bats |
 | `conf/turnkey.d/dpkg-vendor` | points the dpkg vendor at Keel, and removes an inherited TurnKey origin | 100 percent, 7 of 7 lines, 16 bats |
 | `conf/turnkey.d/apt-identity` | keeps the shipped apt User-Agent the one in force | 100 percent, 4 of 4 lines, 11 bats |
-| `lib/version-files.sh` | the grammar and the prefix rules of the two identity files (decision 0014) | 100 percent, 15 of 15 lines |
-| `bin/keel-version-files` | the thin main `mk/turnkey.mk` calls in `root.patched/post` to write `/etc/turnkey_version` and `/etc/keel_version` | 100 percent, 36 of 36 lines |
+| `lib/version-files.sh` | the grammar and the prefix rules of the two identity files (decision 0014) | 100 percent, 17 of 17 lines |
+| `bin/keel-version-files` | the thin main `mk/turnkey.mk` and `mk/turnkey-desktop.mk` call in `root.patched/post` to write `/etc/turnkey_version` and `/etc/keel_version` | 100 percent, 36 of 36 lines |
 
-34 bats, measured on 2026-09-29 with kcov 43 and bats 1.11, plus the 33 bats of the identity files (`tests/version-files.bats`, `tests/mk-identity.bats`), measured on 2026-09-28. The gate in
+34 bats, measured on 2026-09-29 with kcov 43 and bats 1.11, plus the 37 bats of the identity files (`tests/version-files.bats`, and `tests/mk-identity.bats`, which make runs against stubs of fab), measured on 2026-09-29. The gate in
 `.github/workflows/tests.yml` is set to 100, the measured number, and is
 only ever raised. The sections that follow record the state before the
 first merge.
@@ -197,7 +197,7 @@ position, and the check runs for every repository in the reusable
 
 ## The two identity files
 
-`mk/turnkey.mk` writes both in `root.patched/post`, after every overlay,
+`mk/turnkey.mk` and `mk/turnkey-desktop.mk` write both in `root.patched/post`, after every overlay,
 conf script, patch and removelist of the build, so nothing can clobber
 them. The version string comes from the first line of the product
 changelog through fab's `turnkey-version.py`, and its prefix is normalised
@@ -214,6 +214,17 @@ before either file is written:
 Without the normalisation a repository that renames its release package
 (`keel-core-19.0`, as keel-core did on 2026-09-27) silently produces an
 `/etc/turnkey_version` that none of those parsers accepts.
+
+The make recipe itself is run, not read: `tests/mk-identity.bats` makes the
+`root.patched/post` step of both `mk/turnkey.mk` and `mk/turnkey-desktop.mk`
+against stubs of fab under `tests/mk/` and reads the two files back, 8
+tests. It also holds the two ways the call can fail: a `common` checkout
+that predates `bin/keel-version-files` stops the build with a message that
+names the path and says the checkout is stale, rather than a bare `No such
+file or directory` after the whole root was built; and the version string is
+quoted, so an empty one or one with a space is refused as a version rather
+than as a wrong argument count. make has no line coverage, so
+`tests/coverage.sh` runs this suite for its verdict alone.
 
 ## Baseline before the merge: 0 percent, nothing measured
 

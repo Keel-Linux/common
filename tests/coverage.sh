@@ -77,6 +77,18 @@ done
 # and pam-unix.bats pins the pam_unix behaviour the others rest on.
 bats "$root/tests/before-firstboot.bats" "$root/tests/pam-unix.bats"
 
+# Suites whose subject kcov cannot measure: the make recipes of mk/, run by
+# make against stubs of fab. They must pass; they contribute no percentage.
+unmeasured=(
+    tests/mk-identity.bats
+)
+for suite in "${unmeasured[@]}"; do
+    if ! bats "$root/$suite"; then
+        echo "$suite: failed" >&2
+        failed=1
+    fi
+done
+
 if [ "$failed" -ne 0 ]; then
     exit 1
 fi

@@ -73,7 +73,8 @@ define _root.patched/post
 	#
 	@if [ -f ./changelog ]; then \
 		release_version=$$($(FAB_SHARE_PATH)/turnkey-version.py --dist=$(CODENAME) --tag=$(VERSION_TAG) ./changelog $(FAB_ARCH)); \
-		$(COMMON_BIN_PATH)/keel-version-files $$release_version $O/root.patched || exit 1; \
+		[ -x $(COMMON_BIN_PATH)/keel-version-files ] || { echo "ERROR: $(COMMON_BIN_PATH)/keel-version-files is missing or not executable: the common checkout predates the identity files of decision 0014, update it" >&2; exit 1; }; \
+		$(COMMON_BIN_PATH)/keel-version-files "$$release_version" $O/root.patched || exit 1; \
 	else \
 		echo; \
 		echo "WARNING: can't tag local release (./changelog doesn't exist)"; \
