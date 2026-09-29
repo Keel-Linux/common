@@ -1,0 +1,35 @@
+#!/bin/bash
+# webmin-net-chroot ROOT TREE COMMAND...
+#
+# Runs COMMAND chrooted in the scratch appliance root ROOT, with the host's
+# /usr (read-only) for perl and python3, and TREE, an unpacked Webmin with
+# its Network Configuration module, at /opt/webmin. Called by webmin_net_run
+# in tests/webmin-net.bash as root of a private mount and UTS namespace, so
+# that nothing mounted here, and no hostname the module sets, is seen
+# outside. The module only ever sees the files of ROOT: the interfaces file
+# under test, and none of the host's network configuration.
+#
+# Exits with COMMAND's status. Before that it unmounts what it mounted and
+# gives everything under ROOT back to ROOT's owner: where the namespace is
+# made with sudo (the CI runner) the module writes as the real root, and
+# bats must still be able to remove the test's directory.
+set -eu
+PATH=$PATH:/usr/sbin:/sbin
+root=$1
+tree=$2
+shift 2
+mounts=("$root/usr" "$root/dev/null" "$root/opt/webmin")
+mount --bind /usr "$root/usr"
+mount -o remount,bind,ro "$root/usr"
+mount --bind /dev/null "$root/dev/null"
+if [ -d /etc/perl ]; then
+    mount --bind /etc/perl "$root/etc/perl"
+    mounts+=("$root/etc/perl")
+fi
+mount --bind "$tree" "$root/opt/webmin"
+status=0
+chroot "$root" /usr/bin/env -i HOME=/root \
+    PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin "$@" || status=$?
+umount "${mounts[@]}"
+chown -R "$(stat -c %u:%g "$root")" "$root"
+exit "$status"
