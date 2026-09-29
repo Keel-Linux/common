@@ -9,8 +9,9 @@ turnkey-core-19.0 (1) turnkey; urgency=low
 
   * 'dpkg-vendor' answers Keel, and bug reporting tools address
     Keel-Linux/tracker rather than turnkeylinux/tracker. The TurnKey origin
-    file is no longer shipped; the new Keel one keeps 'Parent: Debian', so
-    dpkg-dev behaves exactly as before.
+    file is no longer shipped, and one inherited from a parent layer is
+    removed; the new Keel one keeps 'Parent: Debian', so dpkg-dev behaves
+    exactly as before.
 
   * The TurnKey archive is fetched over https rather than plain http, in all
     three suites and in the legacy sources.list written for pre-Trixie
