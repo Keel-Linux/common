@@ -199,3 +199,24 @@ large above):
 
 The repository total is remeasured after each step and replaces the
 0 percent above.
+
+## 2026-09-29: resolvconf under ifupdown-ng (common#15)
+
+`tests/resolvconf-ifupdown-ng.bats`, 19 tests, measures both hooks of
+`overlays/turnkey.d/resolvconf-ifupdown-ng` at 100 percent (32 and 6
+lines), with resolvconf and ifquery as stubs. They are bash scripts so that
+kcov can measure them; a `/bin/sh` script gives kcov nothing and
+`tests/coverage.sh` stopped without a message.
+
+The behaviour is proved against the real ifupdown-ng and resolvconf of the
+core layer, in an overlay of it in private mount and network namespaces on
+the build host, with a dummy interface carrying an `inet` and an `inet6`
+static stanza, each with its own `dns-nameservers`:
+
+    T=$(mktemp -d); mkdir -p $T/upper $T/work $T/merged
+    unshare -m -n sh -c "mount -t overlay overlay -o lowerdir=/mnt/builds/layers/core.rootfs,upperdir=$T/upper,workdir=$T/work $T/merged && mount -t tmpfs tmpfs $T/merged/run && mount -t proc proc $T/merged/proc && mount -t sysfs sys $T/merged/sys && cp -a overlays/turnkey.d/resolvconf-ifupdown-ng/etc/network/. $T/merged/etc/network/ && chroot $T/merged sh -c '...'"
+
+Without the hooks: `ifup` brings both addresses up and `/etc/resolv.conf`
+holds no name server. With them: both families' name servers are in
+`/etc/resolv.conf` after `ifup`, and the record is gone after `ifdown`.
+Asking ifquery from inside ifup does not wait on ifup's lock (`-l`).
