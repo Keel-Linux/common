@@ -1,0 +1,8 @@
+# The certificate and private key turnkey-ssl ships are the same in every
+# copy of the package, so they are published to anyone who downloads it and
+# must never be read by a service (keel-core#8). The build removes them;
+# these lines stop an upgrade or a reinstall of turnkey-ssl putting them back.
+# dpkg --verify lists them as missing, the way it lists what localepurge
+# removes. Each machine generates its own key in /etc/ssl/private.
+path-exclude=/usr/share/turnkey-ssl/cert.key
+path-exclude=/usr/share/turnkey-ssl/cert.pem
