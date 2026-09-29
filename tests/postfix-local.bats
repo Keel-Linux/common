@@ -5,6 +5,8 @@
 # tests/stubs that record their arguments in STUB_LOG; the script never
 # reaches the real postfix or systemd.
 
+bats_require_minimum_version 1.5.0
+
 setup() {
     TESTS_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     SCRIPT="$TESTS_DIR/../conf/turnkey.d/postfix-local"
@@ -63,7 +65,7 @@ LISTEN 0      100    [2001:db8::25]:25   [::]:*            users:((\"master\",pi
     run "$SCRIPT"
     [ "$status" -eq 1 ]
     [[ "$output" == *"Port 25 is already in use"* ]]
-    ! logged postconf
+    run ! logged postconf
 }
 
 @test "configures postfix when port 25 is free" {
@@ -93,6 +95,6 @@ EXPECTED
     run "$SCRIPT"
     [ "$status" -eq 1 ]
     logged "postconf -e myhostname=mail.example.com"
-    ! logged smtpd_banner
-    ! logged postmulti
+    run ! logged smtpd_banner
+    run ! logged postmulti
 }
