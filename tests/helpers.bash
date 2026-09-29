@@ -1,0 +1,211 @@
+# Shared helpers for the conf scripts that decide whether an account of a
+# freshly built image can be authenticated.
+#
+# The verdict these tests take is the one pam_unix takes, because it is
+# pam_unix that takes it: tests/pam-authenticate loads the real libpam,
+# starts the scratch image's own stack and calls pam_authenticate, in a
+# private mount namespace where the scratch shadow and passwd files are bind
+# mounted over /etc/shadow and /etc/passwd (sandbox_mount_ns). Everything
+# pam_unix does is the real thing, including running unix_chkpwd, which it
+# does for every shadowed account even as root.
+#
+# It runs it twice, and that is what a hand model of it missed. Before it
+# asks for a password at all, _unix_blankpasswd() hands the helper an empty
+# one, with nullok when the stack carries it; if the helper accepts, the
+# account "has a blank password" and is authenticated without being asked.
+# On libpam 1.7 the helper accepts the empty password against any field
+# crypt() returns for it, so with nullok a field of 'U6aMy0wojraho' lets any
+# password in. Libpam 1.5 refuses that same empty password under nullok,
+# and accepts it without. Which one a verdict holds for is therefore a
+# property of the libpam that gave it: see require_measured_libpam.
+#
+# The shadow tools are stubs, because usermod, chpasswd and passwd chroot
+# into the root they are given and so cannot touch a scratch tree as an
+# ordinary user. Each stub carries the behaviour it reproduces, and the
+# command that measured it, at the top of the file.
+
+HELPERS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FIXTURES="$HELPERS_DIR/fixtures"
+
+# scratch_image
+# The part of an image under construction that these scripts touch: the
+# account databases, the PAM stack the webmin package installs, Debian's
+# common-auth as a built core carries it, and an empty systemd tree. Puts the stubs first on PATH and points every test hook at
+# the scratch tree.
+#
+# root starts out carrying the field an earlier build wrote, so a script
+# that writes nothing at all fails these tests instead of passing on the
+# state it was handed.
+scratch_image() {
+    IMAGE=$BATS_TEST_TMPDIR/image
+    mkdir -p "$IMAGE/etc/pam.d" "$IMAGE/etc/systemd/system"
+    printf 'root:x:0:0:root:/root:/bin/bash\n' > "$IMAGE/etc/passwd"
+    printf 'root:U6aMy0wojraho:20718:0:99999:7:::\n' > "$IMAGE/etc/shadow"
+    cp "$FIXTURES/pam.d-webmin" "$IMAGE/etc/pam.d/webmin"
+    cp "$FIXTURES/pam.d-common-auth" "$IMAGE/etc/pam.d/common-auth"
+
+    export PATH="$HELPERS_DIR/stubs:$PATH"
+    export STUB_LOG=$BATS_TEST_TMPDIR/calls.log
+    : > "$STUB_LOG"
+
+    export SHADOW_FILE=$IMAGE/etc/shadow
+    export PAM_WEBMIN=$IMAGE/etc/pam.d/webmin
+    export PAM_COMMON_AUTH=$IMAGE/etc/pam.d/common-auth
+    export SYSTEMD_DIR=$IMAGE/etc/systemd/system
+}
+
+# MEASURED_LIBPAM
+# The libpam the version dependent facts in these suites were measured on:
+# Debian 13's, which is the one an appliance runs.
+MEASURED_LIBPAM=1.7
+
+# require_measured_libpam
+# Skips the calling test, naming both versions, when the libpam-modules
+# installed here is not MEASURED_LIBPAM. For a test whose verdict differs
+# between libpam versions; a test that holds on every version does not call
+# it.
+require_measured_libpam() {
+    local here
+    here=$(dpkg-query -W -f '${Version}' libpam-modules 2>/dev/null || true)
+    if [[ "$here" != "$MEASURED_LIBPAM".* ]]; then
+        skip "libpam-modules ${here:-unknown} here; measured on $MEASURED_LIBPAM"
+    fi
+}
+
+# field_of USER
+# The password field USER carries in the scratch image.
+field_of() {
+    awk -F: -v user="${1:-root}" '$1 == user { print $2 }' "${SHADOW_FILE:?}"
+}
+
+# stack_allows_blank [PAM_FILE]
+# Whether nullok is written on an auth line of the stack. Configuration,
+# not behaviour: what it does is for pam_verdict to say.
+stack_allows_blank() {
+    grep -E '^[[:space:]]*auth[[:space:]]' "${1:-$PAM_WEBMIN}" \
+        | grep -qE '\bnullok(_secure)?\b'
+}
+
+# sandbox_mount_ns COMMAND...
+# Runs COMMAND as root of a private mount namespace: an unprivileged user
+# namespace where the kernel allows one to mount (Debian), otherwise
+# 'sudo -n unshare --mount' where sudo needs no password (the Ubuntu CI
+# runner, whose AppArmor policy leaves an unprivileged user namespace
+# without the right to mount). Either way nothing mounted is visible
+# outside the namespace. Exits 77 when neither is available.
+sandbox_mount_ns() {
+    if unshare --user --map-root-user --mount -- \
+            /bin/sh -c 'mount -t tmpfs none /mnt' 2>/dev/null; then
+        unshare --user --map-root-user --mount -- "$@"
+    elif sudo -n unshare --mount -- \
+            /bin/sh -c 'mount -t tmpfs none /mnt' 2>/dev/null; then
+        sudo -n unshare --mount -- "$@"
+    else
+        echo "sandbox_mount_ns: no mount namespace available here" >&2
+        return 77
+    fi
+}
+
+# pam_verdict PASSWORD [USER] [PAM_FILE]
+# The real pam_authenticate over PAM_FILE (the scratch image's webmin stack
+# by default) for USER with PASSWORD, against the scratch image's accounts.
+# Returns 0 authenticated, 1 refused, and 3 or more when the question could
+# not be asked.
+#
+# The verdict is read from the return code pam-authenticate prints, never
+# from an exit status: unshare and mount exit 1 when they fail, and a
+# sandbox that does not work must not be read as a refusal.
+pam_verdict() {
+    local password=$1
+    local user=${2:-root}
+    local pam_file=${3:-$PAM_WEBMIN}
+    local output
+    output=$(sandbox_mount_ns /bin/bash -c '
+        mount --bind "$1" /etc/shadow || exit 4
+        mount --bind "$2" /etc/passwd || exit 4
+        exec "$3" "$4" "$5" "$6" "$7"
+    ' pam_verdict "${SHADOW_FILE:?}" "$IMAGE/etc/passwd" \
+        "$HELPERS_DIR/pam-authenticate" \
+        "$(dirname "$pam_file")" "$(basename "$pam_file")" \
+        "$user" "$password")
+    echo "$output"
+    case $output in
+        "pam=0 "*) return 0 ;;
+        "pam=7 "*) return 1 ;;
+        "pam="*)   return 3 ;;
+        *)         echo "pam_verdict: the sandbox did not answer" >&2
+                   return 4 ;;
+    esac
+}
+
+# authenticates PASSWORD [USER] [PAM_FILE]
+# Succeeds when pam_unix lets PASSWORD in, fails otherwise, including when
+# the question could not be asked.
+authenticates() {
+    local rc=0
+    pam_verdict "$@" || rc=$?
+    [[ $rc -eq 0 ]]
+}
+
+# refuses PASSWORD [USER] [PAM_FILE]
+# Succeeds only when pam_unix refuses PASSWORD. A refutation is written with
+# this and never as '! authenticates', which a sandbox that does not work
+# would satisfy.
+refuses() {
+    local rc=0
+    pam_verdict "$@" || rc=$?
+    if [[ $rc -gt 1 ]]; then
+        echo "pam_verdict could not ask (status $rc)" >&2
+    fi
+    [[ $rc -eq 1 ]]
+}
+
+# nothing_authenticates [USER] [PAM_FILE]
+# Succeeds when pam_unix refuses every password tried: the empty one, the
+# ones worth trying first, and a right looking one.
+nothing_authenticates() {
+    local user=${1:-root}
+    local pam_file=${2:-$PAM_WEBMIN}
+    local password
+    for password in "" " " "root" "toor" "password" "turnkey" "*" "!" \
+            "U6aMy0wojraho" "hunter2"; do
+        if ! refuses "$password" "$user" "$pam_file"; then
+            echo "not refused: '$password' against field '$(field_of "$user")'" >&2
+            return 1
+        fi
+    done
+}
+
+# conditions_of UNIT_FILE...
+# The Condition lines of a unit and its drop-ins, as arguments for
+# systemd-analyze. systemd merges them into one unit, so they are read
+# together: a plain condition in any of the files is ANDed with the
+# triggering ones of all of them.
+conditions_of() {
+    cat "$@" | grep -E '^Condition' || true
+}
+
+# unit_would_start UNIT_FILE...
+# systemd's own verdict on whether a unit with those conditions would run,
+# taken from systemd-analyze, not from reading the file.
+unit_would_start() {
+    local -a conditions
+    readarray -t conditions < <(conditions_of "$@")
+    [[ ${#conditions[@]} -gt 0 ]] || return 0
+    systemd-analyze condition "${conditions[@]}" >/dev/null
+}
+
+# run_exec_start UNIT_FILE
+# Runs the ExecStart lines of a oneshot unit in order, stopping at the
+# first that fails, as systemd does. Each command is looked up by its name
+# on PATH, so a stub stands in for systemctl and touch and mkdir are the
+# real ones.
+run_exec_start() {
+    local line
+    local -a argv
+    while IFS= read -r line; do
+        read -r -a argv <<< "${line#ExecStart=}"
+        argv[0]=$(basename "${argv[0]}")
+        "${argv[@]}" || return
+    done < <(grep -E '^ExecStart=' "$1")
+}

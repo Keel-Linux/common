@@ -1,0 +1,16 @@
+#!/bin/bash
+# Stand-in for chpasswd: records the call in STUB_LOG, reads 'user:password'
+# lines on standard input and replaces the whole password field of
+# SHADOW_FILE with a hash of the password, which is what chpasswd does to a
+# field whatever that field held before.
+echo "chpasswd $*" >> "${STUB_LOG:?}"
+
+while IFS= read -r line; do
+    user=${line%%:*}
+    password=${line#*:}
+    hash=$(perl -e 'print crypt($ARGV[0], $ARGV[1])' "$password" '$6$keelstub$')
+    awk -F: -v user="$user" -v hash="$hash" 'BEGIN { OFS=":" }
+        $1 == user { $2 = hash }
+        { print }' "${SHADOW_FILE:?}" > "$SHADOW_FILE.new"
+    mv "$SHADOW_FILE.new" "$SHADOW_FILE"
+done

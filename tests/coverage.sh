@@ -20,6 +20,10 @@ targets=(
     "conf/turnkey.d/postfix-local:tests/postfix-local.bats"
     "conf/turnkey.d/dpkg-vendor:tests/dpkg-vendor.bats"
     "conf/turnkey.d/apt-identity:tests/apt-identity.bats"
+    "conf/samba-rootpass:tests/samba-rootpass.bats"
+    "conf/turnkey.d/rootpass:tests/rootpass.bats"
+    "conf/turnkey.d/webmin-enable:tests/webmin-enable.bats"
+    "conf/turnkey.d/webmin-pam:tests/webmin-pam.bats"
 )
 
 for tool in kcov bats; do
@@ -52,6 +56,11 @@ for target in "${targets[@]}"; do
         failed=1
     fi
 done
+
+# Suites that measure no file of their own still have to pass:
+# before-firstboot.bats runs rootpass, webmin-enable and webmin-pam together,
+# and pam-unix.bats pins the pam_unix behaviour the others rest on.
+bats "$root/tests/before-firstboot.bats" "$root/tests/pam-unix.bats"
 
 if [ "$failed" -ne 0 ]; then
     exit 1

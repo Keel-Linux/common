@@ -1,3 +1,78 @@
-#!/bin/sh -e
+#!/bin/bash -e
+
+# An appliance is configured by its first boot scripts, and a web interface
+# is not something it needs before then. So the unit does not start with the
+# rest of the boot until the first boot scripts have run once.
+#
+# The three conditions are triggering conditions, which systemd reads as an
+# OR:
+#
+#   - WEBMIN_OPENED exists: a first boot got to the end of its scripts on
+#     this machine once, and this boot is not waiting for it. The one shot
+#     below writes it; the build does not, so no image carries it.
+#   - the marker inithooks writes when its boot scripts are done, on the
+#     boot that has not got that far yet.
+#   - the image carries no inithooks at all, and there is nothing to wait
+#     for.
+#
+# The path unit starts Webmin when the marker appears; it triggers a one
+# shot that stays active afterwards, so it fires once per boot and does not
+# restart Webmin behind an administrator who stopped it.
+#
+# The marker is written when the scripts have run, not when they succeeded:
+# inithooks logs a failing script and carries on. What keeps an account
+# shut on a first boot that failed to set a password is rootpass (a field
+# no password matches), not this.
+#
+# A first boot that never finishes keeps the interface shut on every boot
+# until one does. To open it by hand, from a console:
+#
+#   systemctl start webmin-after-firstboot.service
+#
+# which starts Webmin and records that it has been opened, for every boot
+# after. 'systemctl start webmin' alone exits 0 and starts nothing while the
+# conditions are unmet.
+#
+# SYSTEMD_DIR, INITHOOKS_MARKER, INITHOOKS_RUN and WEBMIN_OPENED are test
+# hooks; a build leaves them unset.
+
+SYSTEMD_DIR=${SYSTEMD_DIR:-/etc/systemd/system}
+INITHOOKS_MARKER=${INITHOOKS_MARKER:-/run/inithooks-complete}
+INITHOOKS_RUN=${INITHOOKS_RUN:-/usr/lib/inithooks/run}
+WEBMIN_OPENED=${WEBMIN_OPENED:-/var/lib/webmin-after-firstboot/opened}
+
+mkdir -p "$SYSTEMD_DIR/webmin.service.d"
+
+cat > "$SYSTEMD_DIR/webmin.service.d/after-firstboot.conf" <<CONF
+[Unit]
+ConditionPathExists=|$WEBMIN_OPENED
+ConditionPathExists=|$INITHOOKS_MARKER
+ConditionPathExists=|!$INITHOOKS_RUN
+CONF
+
+cat > "$SYSTEMD_DIR/webmin-after-firstboot.path" <<CONF
+[Unit]
+Description=Watch for the end of the first boot scripts, to start Webmin
+
+[Path]
+PathExists=$INITHOOKS_MARKER
+Unit=webmin-after-firstboot.service
+
+[Install]
+WantedBy=multi-user.target
+CONF
+
+cat > "$SYSTEMD_DIR/webmin-after-firstboot.service" <<CONF
+[Unit]
+Description=Start Webmin now that the first boot scripts have run
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/mkdir -p $(dirname "$WEBMIN_OPENED")
+ExecStart=/usr/bin/touch $WEBMIN_OPENED
+ExecStart=/usr/bin/systemctl --no-block start webmin.service
+CONF
 
 systemctl enable webmin
+systemctl enable webmin-after-firstboot.path

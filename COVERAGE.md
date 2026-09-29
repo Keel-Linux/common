@@ -4,6 +4,50 @@ Measured on 2026-09-24 against upstream 19.x (b60dd23), following the
 project decision 0003 (90 percent floor per repository, 95 percent for every
 file our changes touch).
 
+## Branch fix/webmin-auth-hardening: 100 percent, five files (2026-09-29)
+
+Every file this branch touches has a target in `tests/coverage.sh`, and the
+two suites that measure no file of their own run after them. Measured with
+kcov 43 on Debian 13, 85 bats after the merge of 19.x (#8 and #10), the
+five files of this branch:
+
+| File | Lines | Covered | Percent |
+|------|-------|---------|---------|
+| conf/samba-rootpass | 8 | 8 | 100 |
+| conf/turnkey.d/postfix-local | 17 | 17 | 100 |
+| conf/turnkey.d/rootpass | 6 | 6 | 100 |
+| conf/turnkey.d/webmin-enable | 10 | 10 | 100 |
+| conf/turnkey.d/webmin-pam | 7 | 7 | 100 |
+| Total | 48 | 48 | 100 |
+
+`conf/turnkey.d/rootpass`, `conf/turnkey.d/webmin-enable` and
+`conf/samba-rootpass` changed shebang from `/bin/sh` to `/bin/bash`, because
+kcov measures bash and not dash and decision 0003 gives no exemption for a
+file a change touches.
+
+The gate in `.github/workflows/tests.yml` stays at 100, the measured number.
+
+The suite asserts behaviour and not configuration. The question "can this
+password get in" is put to the real Linux-PAM: `tests/pam-authenticate`
+calls `pam_authenticate` through libpam over the scratch image's own stack,
+in a private mount namespace with the scratch shadow and passwd files bind
+mounted over the real ones, so pam_unix and its unix_chkpwd helper are the
+installed ones. An earlier version of the suite modelled pam_unix by hand
+and reported an acceptance the module does not make; nothing is modelled
+now. What pam_unix makes of the crypt() of the empty string differs between
+libpam 1.5 and 1.7, so the five tests that depend on it run on 1.7, the
+appliance's, and skip by name elsewhere: the CI runner has 1.5.3 and skips
+them. The verdict on whether the web interface would start is
+`systemd-analyze condition` over the packaged `webmin.service` and the
+drop-in together, both handed to `systemd-analyze verify`. The shadow tools
+and `smbpasswd` are the things stubbed, because they chroot into the root
+they are given or talk to a daemon; each stub records the behaviour it
+reproduces.
+
+`tests/before-firstboot.bats` runs the three conf scripts over one scratch
+image in the order a build runs them and asks the whole question of the
+result, because no single script owns the answer.
+
 ## Measured baseline on the default branch: 100 percent (2026-09-28)
 
 Pull request #2 merged on 2026-09-26 (merge commit 5a0a381) and brought

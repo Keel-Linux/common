@@ -1,0 +1,7 @@
+#!/bin/bash
+# Stand-in for smbpasswd: records the call in STUB_LOG, and what it was given
+# on standard input in STUB_LOG.stdin, one line per line read.
+echo "smbpasswd $*" >> "${STUB_LOG:?}"
+if [[ " $* " == *" -s "* ]]; then
+    cat >> "$STUB_LOG.stdin"
+fi

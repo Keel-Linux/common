@@ -1,0 +1,26 @@
+#!/bin/bash -e
+
+# Webmin authenticates through PAM, and the stack its own package ships
+# carries 'nullok' on the pam_unix line, which tells pam_unix that an
+# account whose password is not set may be authenticated without one. No
+# appliance account is meant to be reachable that way, and nothing in an
+# appliance asks for the option, so it goes. Debian's common-auth carries it
+# too and keeps it for now: pam-auth-update regenerates that file, so it
+# needs a profile rather than an edit (Keel-Linux/common#13).
+#
+# PAM_WEBMIN is a test hook; a build leaves it unset.
+
+PAM_WEBMIN=${PAM_WEBMIN:-/etc/pam.d/webmin}
+
+fatal() {
+    echo "FATAL [$(basename "$0")]: $*" >&2
+    exit 1
+}
+
+[[ -f "$PAM_WEBMIN" ]] || fatal "$PAM_WEBMIN does not exist"
+
+sed -i -E 's/[[:space:]]+nullok(_secure)?\b//g' "$PAM_WEBMIN"
+
+if grep -qE '\bnullok' "$PAM_WEBMIN"; then
+    fatal "nullok survived in $PAM_WEBMIN"
+fi
