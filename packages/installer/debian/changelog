@@ -1,0 +1,11 @@
+keel-overlay-installer (0.1.0) trixie; urgency=medium
+
+  * First release (handbook decision 0041, first implementation, step 2).
+    Depends on Keel's inithooks 2.3.6+keel14, confconsole 2.2.3+keel8 and
+    keel 0.12.0, the first keel that reads manifest_version 1; ships the
+    overlay manifest of docs/manifest-v1.md as
+    /usr/share/keel/overlays/installer.yaml, whose first boot hooks
+    00declarative, 75keel-role and 80keel-cloud are inithooks' and
+    10keel-system is keel's.
+
+ -- Marcos Mendez <mendez.foto@gmail.com>  Wed, 30 Sep 2026 15:00:00 +0000

@@ -1,0 +1,21 @@
+keel-overlay-crowdsec (0.1.0) trixie; urgency=medium
+
+  * First release (handbook decision 0041, first implementation, step 2).
+    Depends on trixie's crowdsec 1.4.6-10 and crowdsec-firewall-bouncer
+    0.0.25, as decision 0029 left the choice of a newer CrowdSec open;
+    ships the overlay manifest of docs/manifest-v1.md as
+    /usr/share/keel/overlays/crowdsec.yaml.
+  * crowdsec.service and crowdsec-firewall-bouncer.service are left
+    disabled and stopped, the simple installation's state: postinst
+    disables and stops them on the first installation only, after the
+    Debian packages' own postinst enabled and started them, and the preset
+    20-keel-overlay-crowdsec.preset keeps systemd's first boot preset from
+    enabling them again. An upgrade of any of the three packages keeps
+    whatever state keel apply has set since (packages/README.md).
+  * postrm keeps the package in the config-files state after a remove, so
+    a reinstall is an upgrade and leaves the units alone; preinst records
+    a unit already enabled or running before the first installation on a
+    live system, never in an image build, and postinst leaves it as it
+    was; postrm deletes that record on purge and abort-install.
+
+ -- Marcos Mendez <mendez.foto@gmail.com>  Wed, 30 Sep 2026 15:00:00 +0000

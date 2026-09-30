@@ -1,0 +1,20 @@
+#!/bin/sh
+# keel-overlay-crowdsec: this script exists so that dpkg keeps the package in
+# the config-files state after a remove. Without one, and with no conffile,
+# a remove forgets the package entirely, and the next installation would be
+# configured as a first one and disable a unit keel apply had enabled.
+# On purge, and on abort-install (an installation that failed after
+# preinst ran), it deletes what preinst may have left behind, so a later
+# first installation never reads a stale list.
+set -e
+
+KEPT=/var/lib/keel-overlay-crowdsec/kept-units
+
+if [ "$1" = purge ] || [ "$1" = abort-install ]; then
+    rm -f "$KEPT"
+    rmdir "${KEPT%/*}" 2>/dev/null || :
+fi
+
+#DEBHELPER#
+
+exit 0

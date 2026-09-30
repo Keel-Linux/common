@@ -1,0 +1,28 @@
+Source: keel-overlay-installer
+Section: admin
+Priority: optional
+Maintainer: KeelLinux maintainers <admin@keellinux.org>
+Uploaders: Marcos Mendez <mendez.foto@gmail.com>
+Build-Depends:
+ debhelper-compat (= 13),
+Standards-Version: 4.7.2
+Rules-Requires-Root: no
+Vcs-Git: https://github.com/Keel-Linux/common.git -b 19.x [packages/installer]
+Vcs-Browser: https://github.com/Keel-Linux/common/tree/19.x/packages/installer
+
+Package: keel-overlay-installer
+Architecture: all
+Depends:
+ confconsole (>= 2.2.3+keel8),
+ inithooks (>= 2.3.6+keel14),
+ keel (>= 0.12.0),
+ ${misc:Depends},
+Description: Keel overlay: the installer
+ The installer overlay of Keel Linux (handbook decision 0036): Keel's
+ inithooks, confconsole and keel, which install an appliance in a simple
+ or a cloud mode and emit its instance spec, and the overlay manifest keel
+ reads, installed as /usr/share/keel/overlays/installer.yaml (decision
+ 0041).
+ .
+ The manifest names the first boot hooks the three packages ship. The
+ overlay declares no process: it is enabled in every installation mode.

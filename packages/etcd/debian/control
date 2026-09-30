@@ -1,0 +1,31 @@
+Source: keel-overlay-etcd
+Section: admin
+Priority: optional
+Maintainer: KeelLinux maintainers <admin@keellinux.org>
+Uploaders: Marcos Mendez <mendez.foto@gmail.com>
+Build-Depends:
+ debhelper-compat (= 13),
+Standards-Version: 4.7.2
+Rules-Requires-Root: no
+Vcs-Git: https://github.com/Keel-Linux/common.git -b 19.x [packages/etcd]
+Vcs-Browser: https://github.com/Keel-Linux/common/tree/19.x/packages/etcd
+
+Package: keel-overlay-etcd
+Architecture: all
+Depends:
+ etcd-server (>= 3.5.16),
+ keel (>= 0.12.0),
+ keel-overlay-wireguard,
+ ${misc:Depends},
+Description: Keel overlay: etcd, the mesh registry
+ The etcd overlay of Keel Linux (handbook decisions 0025 and 0036): trixie's
+ etcd-server, and the overlay manifest keel reads, installed as
+ /usr/share/keel/overlays/etcd.yaml (decision 0041).
+ .
+ etcd is installed disabled and stopped, the state of a simple
+ installation: the first installation of this package disables the unit
+ etcd-server's own maintainer scripts enabled, and a systemd preset keeps
+ it disabled at first boot. keel spec apply turns it on where the instance
+ spec says so. On a running system where etcd was already enabled or
+ running before this package, it is left as it was; an image build always
+ ends with it disabled.

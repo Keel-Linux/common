@@ -1,0 +1,9 @@
+# keel-overlay-crowdsec: CrowdSec is disabled in a simple installation of
+# Keel Core (handbook decisions 0029 and 0041). Debian's presets enable
+# every unit they do not name, and systemd applies them on a first boot,
+# when /etc/machine-id is missing or says "uninitialized", and on
+# `systemctl preset-all`: without these lines either would enable both
+# units. keel spec apply enables them where the instance spec says so. See
+# packages/README.md in Keel-Linux/common.
+disable crowdsec.service
+disable crowdsec-firewall-bouncer.service

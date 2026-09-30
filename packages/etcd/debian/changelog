@@ -1,0 +1,19 @@
+keel-overlay-etcd (0.1.0) trixie; urgency=medium
+
+  * First release (handbook decision 0041, first implementation, step 2).
+    Depends on trixie's etcd-server 3.5.16 and on keel-overlay-wireguard,
+    which the manifest requires; ships the overlay manifest of
+    docs/manifest-v1.md as /usr/share/keel/overlays/etcd.yaml.
+  * etcd.service is left disabled and stopped, the simple installation's
+    state: postinst disables and stops it on the first installation only,
+    after etcd-server's own postinst enabled and started it, and the
+    preset 20-keel-overlay-etcd.preset keeps systemd's first boot preset
+    from enabling it again. An upgrade of either package keeps whatever
+    state keel apply has set since (packages/README.md).
+  * postrm keeps the package in the config-files state after a remove, so
+    a reinstall is an upgrade and leaves the unit alone; preinst records
+    a unit already enabled or running before the first installation on a
+    live system, never in an image build, and postinst leaves it as it
+    was; postrm deletes that record on purge and abort-install.
+
+ -- Marcos Mendez <mendez.foto@gmail.com>  Wed, 30 Sep 2026 15:00:00 +0000
