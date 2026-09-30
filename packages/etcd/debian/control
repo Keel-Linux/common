@@ -2,6 +2,7 @@ Source: keel-overlay-etcd
 Section: admin
 Priority: optional
 Maintainer: KeelLinux maintainers <admin@keellinux.org>
+Uploaders: Marcos Mendez <mendez.foto@gmail.com>
 Build-Depends:
  debhelper-compat (= 13),
 Standards-Version: 4.7.2
@@ -25,4 +26,5 @@ Description: Keel overlay: etcd, the mesh registry
  installation: the first installation of this package disables the unit
  etcd-server's own maintainer scripts enabled, and a systemd preset keeps
  it disabled at first boot. keel spec apply turns it on where the instance
- spec says so.
+ spec says so. On a machine where etcd was already enabled or running
+ before this package, it is left as it was.

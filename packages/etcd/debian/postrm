@@ -1,0 +1,18 @@
+#!/bin/sh
+# keel-overlay-etcd: this script exists so that dpkg keeps the package in
+# the config-files state after a remove. Without one, and with no conffile,
+# a remove forgets the package entirely, and the next installation would be
+# configured as a first one and disable a unit keel apply had enabled.
+# On purge it deletes what preinst may have left behind.
+set -e
+
+KEPT=/var/lib/keel-overlay-etcd/kept-units
+
+if [ "$1" = purge ]; then
+    rm -f "$KEPT"
+    rmdir "${KEPT%/*}" 2>/dev/null || :
+fi
+
+#DEBHELPER#
+
+exit 0

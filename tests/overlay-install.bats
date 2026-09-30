@@ -67,6 +67,49 @@ overlay_deb() {
     echo "${debs[0]}"
 }
 
+# with_version DEB VERSION
+# A copy of DEB rebuilt with dpkg-deb under VERSION, everything else as it
+# is, maintainer scripts included: installing it over DEB is a real upgrade,
+# "configure" with the previous version, not a reinstall of the same one.
+with_version() {
+    local deb="$1" version="$2" tree
+    tree="$(mktemp -d "$BATS_TEST_TMPDIR/deb.XXXXXX")"
+    dpkg-deb -R "$deb" "$tree/root"
+    awk -v v="$version" '/^Version: / { $0 = "Version: " v } { print }' \
+        "$tree/root/DEBIAN/control" > "$tree/control"
+    mv "$tree/control" "$tree/root/DEBIAN/control"
+    dpkg-deb -b "$tree/root" "$tree/$(basename "$deb" .deb)-$version.deb" >&2
+    echo "$tree/$(basename "$deb" .deb)-$version.deb"
+}
+
+# debian_upgrade SUFFIX PACKAGE...
+# Upgrades each Debian PACKAGE to its archive version plus SUFFIX
+debian_upgrade() {
+    local suffix="$1" package archived deb debs=()
+    shift
+    for package in "$@"; do
+        # the archive's version: apt-get download alone asks for the
+        # installed one, which after an earlier upgrade is no archive's
+        archived="$(apt-cache madison "$package" | awk 'NR == 1 { print $3 }')"
+        (cd "$BATS_TEST_TMPDIR" && apt-get download -q "$package=$archived")
+        deb="$(ls "$BATS_TEST_TMPDIR/${package}"_*.deb)"
+        debs+=("$(with_version "$deb" "$(dpkg-deb -f "$deb" Version)$suffix")")
+    done
+    dpkg -i "${debs[@]}"
+    for package in "$@"; do
+        run dpkg-query -W -f='${Version}' "$package"
+        [[ "$output" == *"$suffix" ]]
+    done
+}
+
+enable_unit() {
+    ENABLED_BY_TEST="${ENABLED_BY_TEST:+$ENABLED_BY_TEST }$*"
+    systemctl enable "$@"
+    if systemd_running; then
+        systemctl start "$@"
+    fi
+}
+
 assert_enabled_state() {
     local unit="$1" expected="$2"
     run systemctl is-enabled "$unit"
@@ -159,42 +202,75 @@ assert_simple_state() {
     assert_simple_state
 }
 
-@test "a first install disables and stops what the Debian packages enabled" {
-    dpkg -r keel-overlay-etcd keel-overlay-crowdsec
-    # the state Debian's own postinst leaves on a machine without the overlay
-    systemctl enable "${DISABLED_UNITS[@]}"
-    if systemd_running; then
-        systemctl start etcd.service crowdsec.service
-    fi
-    assert_enabled_state crowdsec.service enabled
+@test "a first install disables and stops what the Debian packages enabled with it" {
+    # purged, so nothing of either overlay is left and the next
+    # configuration is a first one; the Debian packages go too, so that
+    # their postinst enables and starts the units in the same transaction
+    dpkg -P keel-overlay-etcd keel-overlay-crowdsec
+    run dpkg-query -W -f='${db:Status-Status}' keel-overlay-etcd
+    [ "$output" != config-files ]
+    apt-get purge -y -q etcd-server crowdsec crowdsec-firewall-bouncer
+    rm -rf /etc/crowdsec /var/lib/crowdsec /var/lib/etcd
 
-    dpkg -i "$(overlay_deb etcd)" "$(overlay_deb crowdsec)"
+    apt-get install -y -q --no-install-recommends \
+        "$(overlay_deb etcd)" "$(overlay_deb crowdsec)"
 
     assert_simple_state
 }
 
-@test "an upgrade of the Debian packages keeps the units disabled and stopped" {
-    apt-get install -y -q --reinstall \
-        etcd-server crowdsec crowdsec-firewall-bouncer
-    assert_simple_state
-}
-
-@test "an upgrade of the overlay keeps a unit that keel apply enabled" {
-    ENABLED_BY_TEST="crowdsec.service"
-    systemctl enable crowdsec.service
+@test "a first install leaves a unit that was enabled and running before it" {
+    # the transition of a machine that ran CrowdSec before the overlay
+    dpkg -P keel-overlay-crowdsec
+    enable_unit crowdsec.service
+    assert_enabled_state crowdsec-firewall-bouncer.service disabled
 
     dpkg -i "$(overlay_deb crowdsec)"
 
     assert_enabled_state crowdsec.service enabled
+    assert_active_state crowdsec.service active
+    # what nobody had turned on is still put in the simple state
+    assert_enabled_state crowdsec-firewall-bouncer.service disabled
+    assert_active_state crowdsec-firewall-bouncer.service inactive
+}
+
+@test "remove, then reinstall, keeps an enabled etcd enabled and active" {
+    enable_unit etcd.service
+
+    dpkg -r keel-overlay-etcd
+    # postrm is what keeps the package known to dpkg after a remove, so the
+    # reinstall is configured as an upgrade from the version removed
+    run dpkg-query -W -f='${db:Status-Status}' keel-overlay-etcd
+    [ "$output" = config-files ]
+    dpkg -i "$(overlay_deb etcd)"
+
+    assert_enabled_state etcd.service enabled
+    assert_active_state etcd.service active
+}
+
+@test "an upgrade of the Debian packages keeps the units disabled and stopped" {
+    debian_upgrade +keeltest1 etcd-server crowdsec crowdsec-firewall-bouncer
+    assert_simple_state
 }
 
 @test "an upgrade of the Debian package keeps a unit that keel apply enabled" {
-    ENABLED_BY_TEST="etcd.service"
-    systemctl enable etcd.service
+    enable_unit etcd.service
 
-    apt-get install -y -q --reinstall etcd-server
+    debian_upgrade +keeltest2 etcd-server
 
     assert_enabled_state etcd.service enabled
+    assert_active_state etcd.service active
+}
+
+@test "an upgrade of the overlay keeps a unit that keel apply enabled" {
+    enable_unit crowdsec.service
+
+    dpkg -i "$(with_version "$(overlay_deb crowdsec)" 0.1.1)"
+
+    run dpkg-query -W -f='${Version}' keel-overlay-crowdsec
+    [ "$output" = 0.1.1 ]
+    assert_enabled_state crowdsec.service enabled
+    assert_active_state crowdsec.service active
+    assert_enabled_state crowdsec-firewall-bouncer.service disabled
 }
 
 @test "keel apply can still enable the units: none of them is masked" {

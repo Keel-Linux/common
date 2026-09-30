@@ -10,5 +10,9 @@ keel-overlay-etcd (0.1.0) trixie; urgency=medium
     preset 20-keel-overlay-etcd.preset keeps systemd's first boot preset
     from enabling it again. An upgrade of either package keeps whatever
     state keel apply has set since (packages/README.md).
+  * postrm keeps the package in the config-files state after a remove, so
+    a reinstall is an upgrade and leaves the unit alone; preinst records
+    a unit already enabled or running before the first installation, and
+    postinst leaves it as it was.
 
  -- Marcos Mendez <mendez.foto@gmail.com>  Wed, 30 Sep 2026 15:00:00 +0000

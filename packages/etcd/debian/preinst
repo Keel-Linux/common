@@ -1,0 +1,31 @@
+#!/bin/sh
+# keel-overlay-etcd: before the first installation, note which of the
+# overlay's units were already enabled or running. postinst leaves those as
+# they are, so installing the overlay on a machine that already ran etcd
+# does not stop it. When etcd-server is installed in the same transaction it
+# is only unpacked here, not yet configured, so its unit is neither enabled
+# nor running, and postinst puts it in the simple state.
+# packages/README.md in Keel-Linux/common.
+set -e
+
+UNITS="etcd.service"
+KEPT=/var/lib/keel-overlay-etcd/kept-units
+
+if [ "$1" = install ] && [ -z "$2" ]; then
+    mkdir -p "${KEPT%/*}"
+    : > "$KEPT"
+    for unit in $UNITS; do
+        # is-enabled fails for a unit whose file is not there yet, which is
+        # the answer wanted: nothing to keep
+        if deb-systemd-helper --quiet is-enabled "$unit" 2>/dev/null; then
+            echo "$unit" >> "$KEPT"
+        elif [ -d /run/systemd/system ] \
+                && systemctl --quiet is-active "$unit"; then
+            echo "$unit" >> "$KEPT"
+        fi
+    done
+fi
+
+#DEBHELPER#
+
+exit 0

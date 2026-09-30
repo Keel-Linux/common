@@ -2,6 +2,7 @@ Source: keel-overlay-crowdsec
 Section: admin
 Priority: optional
 Maintainer: KeelLinux maintainers <admin@keellinux.org>
+Uploaders: Marcos Mendez <mendez.foto@gmail.com>
 Build-Depends:
  debhelper-compat (= 13),
 Standards-Version: 4.7.2
@@ -26,4 +27,5 @@ Description: Keel overlay: CrowdSec and its firewall bouncer
  installation: the first installation of this package disables what the
  Debian packages' own maintainer scripts enabled and started, and a
  systemd preset keeps them disabled at first boot. keel spec apply turns
- them on where the instance spec says so.
+ them on where the instance spec says so. A unit that was already enabled
+ or running before this package is left as it was.

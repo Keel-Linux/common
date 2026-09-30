@@ -55,6 +55,24 @@ Two parts keep them in that state, and each covers a case the other cannot.
    `postinst` has enabled and started them. It uses
    `deb-systemd-helper disable`, which removes the links and keeps the
    state file, and `deb-systemd-invoke stop` only where systemd runs.
+   - *What counts as a first installation.* dpkg passes no previous version
+     only when nothing of the package is left. The overlay has no conffile,
+     so it ships a `postrm`: with one, a `remove` leaves the package in the
+     config-files state, and a later reinstall is configured as an upgrade
+     from the removed version and leaves the units alone. Only after a
+     `purge` is the next installation a first one again.
+   - *A machine that already ran them (the transition).* `preinst`, on the
+     first installation, records every unit that is already enabled, or
+     running, in `/var/lib/keel-overlay-<name>/kept-units`, and `postinst`
+     leaves those as they are and says so. When the Debian package comes
+     in the same transaction as the overlay, apt unpacks everything before
+     it configures anything, so at `preinst` time the unit is unpacked but
+     not yet enabled or started, and `postinst` puts it in the simple
+     state. Measured both ways on a trixie container: `apt install` of the
+     overlay with its Debian packages ends disabled and stopped, and an
+     overlay installed where CrowdSec was enabled and running leaves it
+     running. A unit nobody had turned on (the bouncer, when only
+     `crowdsec` ran) is still put in the simple state.
    - *Upgrades of the Debian packages keep the state.* Their
      `dh_installsystemd` snippet re-enables a unit only while every link its
      state file records is present (`deb-systemd-helper was-enabled`), and
@@ -89,13 +107,39 @@ none of the units is masked.
 spec enabled them; `keel diff` reports that as drift and `keel apply`
 converges it.
 
+## CrowdSec's identity: work for step 4 (tracker#47)
+
+trixie's `crowdsec` registers the machine with its local API (keyed on
+`/etc/machine-id`) and with CrowdSec's central API in its `postinst`, and
+`crowdsec-firewall-bouncer` adds itself as a bouncer and stores the key. In
+an image build that happens once, so every machine made from the image would
+share one identity. This package does not change it; the Core image and
+keel's enable path must:
+
+- at image build, delete `/etc/crowdsec/local_api_credentials.yaml`,
+  `/etc/crowdsec/online_api_credentials.yaml`,
+  `/etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml.local` and its
+  `.id`, and `/var/lib/crowdsec/data/crowdsec.db`;
+- on keel's first enable of the overlay, run
+  `cscli machines add --auto --force`, `cscli capi register` and
+  `cscli bouncers add`, then write the bouncer key into the `.local` file;
+- remember that `cscli capi register` fails without network, as the
+  package's own `postinst` already does at installation.
+
 ## Tests
 
 `tests/overlay-install.bats` runs on a disposable trixie machine with the
 four packages installed (it refuses to run unless
-`KEEL_OVERLAY_INSTALL_TEST=1`): each manifest validates with
-`keel manifest validate`, the three units are disabled (and inactive where
-systemd runs), the preset reads `disable`, a first boot preset leaves them
-disabled, a first installation disables what the Debian packages enabled,
-reinstalling the Debian packages keeps them disabled, and an upgrade of
-either keeps a unit that `keel apply` enabled.
+`KEEL_OVERLAY_INSTALL_TEST=1`). It checks that:
+
+- each manifest validates with `keel manifest validate`;
+- the three units are disabled, and inactive where systemd runs;
+- the preset reads `disable`, and a first boot preset leaves the units
+  disabled;
+- after a purge, a first installation disables what the Debian packages
+  enabled in the same transaction;
+- a first installation leaves a unit that was enabled and running before it;
+- remove and reinstall keep an enabled etcd enabled and active;
+- real version upgrades keep the state: the Debian packages and the overlay
+  are rebuilt with `dpkg-deb` under a higher version and installed over the
+  current ones, whether the units are disabled or enabled by `keel apply`.
