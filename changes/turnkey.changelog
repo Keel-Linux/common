@@ -1,5 +1,10 @@
 turnkey-core-19.0 (1) turnkey; urgency=low
 
+  * 'conf/desktop' no longer runs 'chmod -x' on the inithooks hook
+    80hub-services, which Keel-Linux/inithooks#29 removes (80keel-cloud,
+    an optional Keel Cloud key, takes its place). Under 'bash -e' the
+    chmod of a file that is not there would stop every desktop build.
+
   * An appliance no longer carries an account that can be authenticated
     before its first boot has set a password. A build given no 'ROOT_PASS'
     wrote 'U6aMy0wojraho', the crypt() of the empty string, into the root
