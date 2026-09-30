@@ -21,6 +21,7 @@ targets=(
     "conf/turnkey.d/dpkg-vendor:tests/dpkg-vendor.bats"
     "conf/turnkey.d/apt-identity:tests/apt-identity.bats"
     "conf/samba-rootpass:tests/samba-rootpass.bats"
+    "conf/desktop:tests/desktop.bats"
     "conf/turnkey.d/rootpass:tests/rootpass.bats"
     "conf/turnkey.d/webmin-enable:tests/webmin-enable.bats"
     "conf/turnkey.d/webmin-pam:tests/webmin-pam.bats"
