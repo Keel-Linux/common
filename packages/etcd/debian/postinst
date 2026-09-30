@@ -1,0 +1,30 @@
+#!/bin/sh
+# keel-overlay-etcd: leave etcd in the state of a simple installation,
+# disabled and stopped, whatever etcd-server's own postinst did before it.
+#
+# Only on the first installation ("configure" with no previous version):
+# from then on the state is keel apply's, and an upgrade of this package
+# must not undo it. An upgrade of etcd-server keeps it too, because its
+# dh_installsystemd snippet re-enables a unit only while every link its
+# state file records is present (deb-systemd-helper was-enabled), and
+# deb-systemd-invoke never starts a disabled unit. Why this and not a mask
+# or a preset alone: packages/README.md in Keel-Linux/common.
+set -e
+
+UNITS="etcd.service"
+
+if [ "$1" = configure ] && [ -z "$2" ]; then
+    # removes the links and keeps the state file, which is what later
+    # upgrades read as "the administrator disabled it". A failure fails the
+    # configuration: a unit left enabled would be a state nobody chose.
+    deb-systemd-helper disable $UNITS
+    # deb-systemd-invoke honours policy-rc.d, as an image build needs; there
+    # nothing was started, so there is nothing to stop
+    if [ -d /run/systemd/system ]; then
+        deb-systemd-invoke stop $UNITS
+    fi
+fi
+
+#DEBHELPER#
+
+exit 0

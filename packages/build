@@ -1,0 +1,56 @@
+#!/bin/bash
+# Build the overlay packages of packages/ and lint each with lintian.
+#
+#   packages/build [NAME...]        (default: every packages/*/debian)
+#
+# Each package is built from a copy of its directory, so the checkout stays
+# clean, with dpkg-buildpackage -us -uc -b: nothing is signed, publishing
+# is the maintainer's attended release (docs/build-host.md in
+# Keel-Linux/apt). The .deb, .buildinfo and .changes land in OUT_DIR
+# (default dist/ of the repository). lintian fails the build on any error
+# or warning; an override must say why in the package's
+# debian/<package>.lintian-overrides.
+#
+# Exits 1 when a build or a lint fails, 2 when a tool is missing.
+set -euo pipefail
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+root="$(cd "$here/.." && pwd)"
+out="${OUT_DIR:-$root/dist}"
+
+for tool in dpkg-buildpackage dh lintian; do
+    if ! command -v "$tool" >/dev/null; then
+        echo "$tool not found (apt-get install dpkg-dev debhelper lintian)" >&2
+        exit 2
+    fi
+done
+
+if [ "$#" -eq 0 ]; then
+    names=()
+    for control in "$here"/*/debian/control; do
+        names+=("$(basename "$(dirname "$(dirname "$control")")")")
+    done
+else
+    names=("$@")
+fi
+
+work="$(mktemp -d)"
+trap 'rm -rf -- "$work"' EXIT
+mkdir -p "$out"
+
+for name in "${names[@]}"; do
+    source_dir="$here/$name"
+    if [ ! -f "$source_dir/debian/control" ]; then
+        echo "$name: no $source_dir/debian/control" >&2
+        exit 1
+    fi
+    echo "== $name"
+    mkdir "$work/$name"
+    cp -a "$source_dir" "$work/$name/src"
+    (cd "$work/$name/src" && dpkg-buildpackage -us -uc -b)
+    changes=("$work/$name"/*.changes)
+    lintian --fail-on error,warning --info --display-info "${changes[0]}"
+    cp "$work/$name"/*.deb "$work/$name"/*.buildinfo "${changes[0]}" "$out/"
+done
+
+ls -l "$out"

@@ -1,0 +1,29 @@
+Source: keel-overlay-crowdsec
+Section: admin
+Priority: optional
+Maintainer: KeelLinux maintainers <admin@keellinux.org>
+Build-Depends:
+ debhelper-compat (= 13),
+Standards-Version: 4.7.2
+Rules-Requires-Root: no
+Vcs-Git: https://github.com/Keel-Linux/common.git -b 19.x [packages/crowdsec]
+Vcs-Browser: https://github.com/Keel-Linux/common/tree/19.x/packages/crowdsec
+
+Package: keel-overlay-crowdsec
+Architecture: all
+Depends:
+ crowdsec (>= 1.4.6-10),
+ crowdsec-firewall-bouncer (>= 0.0.25),
+ keel (>= 0.12.0),
+ ${misc:Depends},
+Description: Keel overlay: CrowdSec and its firewall bouncer
+ The CrowdSec overlay of Keel Linux (handbook decisions 0029 and 0036):
+ trixie's crowdsec and crowdsec-firewall-bouncer, and the overlay manifest
+ keel reads, installed as /usr/share/keel/overlays/crowdsec.yaml (decision
+ 0041).
+ .
+ Both units are installed disabled and stopped, the state of a simple
+ installation: the first installation of this package disables what the
+ Debian packages' own maintainer scripts enabled and started, and a
+ systemd preset keeps them disabled at first boot. keel spec apply turns
+ them on where the instance spec says so.

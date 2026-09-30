@@ -1,0 +1,13 @@
+#!/usr/bin/make -f
+# The overlay manifest and the systemd preset sit beside debian/ (docs/
+# manifest-v1.md, "Kinds, and where each file lives") and are installed
+# under the names keel and systemd look them up by.
+
+%:
+	dh $@
+
+execute_after_dh_auto_install:
+	install -D -m 0644 manifest.yaml \
+		debian/keel-overlay-etcd/usr/share/keel/overlays/etcd.yaml
+	install -D -m 0644 keel-overlay-etcd.preset \
+		debian/keel-overlay-etcd/usr/lib/systemd/system-preset/20-keel-overlay-etcd.preset

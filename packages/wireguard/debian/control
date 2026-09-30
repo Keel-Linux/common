@@ -1,0 +1,26 @@
+Source: keel-overlay-wireguard
+Section: admin
+Priority: optional
+Maintainer: KeelLinux maintainers <admin@keellinux.org>
+Build-Depends:
+ debhelper-compat (= 13),
+Standards-Version: 4.7.2
+Rules-Requires-Root: no
+Vcs-Git: https://github.com/Keel-Linux/common.git -b 19.x [packages/wireguard]
+Vcs-Browser: https://github.com/Keel-Linux/common/tree/19.x/packages/wireguard
+
+Package: keel-overlay-wireguard
+Architecture: all
+Depends:
+ keel (>= 0.12.0),
+ wireguard-tools (>= 1.0.20210914),
+ ${misc:Depends},
+Description: Keel overlay: WireGuard, the mesh
+ The WireGuard overlay of Keel Linux (handbook decisions 0024 and 0036):
+ trixie's wireguard-tools, and the overlay manifest keel reads, installed
+ as /usr/share/keel/overlays/wireguard.yaml (decision 0041).
+ .
+ The overlay declares no process: the interface, its wg-quick unit, its
+ address and its port are each machine's choice, kept in the instance spec
+ and converged by keel spec apply. Installing this package enables
+ nothing.

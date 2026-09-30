@@ -1,0 +1,8 @@
+# keel-overlay-etcd: etcd is disabled in a simple installation of Keel
+# Core (handbook decision 0041). Debian's presets enable every unit they do
+# not name, and systemd applies them on a first boot, when /etc/machine-id
+# is missing or says "uninitialized", and on `systemctl preset-all`:
+# without this line either would enable etcd. keel spec apply enables it
+# where the instance spec says so. See packages/README.md in
+# Keel-Linux/common.
+disable etcd.service
