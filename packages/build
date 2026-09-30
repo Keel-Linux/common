@@ -4,12 +4,13 @@
 #   packages/build [NAME...]        (default: every packages/*/debian)
 #
 # Each package is built from a copy of its directory, so the checkout stays
-# clean, with dpkg-buildpackage -us -uc -b: nothing is signed, publishing
-# is the maintainer's attended release (docs/build-host.md in
-# Keel-Linux/apt). The .deb, .buildinfo and .changes land in OUT_DIR
-# (default dist/ of the repository). lintian fails the build on any error
-# or warning; an override must say why in the package's
-# debian/<package>.lintian-overrides.
+# clean, with dpkg-buildpackage -us -uc, source and binary: nothing is
+# signed, publishing is the maintainer's attended release (docs/build-host.md
+# in Keel-Linux/apt). The .deb, .dsc, source tarball, .buildinfo and
+# .changes land in OUT_DIR (default dist/ of the repository). lintian checks
+# the source and the binary package and fails the build on any error or
+# warning; an override must say why in the package's
+# debian/<package>.lintian-overrides or debian/source/lintian-overrides.
 #
 # Exits 1 when a build or a lint fails, 2 when a tool is missing.
 set -euo pipefail
@@ -47,10 +48,12 @@ for name in "${names[@]}"; do
     echo "== $name"
     mkdir "$work/$name"
     cp -a "$source_dir" "$work/$name/src"
-    (cd "$work/$name/src" && dpkg-buildpackage -us -uc -b)
+    # source and binary, so lintian checks the source package as well
+    (cd "$work/$name/src" && dpkg-buildpackage -us -uc)
     changes=("$work/$name"/*.changes)
     lintian --fail-on error,warning --info --display-info "${changes[0]}"
-    cp "$work/$name"/*.deb "$work/$name"/*.buildinfo "${changes[0]}" "$out/"
+    cp "$work/$name"/*.deb "$work/$name"/*.dsc "$work/$name"/*.tar.* \
+        "$work/$name"/*.buildinfo "${changes[0]}" "$out/"
 done
 
 ls -l "$out"

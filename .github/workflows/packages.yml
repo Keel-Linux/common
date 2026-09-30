@@ -2,14 +2,17 @@
 # implementation, step 2). The checks are "packages / build" and
 # "packages / install".
 #
-# build: each package built with dpkg-buildpackage and linted with lintian,
-# any error or warning failing (packages/build). Nothing is signed or
-# published; the .deb files are kept as the artifact overlay-debs.
+# build: each package built, source and binary, with dpkg-buildpackage, and
+# both linted with lintian, any error or warning failing (packages/build).
+# Nothing is signed or published; the files are kept as the artifact
+# overlay-debs.
 #
 # install: the four packages installed with their real dependencies in a
 # trixie container, then tests/overlay-install.bats: keel manifest validate
-# on the machine, and the units of etcd and CrowdSec disabled after a first
-# installation, a Debian package upgrade and an overlay upgrade. The job
+# on the machine, and the units of etcd and CrowdSec after a first
+# installation, a purge, a remove and reinstall, a transition from a unit
+# already enabled, and real version upgrades of the Debian packages and of
+# the overlay. The job
 # container is the image build's case: systemd is not PID 1, and the job
 # writes the policy-rc.d that exits 101 fab installs under. The is-active assertions need a running systemd and are made on
 # a booted container instead (packages/README.md); everything systemctl
