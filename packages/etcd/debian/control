@@ -26,5 +26,6 @@ Description: Keel overlay: etcd, the mesh registry
  installation: the first installation of this package disables the unit
  etcd-server's own maintainer scripts enabled, and a systemd preset keeps
  it disabled at first boot. keel spec apply turns it on where the instance
- spec says so. On a machine where etcd was already enabled or running
- before this package, it is left as it was.
+ spec says so. On a running system where etcd was already enabled or
+ running before this package, it is left as it was; an image build always
+ ends with it disabled.

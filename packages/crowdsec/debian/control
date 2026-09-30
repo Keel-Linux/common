@@ -27,5 +27,6 @@ Description: Keel overlay: CrowdSec and its firewall bouncer
  installation: the first installation of this package disables what the
  Debian packages' own maintainer scripts enabled and started, and a
  systemd preset keeps them disabled at first boot. keel spec apply turns
- them on where the instance spec says so. A unit that was already enabled
- or running before this package is left as it was.
+ them on where the instance spec says so. On a running system, a unit that
+ was already enabled or running before this package is left as it was; an
+ image build always ends with both disabled.

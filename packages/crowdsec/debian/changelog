@@ -14,7 +14,8 @@ keel-overlay-crowdsec (0.1.0) trixie; urgency=medium
     whatever state keel apply has set since (packages/README.md).
   * postrm keeps the package in the config-files state after a remove, so
     a reinstall is an upgrade and leaves the units alone; preinst records
-    a unit already enabled or running before the first installation, and
-    postinst leaves it as it was.
+    a unit already enabled or running before the first installation on a
+    live system, never in an image build, and postinst leaves it as it
+    was; postrm deletes that record on purge and abort-install.
 
  -- Marcos Mendez <mendez.foto@gmail.com>  Wed, 30 Sep 2026 15:00:00 +0000

@@ -52,6 +52,15 @@ teardown() {
             systemctl stop $ENABLED_BY_TEST >/dev/null 2>&1 || true
         fi
     fi
+    # a test that took the CrowdSec overlay away, or left the package that
+    # conflicts with it, puts the machine back for the next one
+    if dpkg-query -W keel-test-conflict >/dev/null 2>&1; then
+        dpkg -P keel-test-conflict
+    fi
+    if [ "$(dpkg-query -W -f='${db:Status-Status}' keel-overlay-crowdsec \
+            2>/dev/null)" != installed ]; then
+        dpkg -i "$(overlay_deb crowdsec)"
+    fi
 }
 
 systemd_running() {
@@ -109,6 +118,34 @@ enable_unit() {
         systemctl start "$@"
     fi
 }
+
+# as_image_build COMMAND...
+# Runs COMMAND as an image build sees the machine: no /run/systemd/system.
+# Where systemd runs, a private mount namespace hides it under an empty
+# tmpfs on /run/systemd; in a job container it is not there to begin with.
+as_image_build() {
+    if systemd_running; then
+        unshare --mount --propagation private -- sh -c \
+            'mount -t tmpfs none /run/systemd && exec "$@"' sh "$@"
+    else
+        "$@"
+    fi
+}
+
+# a package owning the overlay manifest's path, so that unpacking the
+# overlay fails after its preinst ran and dpkg calls postrm abort-install
+conflicting_deb() {
+    local tree="$BATS_TEST_TMPDIR/conflict"
+    mkdir -p "$tree/DEBIAN" "$tree/usr/share/keel/overlays"
+    printf '%s\n' "Package: keel-test-conflict" "Version: 1" \
+        "Architecture: all" "Maintainer: Keel tests <admin@keellinux.org>" \
+        "Description: owns crowdsec.yaml, for a test" > "$tree/DEBIAN/control"
+    : > "$tree/usr/share/keel/overlays/crowdsec.yaml"
+    dpkg-deb -b "$tree" "$BATS_TEST_TMPDIR/keel-test-conflict.deb" >&2
+    echo "$BATS_TEST_TMPDIR/keel-test-conflict.deb"
+}
+
+KEPT_CROWDSEC=/var/lib/keel-overlay-crowdsec/kept-units
 
 assert_enabled_state() {
     local unit="$1" expected="$2"
@@ -219,7 +256,9 @@ assert_simple_state() {
 }
 
 @test "a first install leaves a unit that was enabled and running before it" {
-    # the transition of a machine that ran CrowdSec before the overlay
+    # the transition of a machine that ran CrowdSec before the overlay; a
+    # live system's only, the next test is the image build's
+    systemd_running || skip "systemd is not running here: an image build"
     dpkg -P keel-overlay-crowdsec
     enable_unit crowdsec.service
     assert_enabled_state crowdsec-firewall-bouncer.service disabled
@@ -231,6 +270,69 @@ assert_simple_state() {
     # what nobody had turned on is still put in the simple state
     assert_enabled_state crowdsec-firewall-bouncer.service disabled
     assert_active_state crowdsec-firewall-bouncer.service inactive
+}
+
+@test "in an image build a first install disables units enabled beforehand" {
+    # CrowdSec installed and enabled by one apt run of the build, the
+    # overlay by a later one: without systemd running nothing is kept
+    dpkg -P keel-overlay-crowdsec
+    enable_unit crowdsec.service crowdsec-firewall-bouncer.service
+
+    as_image_build dpkg -i "$(overlay_deb crowdsec)"
+
+    assert_enabled_state crowdsec.service disabled
+    assert_enabled_state crowdsec-firewall-bouncer.service disabled
+    [ ! -e "$KEPT_CROWDSEC" ]
+}
+
+@test "a purge after an unpack that was never configured deletes kept-units" {
+    dpkg -P keel-overlay-crowdsec
+    dpkg --unpack "$(overlay_deb crowdsec)"
+    [ -f "$KEPT_CROWDSEC" ]
+
+    dpkg -P keel-overlay-crowdsec
+
+    [ ! -e "$KEPT_CROWDSEC" ]
+    [ ! -e "${KEPT_CROWDSEC%/*}" ]
+}
+
+@test "an unpack that fails after preinst deletes kept-units (abort-install)" {
+    dpkg -P keel-overlay-crowdsec
+    dpkg -i "$(conflicting_deb)"
+
+    run dpkg --unpack "$(overlay_deb crowdsec)"
+    echo "$output"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"trying to overwrite"* ]]
+    [ ! -e "$KEPT_CROWDSEC" ]
+}
+
+@test "a configuration that failed and is retried still keeps what preinst recorded" {
+    dpkg -P keel-overlay-crowdsec
+    enable_unit crowdsec.service
+    dpkg --unpack "$(overlay_deb crowdsec)"
+    # the first configuration fails where it disables its first unit
+    mkdir -p "$BATS_TEST_TMPDIR/fail"
+    printf '#!/bin/sh\nexit 1\n' > "$BATS_TEST_TMPDIR/fail/deb-systemd-helper"
+    chmod 755 "$BATS_TEST_TMPDIR/fail/deb-systemd-helper"
+    run env PATH="$BATS_TEST_TMPDIR/fail:$PATH" \
+        dpkg --configure keel-overlay-crowdsec
+    [ "$status" -ne 0 ]
+    [ -f "$KEPT_CROWDSEC" ]
+
+    dpkg --configure keel-overlay-crowdsec
+
+    run dpkg-query -W -f='${db:Status-Status}' keel-overlay-crowdsec
+    [ "$output" = installed ]
+    [ ! -e "$KEPT_CROWDSEC" ]
+    assert_enabled_state crowdsec-firewall-bouncer.service disabled
+    if systemd_running; then
+        # a live system: what ran before is kept across the retry
+        assert_enabled_state crowdsec.service enabled
+        assert_active_state crowdsec.service active
+    else
+        assert_enabled_state crowdsec.service disabled
+    fi
 }
 
 @test "remove, then reinstall, keeps an enabled etcd enabled and active" {

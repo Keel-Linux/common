@@ -5,6 +5,12 @@
 # CrowdSec does not stop it. A Debian package installed in the same
 # transaction is only unpacked here, not yet configured, so its unit is
 # neither enabled nor running, and postinst puts it in the simple state.
+#
+# Only on a live system, where systemd runs. An image build (a chroot, no
+# /run/systemd/system) keeps nothing: there a unit enabled by an earlier
+# apt run of the same build is the Debian package's doing, not an
+# operator's, and must end disabled. postrm deletes the file on purge and
+# abort-install, postinst once it has read it.
 # packages/README.md in Keel-Linux/common.
 set -e
 
@@ -14,13 +20,13 @@ KEPT=/var/lib/keel-overlay-crowdsec/kept-units
 if [ "$1" = install ] && [ -z "$2" ]; then
     mkdir -p "${KEPT%/*}"
     : > "$KEPT"
+    [ -d /run/systemd/system ] || UNITS=""
     for unit in $UNITS; do
         # is-enabled fails for a unit whose file is not there yet, which is
         # the answer wanted: nothing to keep
         if deb-systemd-helper --quiet is-enabled "$unit" 2>/dev/null; then
             echo "$unit" >> "$KEPT"
-        elif [ -d /run/systemd/system ] \
-                && systemctl --quiet is-active "$unit"; then
+        elif systemctl --quiet is-active "$unit"; then
             echo "$unit" >> "$KEPT"
         fi
     done

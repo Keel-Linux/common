@@ -62,9 +62,15 @@ Two parts keep them in that state, and each covers a case the other cannot.
      from the removed version and leaves the units alone. Only after a
      `purge` is the next installation a first one again.
    - *A machine that already ran them (the transition).* `preinst`, on the
-     first installation, records every unit that is already enabled, or
-     running, in `/var/lib/keel-overlay-<name>/kept-units`, and `postinst`
-     leaves those as they are and says so. When the Debian package comes
+     first installation on a live system (where `/run/systemd/system`
+     exists), records every unit that is already enabled, or running, in
+     `/var/lib/keel-overlay-<name>/kept-units`, and `postinst` leaves those
+     as they are and says so. An image build keeps nothing: in its chroot a
+     unit enabled by an earlier apt run of the same build is the Debian
+     package's doing, so it ends disabled whatever the order of the apt
+     runs. `postinst` deletes the file once it has read it (a failed
+     configuration keeps it for the retry), and `postrm` deletes it on
+     purge and on abort-install. When the Debian package comes
      in the same transaction as the overlay, apt unpacks everything before
      it configures anything, so at `preinst` time the unit is unpacked but
      not yet enabled or started, and `postinst` puts it in the simple
@@ -138,7 +144,12 @@ four packages installed (it refuses to run unless
   disabled;
 - after a purge, a first installation disables what the Debian packages
   enabled in the same transaction;
-- a first installation leaves a unit that was enabled and running before it;
+- a first installation on a live system leaves a unit that was enabled and
+  running before it, and one in an image build (no `/run/systemd/system`,
+  hidden under a tmpfs where systemd runs) disables it;
+- `kept-units` is deleted by a purge after an unconfigured unpack, and by
+  an unpack that fails after `preinst` (abort-install), and survives a
+  failed configuration so the retry keeps what was recorded;
 - remove and reinstall keep an enabled etcd enabled and active;
 - real version upgrades keep the state: the Debian packages and the overlay
   are rebuilt with `dpkg-deb` under a higher version and installed over the
