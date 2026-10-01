@@ -1,3 +1,15 @@
+keel-overlay-coraza (0.1.1) trixie; urgency=medium
+
+  * keel.conf: coraza_delay_response_headers off. With the headers held
+    for phase 4, a static file answered with gzip was an empty gzip stream
+    while sendfile is on (Keel-Linux/libnginx-mod-http-coraza#2), so
+    browsers got blank pages. The Core Rule Set still blocks in phase 2; a
+    phase 4 deny resets the connection instead of answering 403. sendfile
+    off cannot be set in the http context of Debian's nginx.conf. To be
+    removed once libnginx-mod-http-coraza 0.21.0-0keel2 is installed.
+
+ -- Marcos Mendez <mendez.foto@gmail.com>  Thu, 01 Oct 2026 21:00:00 +0000
+
 keel-overlay-coraza (0.1.0) trixie; urgency=medium
 
   * First release (handbook decision 0041, first implementation, step 6).

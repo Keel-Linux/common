@@ -342,6 +342,23 @@ assert_coraza_off() {
     done
 }
 
+# Keel-Linux/libnginx-mod-http-coraza#2: with the response headers held
+# for phase 4 and sendfile on, a static file asked for with gzip came back
+# as an empty gzip stream. Debian's default page, on the machine's own
+# addresses, with and without gzip.
+@test "with Coraza on, a static page asked for with gzip comes back whole" {
+    "$STATE" enabled
+    local address plain zipped
+    for address in $(own_addresses); do
+        plain=$(curl --globoff --silent --max-time 5 "http://$address/" | wc -c)
+        zipped=$(curl --globoff --silent --max-time 5 --header 'Accept-Encoding: gzip' \
+            "http://$address/" | gzip -dc | wc -c)
+        echo "$address: $plain bytes plain, $zipped through gzip"
+        [ "$plain" -gt 0 ]
+        [ "$zipped" -eq "$plain" ]
+    done
+}
+
 @test "state enabled a second time changes nothing" {
     "$STATE" enabled
     run "$STATE" enabled
