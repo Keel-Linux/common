@@ -143,8 +143,12 @@ jobs:
           git clone -q --branch keel/trixie \
             "https://github.com/Keel-Linux/$repo.git" "$src"
           git -C "$src" checkout -q "$commit"
-          for branch in upstream/latest pristine-tar; do
-            git -C "$src" branch -q "$branch" "origin/$branch"
+          # the branches each gbp.conf names: anubis keeps "upstream" and
+          # no pristine-tar, the others "upstream/latest" and pristine-tar
+          for branch in upstream/latest upstream pristine-tar; do
+            if git -C "$src" rev-parse -q --verify "origin/$branch" >/dev/null; then
+              git -C "$src" branch -q "$branch" "origin/$branch"
+            fi
           done
           (cd "$src" && gbp setup-gitattributes)
           (cd /tmp && mk-build-deps --install --remove \
