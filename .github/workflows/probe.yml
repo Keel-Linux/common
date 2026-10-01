@@ -1,0 +1,33 @@
+# Throwaway probe, never merged: how a private mount namespace behaves in the
+# unprivileged trixie container of lxc-trixie.yml.
+name: probe
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  probe:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    uses: keel-linux/.github/.github/workflows/lxc-trixie.yml@ci/lxc-trixie
+    with:
+      systemd: true
+      timeout: 10
+      run: |
+        set +e
+        findmnt -R /run || true
+        grep -E ' /run' /proc/self/mountinfo
+        echo "--- tmpfs none"
+        unshare --mount --propagation private -- sh -c 'mount -t tmpfs none /run/systemd; echo rc=$?'
+        echo "--- tmpfs named"
+        unshare --mount --propagation private -- sh -c 'mount -t tmpfs keel-image-build /run/systemd; echo rc=$?; ls -la /run/systemd'
+        echo "--- tmpfs over system"
+        unshare --mount --propagation private -- sh -c 'mount -t tmpfs keel-image-build /run/systemd/system; echo rc=$?'
+        echo "--- bind empty dir"
+        mkdir -p /tmp/empty
+        unshare --mount --propagation private -- sh -c 'mount --bind /tmp/empty /run/systemd; echo rc=$?; ls -la /run/systemd'
+        echo "--- tmpfs elsewhere"
+        mkdir -p /tmp/e
+        unshare --mount --propagation private -- sh -c 'mount -t tmpfs x /tmp/e; echo rc=$?'
+        apt-get install -y -qq strace > /dev/null 2>&1
+        unshare --mount --propagation private -- strace -f -e trace=mount,fsopen,fsconfig,fsmount,move_mount,open_tree mount -t tmpfs none /run/systemd 2>&1 | tail -15
+        exit 0
