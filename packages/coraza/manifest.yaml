@@ -4,6 +4,8 @@ name: coraza
 title: Coraza
 summary: A WAF inside Nginx with the OWASP Core Rule Set (0030)
 requires: [nginx]
+hooks:
+  state: {path: /usr/lib/keel/overlays/coraza/state}
 checks:
   - name: waf-blocks
     type: http

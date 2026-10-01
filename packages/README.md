@@ -190,6 +190,19 @@ since there would be nothing to check. Disabled removes both links,
 reloads and checks that the probe passes and `/keel-health` answers.
 Runs are serialised with `flock` on `/run/lock/keel-overlay-coraza.lock`.
 
+`keel.conf` turns `coraza_delay_response_headers` off. Held for phase 4
+(the module's default), the response headers reach gzip only after a
+sendfile buffer has gone by, and a static file asked for with gzip comes
+back as an empty gzip stream (Keel-Linux/libnginx-mod-http-coraza#2):
+blank pages in every browser. Measured on the Keel Web image with
+0.21.0-0keel1: with the delay off the page is whole and the Core Rule Set
+still answers 403 in phase 2, and a phase 4 deny resets the connection
+instead of answering a clean 403. `sendfile off`, the other way, cannot be
+said from `conf.d/`: Debian's `nginx.conf` sets `sendfile` in the same
+http context and `nginx -t` refuses the duplicate. The line goes once
+0.21.0-0keel2, which holds the body in memory whenever the headers are
+held, is installed.
+
 `state recheck` guards upgrades. The overlay's dpkg trigger watches
 `/usr/share/coreruleset`, the module and `libcoraza.so.1`; when any of
 them is upgraded under an enabled Coraza with Nginx running, `postinst

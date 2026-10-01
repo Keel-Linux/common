@@ -217,6 +217,15 @@ assert_coraza_off() {
     done
 }
 
+# keel runs an overlay's state hook only when its manifest declares it
+# (hooks.state, keel 0.15.0, the erratum of docs/manifest-v1.md)
+@test "the coraza manifest declares its state hook, the one the package ships" {
+    run python3 -c 'import yaml
+print(yaml.safe_load(open("/usr/share/keel/overlays/coraza.yaml"))["hooks"]["state"]["path"])'
+    [ "$output" = /usr/lib/keel/overlays/coraza/state ]
+    [ -x "$output" ]
+}
+
 @test "keel manifest validate accepts every manifest installed on this machine" {
     run keel manifest validate
     echo "$output"
@@ -339,6 +348,23 @@ assert_coraza_off() {
     local address
     for address in $(own_addresses); do
         answers 403 "http://$address/?q=%3Cscript%3Ealert(1)%3C%2Fscript%3E"
+    done
+}
+
+# Keel-Linux/libnginx-mod-http-coraza#2: with the response headers held
+# for phase 4 and sendfile on, a static file asked for with gzip came back
+# as an empty gzip stream. Debian's default page, on the machine's own
+# addresses, with and without gzip.
+@test "with Coraza on, a static page asked for with gzip comes back whole" {
+    "$STATE" enabled
+    local address plain zipped
+    for address in $(own_addresses); do
+        plain=$(curl --globoff --silent --max-time 5 "http://$address/" | wc -c)
+        zipped=$(curl --globoff --silent --max-time 5 --header 'Accept-Encoding: gzip' \
+            "http://$address/" | gzip -dc | wc -c)
+        echo "$address: $plain bytes plain, $zipped through gzip"
+        [ "$plain" -gt 0 ]
+        [ "$zipped" -eq "$plain" ]
     done
 }
 
