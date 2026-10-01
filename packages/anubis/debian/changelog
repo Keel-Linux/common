@@ -12,8 +12,11 @@ keel-overlay-anubis (0.1.0) trixie; urgency=medium
     policy, the one policy of version 1. /etc/nginx/snippets/
     keel-anubis.conf sends a location through it.
   * Installed disabled and stopped: nothing enables the instance. On its
-    first start keel-overlay-anubis-key.service makes the signing key,
-    /etc/anubis/keel.key, when it is not there, so no image carries one;
-    postrm deletes it on purge.
+    first start keel-overlay-anubis-key.service provides the signing key,
+    /etc/anubis/keel.key, when it is not there, so no image carries one:
+    a link to the file the instance spec names, nothing on a database
+    replica or where keel.key.from-primary marks the key as the
+    primary's, else a generated one. postrm stops and disables the
+    instance and deletes the key on purge.
 
  -- Marcos Mendez <mendez.foto@gmail.com>  Thu, 01 Oct 2026 03:00:00 +0000

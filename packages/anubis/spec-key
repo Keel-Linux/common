@@ -1,0 +1,49 @@
+#!/usr/bin/python3
+"""/usr/lib/keel-overlay-anubis/spec-key SPEC
+
+What the instance spec says of Anubis's signing key, for signing-key
+beside it. Prints one line:
+
+  file PATH   the spec binds anubis_signing_key to a file
+  replica     no file, and this node is a database replica: the key is
+              shared (decision 0041) and comes from the primary
+  generate    anything else, a missing spec included: this node makes it
+
+Exits 1, saying why on stderr, when SPEC is there but cannot be read as a
+mapping. It reads YAML with PyYAML's safe loader, as keel does.
+"""
+
+import sys
+
+import yaml
+
+
+def verdict(doc: dict) -> str:
+    secret = (doc.get("secrets") or {}).get("anubis_signing_key")
+    if isinstance(secret, dict) and secret.get("file"):
+        return f"file {secret['file']}"
+    server = (doc.get("database") or {}).get("server") or {}
+    if server.get("role") == "replica":
+        return "replica"
+    return "generate"
+
+
+def main(path: str) -> int:
+    try:
+        with open(path, encoding="utf-8") as spec:
+            doc = yaml.safe_load(spec)
+    except FileNotFoundError:
+        print("generate")
+        return 0
+    except (OSError, yaml.YAMLError) as error:
+        print(f"cannot read {path}: {error}", file=sys.stderr)
+        return 1
+    if not isinstance(doc, dict):
+        print(f"cannot read {path}: not a mapping", file=sys.stderr)
+        return 1
+    print(verdict(doc))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1]))

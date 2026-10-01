@@ -1,15 +1,27 @@
 #!/bin/sh
-# keel-overlay-anubis: on purge, delete the signing key the overlay made on
-# this machine (/etc/anubis/keel.key, made by keel-overlay-anubis-key.service
-# at the first start of anubis@keel.service). It is no conffile, so dpkg
-# would leave it behind; a key outlives its overlay nowhere. A remove keeps
-# it, so a reinstall signs with the same key and no visitor is challenged
-# again.
+# keel-overlay-anubis: on purge, take away what the overlay left on this
+# machine. anubis@keel.service is stopped and disabled: the purge deletes
+# /etc/anubis/keel.env, its environment, and an instance left enabled
+# would fail at every boot. The signing key the overlay made
+# (/etc/anubis/keel.key, made by keel-overlay-anubis-key.service at the
+# first start) is deleted too: it is no conffile, so dpkg would leave it
+# behind. A remove keeps both, so a reinstall signs with the same key and
+# no visitor is challenged again.
 set -e
 
+UNIT=anubis@keel.service
+
 if [ "$1" = purge ]; then
+    if [ -d /run/systemd/system ]; then
+        deb-systemd-invoke stop "$UNIT" >/dev/null 2>&1 || :
+    fi
+    # disable reads the anubis package's template; the link keel apply's
+    # enable made goes even when that package is gone too
+    deb-systemd-helper disable "$UNIT" >/dev/null 2>&1 || :
+    rm -f "/etc/systemd/system/multi-user.target.wants/$UNIT"
     rm -f /etc/anubis/keel.key
 fi
+
 #DEBHELPER#
 
 exit 0

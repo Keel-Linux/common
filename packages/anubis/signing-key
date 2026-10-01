@@ -14,7 +14,18 @@
 # build runs this, so no image carries a key: the first start of
 # anubis@keel.service makes it, on the machine.
 #
-# KEEL_RANDOM (default /dev/urandom) exists for tests/anubis-signing-key.bats.
+# The instance spec decides where the key comes from (decision 0041: the
+# manifest owns the policy, the spec the file), as spec-key reads it:
+# - secrets.anubis_signing_key: {file: PATH}: FILE becomes a link to PATH;
+#   a PATH that is not there is refused, and no key is made;
+# - a database replica (database.server.role: replica), or a node where
+#   FILE.from-primary exists: the key is shared and the primary's, so none
+#   is made here; the start fails until it is put in place;
+# - otherwise the key is generated.
+#
+# KEEL_SPEC (default /etc/keel/instance.yaml), KEEL_ANUBIS_FROM_PRIMARY
+# (default FILE.from-primary) and KEEL_RANDOM (default /dev/urandom) exist
+# for tests/anubis-signing-key.bats.
 set -euo pipefail
 
 if [ "$#" -ne 1 ]; then
@@ -23,10 +34,41 @@ if [ "$#" -ne 1 ]; then
 fi
 key="$1"
 random="${KEEL_RANDOM:-/dev/urandom}"
+spec="${KEEL_SPEC:-/etc/keel/instance.yaml}"
+marker="${KEEL_ANUBIS_FROM_PRIMARY:-$key.from-primary}"
+helper="$(dirname "$0")/spec-key"
+SHARED="the key is shared and comes from the primary (decision 0041); none is made on this node"
 
 if [ -e "$key" ]; then
     echo "anubis: $key is there; left as it is"
     exit 0
+fi
+# a link whose target is gone is no key
+if [ -L "$key" ]; then
+    rm -f "$key"
+fi
+
+if ! verdict="$("$helper" "$spec")"; then
+    echo "anubis: cannot read $spec; no key made" >&2
+    exit 1
+fi
+source_file="${verdict#file }"
+if [ "$verdict" != "$source_file" ] && [ "$source_file" != "$key" ]; then
+    if [ ! -e "$source_file" ]; then
+        echo "anubis: the spec names $source_file for anubis_signing_key, and it is not there; no key made" >&2
+        exit 1
+    fi
+    ln -s "$source_file" "$key"
+    echo "anubis: $key is the spec's $source_file"
+    exit 0
+fi
+if [ "$verdict" = replica ]; then
+    echo "anubis: this node is a database replica: $SHARED" >&2
+    exit 1
+fi
+if [ -e "$marker" ]; then
+    echo "anubis: $marker says $SHARED" >&2
+    exit 1
 fi
 
 umask 077

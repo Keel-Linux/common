@@ -16,6 +16,8 @@ Depends:
  anubis (>= 1.27.0),
  keel (>= 0.12.0),
  keel-overlay-nginx (>= 0.1.0),
+ python3,
+ python3-yaml,
  ${misc:Depends},
 Description: Keel overlay: Anubis, proof of work behind Nginx
  The Anubis overlay of Keel Linux (handbook decisions 0030 and 0036):

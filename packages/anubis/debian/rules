@@ -25,6 +25,7 @@ execute_after_dh_auto_install:
 	install -D -m 0644 keel-overlay-anubis.conf \
 		$(UNITS)/anubis@keel.service.d/keel-overlay-anubis.conf
 	install -D -m 0755 signing-key $(PKG)/usr/lib/keel-overlay-anubis/signing-key
+	install -D -m 0755 spec-key $(PKG)/usr/lib/keel-overlay-anubis/spec-key
 
 override_dh_installsystemd:
 	dh_installsystemd --no-start --no-stop-on-upgrade
