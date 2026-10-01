@@ -30,4 +30,8 @@ jobs:
         unshare --mount --propagation private -- sh -c 'mount -t tmpfs x /tmp/e; echo rc=$?'
         apt-get install -y -qq strace > /dev/null 2>&1
         unshare --mount --propagation private -- strace -f -e trace=mount,fsopen,fsconfig,fsmount,move_mount,open_tree mount -t tmpfs none /run/systemd 2>&1 | tail -15
+        echo "--- bind over system"
+        unshare --mount --propagation private -- sh -c 'mount --bind /tmp/empty /run/systemd/system; echo rc=$?; ls -A /run/systemd/system | wc -l'
+        echo "--- rbind run"
+        unshare --mount --propagation private -- sh -c 'mount -t tmpfs keel /mnt; echo rc=$?'
         exit 0
