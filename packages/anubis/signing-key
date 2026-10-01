@@ -1,0 +1,88 @@
+#!/bin/bash
+# /usr/lib/keel-overlay-anubis/signing-key FILE
+#
+# Makes the key Anubis signs its challenge cookies with, the secret
+# anubis_signing_key of the overlay manifest (handbook decision 0041:
+# generate: required, shared: true), when FILE is not there yet. It is the
+# hex encoded 32-byte ed25519 seed anubis reads from
+# ED25519_PRIVATE_KEY_HEX_FILE, mode 0600, owned by whoever runs this
+# (root, from keel-overlay-anubis-key.service).
+#
+# A key that is there is never replaced: on a node of a replicated set it
+# is the primary's, which every node must hold so a visitor who solved the
+# challenge on one is not challenged again on another. Nothing in an image
+# build runs this, so no image carries a key: the first start of
+# anubis@keel.service makes it, on the machine.
+#
+# The instance spec decides where the key comes from (decision 0041: the
+# manifest owns the policy, the spec the file), as spec-key reads it:
+# - secrets.anubis_signing_key: {file: PATH}: FILE becomes a link to PATH;
+#   a PATH that is not there is refused, and no key is made;
+# - a database replica (database.server.role: replica), or a node where
+#   FILE.from-primary exists: the key is shared and the primary's, so none
+#   is made here; the start fails until it is put in place;
+# - otherwise the key is generated.
+#
+# KEEL_SPEC (default /etc/keel/instance.yaml), KEEL_ANUBIS_FROM_PRIMARY
+# (default FILE.from-primary) and KEEL_RANDOM (default /dev/urandom) exist
+# for tests/anubis-signing-key.bats.
+set -euo pipefail
+
+if [ "$#" -ne 1 ]; then
+    echo "usage: signing-key FILE" >&2
+    exit 2
+fi
+key="$1"
+random="${KEEL_RANDOM:-/dev/urandom}"
+spec="${KEEL_SPEC:-/etc/keel/instance.yaml}"
+marker="${KEEL_ANUBIS_FROM_PRIMARY:-$key.from-primary}"
+helper="$(dirname "$0")/spec-key"
+SHARED="the key is shared and comes from the primary (decision 0041); none is made on this node"
+
+if [ -e "$key" ]; then
+    echo "anubis: $key is there; left as it is"
+    exit 0
+fi
+# a link whose target is gone is no key
+if [ -L "$key" ]; then
+    rm -f "$key"
+fi
+
+if ! verdict="$("$helper" "$spec")"; then
+    echo "anubis: cannot read $spec; no key made" >&2
+    exit 1
+fi
+source_file="${verdict#file }"
+if [ "$verdict" != "$source_file" ] && [ "$source_file" != "$key" ]; then
+    if [ ! -e "$source_file" ]; then
+        echo "anubis: the spec names $source_file for anubis_signing_key, and it is not there; no key made" >&2
+        exit 1
+    fi
+    ln -s "$source_file" "$key"
+    echo "anubis: $key is the spec's $source_file"
+    exit 0
+fi
+if [ "$verdict" = replica ]; then
+    echo "anubis: this node is a database replica: $SHARED" >&2
+    exit 1
+fi
+if [ -e "$marker" ]; then
+    echo "anubis: $marker says $SHARED" >&2
+    exit 1
+fi
+
+umask 077
+draft="$(mktemp "$key.XXXXXX")"
+trap 'rm -f -- "$draft"' EXIT
+od -A n -v -t x1 -N 32 "$random" | tr -d ' \n' > "$draft"
+if ! grep -qxE '[0-9a-f]{64}' "$draft"; then
+    echo "anubis: $random gave not 64 hex digits; no key written" >&2
+    exit 1
+fi
+# a hard link publishes the whole key at once and, unlike mv, never
+# replaces a key written meanwhile
+if ! ln "$draft" "$key" 2>/dev/null; then
+    echo "anubis: $key was written meanwhile; left as it is"
+    exit 0
+fi
+echo "anubis: generated the signing key $key"

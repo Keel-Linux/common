@@ -1,0 +1,33 @@
+#!/bin/bash
+# Stand-in for curl, as tests/coraza-state.bats uses it: records the call in
+# STUB_LOG and prints the status code the Nginx of a Keel Web machine would
+# give the URL, its last argument, from the links under KEEL_NGINX_DIR.
+#
+# - Coraza's module linked and STUB_CORAZA_KILLS_WORKERS set: no worker is
+#   left (upstream coraza-nginx #139), so the request times out: 000, and
+#   curl's exit code for a timeout, 28.
+# - The probe (keel-waf-probe in the URL): STUB_PROBE if set, else 403
+#   with Coraza's configuration linked in conf.d, 204 without it.
+# - /keel-health: STUB_HEALTH, default 204.
+echo "curl $*" >> "${STUB_LOG:?}"
+url="${*: -1}"
+nginx_dir="${KEEL_NGINX_DIR:?}"
+if [ -n "${STUB_CORAZA_KILLS_WORKERS:-}" ] \
+        && [ -L "$nginx_dir/modules-enabled/50-mod-http-coraza.conf" ]; then
+    printf '000'
+    exit 28
+fi
+case "$url" in
+    *keel-waf-probe*)
+        if [ -n "${STUB_PROBE:-}" ]; then
+            printf '%s' "$STUB_PROBE"
+        elif [ -L "$nginx_dir/conf.d/keel-coraza.conf" ]; then
+            printf '403'
+        else
+            printf '204'
+        fi
+        ;;
+    *)
+        printf '%s' "${STUB_HEALTH:-204}"
+        ;;
+esac

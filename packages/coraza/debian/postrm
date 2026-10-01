@@ -1,0 +1,17 @@
+#!/bin/sh
+# keel-overlay-coraza: on purge and abort-install, delete what preinst may
+# have left behind, so a later first installation never reads a stale
+# record. The links of the state hook are prerm's, at the remove that
+# comes before every purge.
+set -e
+
+KEPT=/var/lib/keel-overlay-coraza/kept-link
+
+if [ "$1" = purge ] || [ "$1" = abort-install ]; then
+    rm -f "$KEPT"
+    rmdir "${KEPT%/*}" 2>/dev/null || :
+fi
+
+#DEBHELPER#
+
+exit 0

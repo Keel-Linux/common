@@ -1,0 +1,17 @@
+#!/usr/bin/make -f
+# The overlay manifest and the Nginx files sit beside debian/ (docs/
+# manifest-v1.md, "Kinds, and where each file lives") and are installed
+# under the names keel and Nginx look them up by. The files under /etc are
+# conffiles: an operator's edit survives an upgrade.
+
+PKG = debian/keel-overlay-nginx
+
+%:
+	dh $@
+
+execute_after_dh_auto_install:
+	install -D -m 0644 manifest.yaml $(PKG)/usr/share/keel/overlays/nginx.yaml
+	install -D -m 0644 keel-health.conf $(PKG)/etc/nginx/conf.d/keel-health.conf
+	install -D -m 0644 90-keel-streams.conf \
+		$(PKG)/etc/nginx/modules-enabled/90-keel-streams.conf
+	install -d $(PKG)/etc/nginx/streams-available $(PKG)/etc/nginx/streams-enabled

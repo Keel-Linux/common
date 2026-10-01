@@ -1,0 +1,31 @@
+#!/usr/bin/make -f
+# The overlay manifest and Anubis's files sit beside debian/ (docs/
+# manifest-v1.md, "Kinds, and where each file lives") and are installed
+# under the names keel, systemd and Nginx look them up by. The files under
+# /etc are conffiles. Nothing is enabled or started at installation, as the
+# disabled state of a simple installation requires: the key unit has no
+# [Install], and dh_installsystemd is told not to start it, which would
+# make a key at installation. postinst reloads systemd instead, so it
+# reads the drop-in before keel spec apply first starts
+# anubis@keel.service; dh_installsystemd's postrm reloads it after a
+# remove.
+
+PKG = debian/keel-overlay-anubis
+UNITS = $(PKG)/usr/lib/systemd/system
+
+%:
+	dh $@
+
+execute_after_dh_auto_install:
+	install -D -m 0644 manifest.yaml $(PKG)/usr/share/keel/overlays/anubis.yaml
+	install -D -m 0644 keel.env $(PKG)/etc/anubis/keel.env
+	install -D -m 0644 keel-anubis.conf $(PKG)/etc/nginx/snippets/keel-anubis.conf
+	install -D -m 0644 keel-overlay-anubis-key.service \
+		$(UNITS)/keel-overlay-anubis-key.service
+	install -D -m 0644 keel-overlay-anubis.conf \
+		$(UNITS)/anubis@keel.service.d/keel-overlay-anubis.conf
+	install -D -m 0755 signing-key $(PKG)/usr/lib/keel-overlay-anubis/signing-key
+	install -D -m 0755 spec-key $(PKG)/usr/lib/keel-overlay-anubis/spec-key
+
+override_dh_installsystemd:
+	dh_installsystemd --no-start --no-stop-on-upgrade

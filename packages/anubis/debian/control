@@ -1,0 +1,32 @@
+Source: keel-overlay-anubis
+Section: httpd
+Priority: optional
+Maintainer: KeelLinux maintainers <admin@keellinux.org>
+Uploaders: Marcos Mendez <mendez.foto@gmail.com>
+Build-Depends:
+ debhelper-compat (= 13),
+Standards-Version: 4.7.2
+Rules-Requires-Root: no
+Vcs-Git: https://github.com/Keel-Linux/common.git -b 19.x [packages/anubis]
+Vcs-Browser: https://github.com/Keel-Linux/common/tree/19.x/packages/anubis
+
+Package: keel-overlay-anubis
+Architecture: all
+Depends:
+ anubis (>= 1.27.0),
+ keel (>= 0.12.0),
+ keel-overlay-nginx (>= 0.1.0),
+ python3,
+ python3-yaml,
+ ${misc:Depends},
+Description: Keel overlay: Anubis, proof of work behind Nginx
+ The Anubis overlay of Keel Linux (handbook decisions 0030 and 0036):
+ Anubis, built by Keel, run as the instance anubis@keel.service on the
+ IPv6 loopback, and the overlay manifest keel reads, installed as
+ /usr/share/keel/overlays/anubis.yaml (decision 0041).
+ .
+ The instance is installed disabled and stopped, the state of a simple
+ installation; keel spec apply enables and starts it where the instance
+ spec says so. Its signing key is made on the machine at the first start,
+ when it is not there, and never ships in an image. Nginx sends a location
+ through Anubis with /etc/nginx/snippets/keel-anubis.conf.

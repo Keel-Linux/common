@@ -1,0 +1,4 @@
+# keel-overlay-nginx: the directory of the unix sockets of Keel Web's
+# internal hops (handbook decision 0042: the stream front to the http
+# block, and Anubis back to Nginx on /run/nginx/keel-app.sock).
+d /run/nginx 0755 root root -
