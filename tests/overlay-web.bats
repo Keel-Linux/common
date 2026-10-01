@@ -59,6 +59,9 @@ setup() {
 }
 
 teardown() {
+    if [ -d "$IMAGE_BUILD_HIDDEN" ] && [ ! -e /run/systemd/system ]; then
+        mv "$IMAGE_BUILD_HIDDEN" /run/systemd/system
+    fi
     if [ -f "$BATS_TEST_TMPDIR/rules" ]; then
         cp "$BATS_TEST_TMPDIR/rules" "$RULES"
     fi
@@ -113,9 +116,19 @@ with_version() {
     echo "$tree/upgraded.deb"
 }
 
+# as_image_build COMMAND...
+# Runs COMMAND as an image build sees the machine: no /run/systemd/system.
+# It is moved aside for the command and back, as tests/overlay-install.bats
+# does: an unprivileged LXC container, the CI's, may not mount a tmpfs
+# over it. teardown puts it back if a test dies in between.
+IMAGE_BUILD_HIDDEN=/run/systemd/system.keel-image-build
+
 as_image_build() {
-    unshare --mount --propagation private -- sh -c \
-        'mount -t tmpfs none /run/systemd && exec "$@"' sh "$@"
+    local rc=0
+    mv /run/systemd/system "$IMAGE_BUILD_HIDDEN"
+    "$@" || rc=$?
+    mv "$IMAGE_BUILD_HIDDEN" /run/systemd/system
+    return "$rc"
 }
 
 code() {
