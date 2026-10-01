@@ -217,6 +217,15 @@ assert_coraza_off() {
     done
 }
 
+# keel runs an overlay's state hook only when its manifest declares it
+# (hooks.state, keel 0.15.0, the erratum of docs/manifest-v1.md)
+@test "the coraza manifest declares its state hook, the one the package ships" {
+    run python3 -c 'import yaml
+print(yaml.safe_load(open("/usr/share/keel/overlays/coraza.yaml"))["hooks"]["state"]["path"])'
+    [ "$output" = /usr/lib/keel/overlays/coraza/state ]
+    [ -x "$output" ]
+}
+
 @test "keel manifest validate accepts every manifest installed on this machine" {
     run keel manifest validate
     echo "$output"

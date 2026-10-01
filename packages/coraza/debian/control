@@ -15,7 +15,7 @@ Architecture: all
 Depends:
  coreruleset (>= 4.25.1),
  curl,
- keel (>= 0.12.0),
+ keel (>= 0.15.0),
  keel-overlay-nginx (>= 0.1.0),
  libnginx-mod-http-coraza (>= 0.21.0),
  procps,
