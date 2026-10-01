@@ -8,9 +8,10 @@
 # KEEL_OVERLAY_INSTALL_TEST=1 says the machine is disposable, as root, after
 # the four keel-overlay-* packages have been installed with their
 # dependencies. OVERLAY_DEBS names the directory holding the four .deb files
-# (default dist/ of the repository). The CI job "packages" runs it in a
-# trixie container; the same suite runs on a booted container, where
-# systemd is PID 1 and the is-active assertions are made as well.
+# (default dist/ of the repository). The CI job "install" runs it in a
+# booted trixie LXC container, where systemd is PID 1 and the is-active
+# assertions are made as well; in a machine where systemd does not run
+# those are skipped.
 #
 # Every verdict is the one systemctl, dpkg, apt and keel give on the
 # machine; nothing reads back a file the packages wrote to decide a state.
@@ -45,6 +46,9 @@ setup() {
 }
 
 teardown() {
+    # a test that died while it played an image build gives systemd back
+    # its marker before anything else asks whether systemd runs
+    restore_systemd_marker
     # a test that enabled a unit to play keel apply leaves it as it found it
     if [ -n "${ENABLED_BY_TEST:-}" ]; then
         systemctl disable $ENABLED_BY_TEST >/dev/null 2>&1 || true
@@ -120,15 +124,31 @@ enable_unit() {
 }
 
 # as_image_build COMMAND...
-# Runs COMMAND as an image build sees the machine: no /run/systemd/system.
-# Where systemd runs, a private mount namespace hides it under an empty
-# tmpfs on /run/systemd; in a job container it is not there to begin with.
+# Runs COMMAND as an image build sees the machine: no /run/systemd/system,
+# the directory the maintainer scripts and systemctl test to know whether
+# systemd is running. Where systemd runs, the directory is moved aside for
+# the length of COMMAND and put back after it; where it is not there to
+# begin with, COMMAND runs as it is. It is moved rather than hidden under a
+# mount because an unprivileged LXC container, where CI runs this suite,
+# may not mount anything: its AppArmor profile refuses the mount with
+# EACCES. teardown puts it back if a test dies in between.
+IMAGE_BUILD_HIDDEN=/run/systemd/system.keel-image-build
+
 as_image_build() {
-    if systemd_running; then
-        unshare --mount --propagation private -- sh -c \
-            'mount -t tmpfs none /run/systemd && exec "$@"' sh "$@"
-    else
+    local rc=0
+    if ! systemd_running; then
         "$@"
+        return
+    fi
+    mv /run/systemd/system "$IMAGE_BUILD_HIDDEN"
+    "$@" || rc=$?
+    mv "$IMAGE_BUILD_HIDDEN" /run/systemd/system
+    return "$rc"
+}
+
+restore_systemd_marker() {
+    if [ -d "$IMAGE_BUILD_HIDDEN" ] && [ ! -e /run/systemd/system ]; then
+        mv "$IMAGE_BUILD_HIDDEN" /run/systemd/system
     fi
 }
 
