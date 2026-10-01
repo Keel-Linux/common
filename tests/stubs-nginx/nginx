@@ -1,0 +1,9 @@
+#!/bin/bash
+# Stand-in for nginx: records the call in STUB_LOG. `nginx -t` fails when
+# STUB_NGINX_T is "fail"; every other call succeeds.
+echo "nginx $*" >> "${STUB_LOG:?}"
+if [ "$*" = "-t" ] && [ "${STUB_NGINX_T:-}" = fail ]; then
+    echo "nginx: [emerg] stub refuses the configuration" >&2
+    exit 1
+fi
+exit 0

@@ -13,6 +13,9 @@ directory each, with its own changelog and version, released on its own
 | `wireguard/` | `keel-overlay-wireguard` | trixie's `wireguard-tools` 1.0.20210914 | none; the interface is the instance spec's |
 | `etcd/` | `keel-overlay-etcd` | trixie's `etcd-server` 3.5.16, and `keel-overlay-wireguard`, which its manifest `requires` | `etcd.service` |
 | `crowdsec/` | `keel-overlay-crowdsec` | trixie's `crowdsec` 1.4.6-10 and `crowdsec-firewall-bouncer` 0.0.25 | `crowdsec.service`, `crowdsec-firewall-bouncer.service` |
+| `nginx/` | `keel-overlay-nginx` | trixie's `nginx` 1.26.3 and `libnginx-mod-stream` | `nginx.service`, enabled in every mode |
+| `coraza/` | `keel-overlay-coraza` | Keel's `libnginx-mod-http-coraza` 0.21.0 and `coreruleset` 4.25.1 (step 5), and `keel-overlay-nginx` | none: an Nginx module; `/usr/lib/keel/overlays/coraza/state` turns it on and off |
+| `anubis/` | `keel-overlay-anubis` | Keel's `anubis` 1.27.0 (step 5), and `keel-overlay-nginx` | `anubis@keel.service` |
 
 Every package depends on `keel (>= 0.12.0)`, the first keel that reads
 `manifest_version: 1`, so apt refuses a keel that could not read the
@@ -132,10 +135,137 @@ keel's enable path must:
 - remember that `cscli capi register` fails without network, as the
   package's own `postinst` already does at installation.
 
+## The Web overlays
+
+Keel Web is Core plus `nginx`, `coraza` and `anubis` (decisions 0030,
+0036 and 0041, step 6). In a simple installation Nginx runs and Coraza and
+Anubis are installed and off; in the cloud modes all three run.
+
+**Nginx** stays as trixie ships it: `nginx.conf` and Debian's default site
+are not touched (0042 removes the default site's link only when keel
+renders a `default_server` of its own). The overlay adds, at Debian's
+include points:
+
+- `conf.d/keel-health.conf`: `/keel-health` answering 204, the probe of
+  the manifest's `nginx` check, in a server that listens on `[::1]:80` and
+  `127.0.0.1:80` only. Nginx hands a request to the servers listening on
+  the exact address it arrived on before the wildcard ones, so this server
+  answers everything sent to the loopback on port 80, whatever its Host;
+  a site is reached on its own addresses, and Keel Web's internal hops use
+  unix sockets. The 204 comes from `try_files`, not `return`: `return`
+  answers in the rewrite phase, before Coraza sees the request, and
+  Coraza's probe goes to this same location (measured: with `return`, the
+  probe got 204 with the WAF on).
+- `modules-enabled/90-keel-streams.conf`, `streams-available/`,
+  `streams-enabled/` and `/run/nginx` (tmpfiles), the layout 0042 renders
+  sites into.
+
+**Coraza** is a module, so it has no unit, and "disabled" means the module
+is not loaded at all: no link in `modules-enabled/` (the engine is loaded
+in every worker; with the Core Rule Set a worker grows from about 4 to
+about 65 MiB). `dh_nginx` links it on the module package's fresh
+installation, so the overlay's `postinst` removes that link on the
+overlay's first installation, with the same `preinst` record of a link
+that was there before on a live system as CrowdSec's units have above.
+The module package's upgrades link again only after its own remove, so
+they keep the state.
+
+`/usr/lib/keel/overlays/coraza/state enabled|disabled` is the hook that
+turns it on and off. **keel 0.14.0 does not run it** (see below). Enabled
+links the module and `/etc/nginx/coraza/keel.conf` (as
+`conf.d/keel-coraza.conf`), runs `nginx -t`, reloads, and then checks what
+`nginx -t` cannot: a rule Coraza refuses passes `nginx -t`, and at the
+reload every worker dies and every request hangs (upstream
+corazawaf/coraza-nginx#139, reproduced on trixie with
+`SecRule ARGS "@rx (" ...`). So it waits for the manifest's probe to get
+403 and `/keel-health` 204; if they do not within ten seconds it puts the
+links back as they were, reloads again, checks that Nginx answers, and
+fails naming the cause (no worker left, or the status the probe got). It
+refuses to turn Coraza on while Nginx is not running, since there would
+be nothing to check. Disabled removes both links, reloads and checks that
+the probe passes and `/keel-health` answers.
+
+**Anubis** runs as `anubis@keel.service`, an instance of the anubis
+package's template unit, reading `/etc/anubis/keel.env`: `[::1]:8923`
+only, metrics on a unix socket in its runtime directory, upstream's
+default policy as the one policy of version 1 (0042), and what it allows
+handed back to Nginx on `unix:/run/nginx/keel-app.sock`. A location goes
+through it with `include /etc/nginx/snippets/keel-anubis.conf`. The
+anubis package enables nothing, so the overlay has no state to undo and
+nothing to keep; the instance is disabled and stopped after installation.
+`[::1]` and not a unix socket: anubis supports both, but the manifest's
+check is a TCP probe of port 8923, and version 1 of the format has no
+socket check.
+
+Its signing key (the manifest's `anubis_signing_key`, `generate:
+required`, `shared: true`) is `/etc/anubis/keel.key`. The package's unit
+refuses to start without it; a drop-in makes `anubis@keel.service`
+require `keel-overlay-anubis-key.service`, which runs
+`/usr/lib/keel-overlay-anubis/signing-key` when the key is not there. So
+the first start, the one `keel spec apply` makes when the spec enables the
+overlay, generates the key; nothing does at installation or in an image
+build, so no image carries one. A key that is there is never replaced,
+which is what a replica needs once something puts the primary's key there
+first. A purge deletes it.
+
+The manifests depart from the worked example of docs/manifest-v1.md in
+two places, both for Anubis: the unit is `anubis@keel.service`, not
+`anubis.service`, because step 5 packaged a template; and its port
+declares `address: "::1"`, the one family it binds.
+
+### What keel 0.14.0 does with them, and what it lacks
+
+Measured on the Core image of step 4 with keel 0.14.0, a spec naming the
+`web` appliance (its manifest placed by hand until step 7 ships
+`keel-web`) and `coraza: enabled`, `anubis: enabled`:
+
+- Anubis converges: `apply --system` enables and starts
+  `anubis@keel.service`, the key is generated on that start, and Monit's
+  `anubis` check passes.
+- Monit's file gains `waf-blocks`, but nothing loads Coraza: keel
+  converges units, and the overlay has none. The check fails (the probe
+  gets 204) until the hook runs; after `state enabled` it passes.
+
+What keel needs, for step 7 or the implementation of 0042:
+
+1. Run `/usr/lib/keel/overlays/<name>/state enabled|disabled` when an
+   overlay's state changes and the file exists, after its `requires`
+   came up and before its dependants, and fail the step when it fails.
+   The rollback of corazawaf/coraza-nginx#139 is in the hook; keel only
+   has to call it and report.
+2. `inspect` and `diff` for an overlay without units: the hook could
+   answer `state status`; today `diff` says "not compared".
+3. Secrets: `generate: true` in the spec makes a short random token for
+   the first boot conf (`KEEL_SECRET_<NAME>`), which is not an Anubis key
+   and reaches no file Anubis reads. For Anubis the key
+   is the overlay's file; the installer's emitter should write
+   `anubis_signing_key: {file: /etc/anubis/keel.key}`, and a cloud replica
+   should receive the primary's file before its first start (0028).
+4. Monit encodes the `%` of the waf-blocks path again
+   (`%253Cscript...`); the Core Rule Set still blocks it (403, measured),
+   but the renderer may want to pass the path undecoded on purpose.
+
 ## Tests
 
+`tests/overlay-web.bats` runs on a disposable trixie machine booted with
+systemd, with the three Web overlays and their dependencies installed
+(`KEEL_OVERLAY_INSTALL_TEST=1`, `OVERLAY_DEBS` the directory holding the
+overlay packages and `libnginx-mod-http-coraza`). Keel tests what needs
+systemd in system containers only, so it is not a CI job: it runs on an
+LXC container of the Core image on the test machine. It checks the
+manifests on the machine, `/keel-health` on both loopbacks and not on the
+machine's own addresses, Debian's `nginx.conf` and default site
+untouched, Coraza off after a first installation (with the module
+installed in the same transaction, before, and in an image build) and
+after an upgrade of the module, the hook on and off and its rollback of a
+rule Coraza refuses, Anubis off, its key made at the first start and kept
+across a restart, listening on `[::1]` only, Nginx proxying through it,
+and the key gone with a purge. `tests/coraza-state.bats` and
+`tests/anubis-signing-key.bats` unit test the two scripts with stubs, and
+`tests/coverage.sh` measures them.
+
 `tests/overlay-install.bats` runs on a disposable trixie machine with the
-four packages installed (it refuses to run unless
+four Core packages installed (it refuses to run unless
 `KEEL_OVERLAY_INSTALL_TEST=1`). It checks that:
 
 - each manifest validates with `keel manifest validate`;

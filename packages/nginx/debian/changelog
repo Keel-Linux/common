@@ -1,0 +1,16 @@
+keel-overlay-nginx (0.1.0) trixie; urgency=medium
+
+  * First release (handbook decision 0041, first implementation, step 6).
+    Depends on trixie's nginx 1.26.3 and libnginx-mod-stream, used as they
+    are; ships the overlay manifest of docs/manifest-v1.md as
+    /usr/share/keel/overlays/nginx.yaml.
+  * /etc/nginx/conf.d/keel-health.conf: /keel-health answers 204 on
+    [::1]:80 and 127.0.0.1:80 only, through try_files so that Coraza sees
+    the request; nginx.conf and Debian's default site are left as they
+    are (decision 0042).
+  * /etc/nginx/modules-enabled/90-keel-streams.conf, the empty
+    streams-available/ and streams-enabled/ directories, and /run/nginx
+    from tmpfiles.d, the layout decision 0042 renders Keel Web's sites
+    into.
+
+ -- Marcos Mendez <mendez.foto@gmail.com>  Thu, 01 Oct 2026 03:00:00 +0000

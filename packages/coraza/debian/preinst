@@ -1,0 +1,29 @@
+#!/bin/sh
+# keel-overlay-coraza: before the first installation, note whether Coraza's
+# module was already linked into Nginx. postinst leaves that link as it is,
+# so installing the overlay on a machine that already loaded the module
+# does not take it away. A libnginx-mod-http-coraza installed in the same
+# transaction is only unpacked here, not yet configured, so its link is not
+# there yet, and postinst puts the overlay in the simple state.
+#
+# Only on a live system, where systemd runs. An image build (a chroot, no
+# /run/systemd/system) keeps nothing: there the link is the module
+# package's doing, not an operator's, and must go. postrm deletes the file
+# on purge and abort-install, postinst once it has read it.
+# packages/README.md in Keel-Linux/common.
+set -e
+
+LINK=/etc/nginx/modules-enabled/50-mod-http-coraza.conf
+KEPT=/var/lib/keel-overlay-coraza/kept-link
+
+if [ "$1" = install ] && [ -z "$2" ]; then
+    mkdir -p "${KEPT%/*}"
+    : > "$KEPT"
+    if [ -d /run/systemd/system ] && [ -L "$LINK" ]; then
+        echo "$LINK" >> "$KEPT"
+    fi
+fi
+
+#DEBHELPER#
+
+exit 0

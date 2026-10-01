@@ -1,0 +1,16 @@
+# keel-overlay-anubis: makes Anubis's signing key, /etc/anubis/keel.key,
+# before anubis@keel.service first starts, when it is not there (the
+# secret anubis_signing_key of the overlay manifest, generate: required).
+# A key that is there is left alone: on a node of a replicated set it is
+# the primary's. Nothing starts this in an image build, so no image
+# carries a key. Pulled in by the drop-in
+# anubis@keel.service.d/keel-overlay-anubis.conf; it has no [Install].
+[Unit]
+Description=Keel Web: Anubis's signing key, made once
+Documentation=https://github.com/Keel-Linux/common/blob/19.x/packages/README.md
+ConditionPathExists=!/etc/anubis/keel.key
+Before=anubis@keel.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/keel-overlay-anubis/signing-key /etc/anubis/keel.key

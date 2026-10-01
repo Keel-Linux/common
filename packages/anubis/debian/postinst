@@ -1,0 +1,19 @@
+#!/bin/sh
+# keel-overlay-anubis: have a running systemd read the key unit and the
+# drop-in of anubis@keel.service, so the first start keel spec apply makes
+# runs them. Nothing is enabled or started: the instance stays in the
+# disabled state of a simple installation, and the key is made at its
+# first start, never here (a key made at installation would be in every
+# image built with this package). The anubis package enables nothing
+# either, so there is no state of another package to undo, and nothing to
+# keep from before the overlay: anubis@keel.service reads this package's
+# /etc/anubis/keel.env and cannot have run without it.
+set -e
+
+if [ "$1" = configure ] && [ -d /run/systemd/system ]; then
+    systemctl --system daemon-reload >/dev/null || true
+fi
+
+#DEBHELPER#
+
+exit 0

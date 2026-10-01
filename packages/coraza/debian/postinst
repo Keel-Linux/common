@@ -1,0 +1,36 @@
+#!/bin/sh
+# keel-overlay-coraza: leave Coraza in the state of a simple installation,
+# its module not loaded, whatever the postinst of libnginx-mod-http-coraza
+# did before it (dh_nginx links the module into modules-enabled/ on a
+# fresh installation).
+#
+# Only on the first installation ("configure" with no previous version; the
+# conffiles keep the package known after a remove, so a reinstall is an
+# upgrade). From then on the state is keel apply's, through
+# /usr/lib/keel/overlays/coraza/state, and an upgrade of this package must
+# not undo it. An upgrade of the module package keeps it too: dh_nginx
+# links again only on a fresh installation, or after its own remove left a
+# .removed link. A link preinst found before the first installation on a
+# live system is left as it is. The nginx-reload trigger (debian/
+# keel-overlay-coraza.triggers) reloads a running Nginx afterwards.
+# packages/README.md in Keel-Linux/common.
+set -e
+
+LINK=/etc/nginx/modules-enabled/50-mod-http-coraza.conf
+TARGET=/usr/share/nginx/modules-available/mod-http-coraza.conf
+KEPT=/var/lib/keel-overlay-coraza/kept-link
+
+if [ "$1" = configure ] && [ -z "$2" ]; then
+    if [ -f "$KEPT" ] && grep -qxF "$LINK" "$KEPT"; then
+        echo "keel-overlay-coraza: $LINK was there before the overlay" \
+            "was installed; left as it is" >&2
+    elif [ "$(readlink "$LINK" || true)" = "$TARGET" ]; then
+        rm -f "$LINK"
+    fi
+    rm -f "$KEPT"
+    rmdir "${KEPT%/*}" 2>/dev/null || :
+fi
+
+#DEBHELPER#
+
+exit 0

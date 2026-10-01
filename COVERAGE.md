@@ -4,6 +4,25 @@ Measured on 2026-09-24 against upstream 19.x (b60dd23), following the
 project decision 0003 (90 percent floor per repository, 95 percent for every
 file our changes touch).
 
+## Branch feat/web-overlay-packages: 100 percent, two new files (2026-10-01)
+
+The Web overlays of step 6 of decision 0041 bring two scripts, both
+measured with kcov 43 on Debian 13:
+
+| File | Suite | Lines | Covered |
+|------|-------|-------|---------|
+| packages/coraza/state | tests/coraza-state.bats (22 bats) | 84 | 84 |
+| packages/anubis/signing-key | tests/anubis-signing-key.bats (8 bats) | 20 | 20 |
+
+`tests/coraza-state.bats` replaces nginx, curl and pgrep with stubs from
+`tests/stubs-nginx`, a directory of their own so no other suite's PATH
+meets them; the curl stub answers from the links the hook makes, and a
+module link with `STUB_CORAZA_KILLS_WORKERS` set stands for
+corazawaf/coraza-nginx#139 (no worker left, every request timing out).
+The real Nginx, module and rule set are `tests/overlay-web.bats`', run on
+a booted LXC container (packages/README.md). Every other target is
+unchanged at 100, and the gate stays at 100.
+
 ## Branch fix/webmin-net-read-only: 100 percent, two new files (2026-09-29)
 
 `tests/webmin-net.bats` (32 bats, kcov 43 on Debian 13) measures

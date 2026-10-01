@@ -1,0 +1,30 @@
+Source: keel-overlay-nginx
+Section: httpd
+Priority: optional
+Maintainer: KeelLinux maintainers <admin@keellinux.org>
+Uploaders: Marcos Mendez <mendez.foto@gmail.com>
+Build-Depends:
+ debhelper-compat (= 13),
+Standards-Version: 4.7.2
+Rules-Requires-Root: no
+Vcs-Git: https://github.com/Keel-Linux/common.git -b 19.x [packages/nginx]
+Vcs-Browser: https://github.com/Keel-Linux/common/tree/19.x/packages/nginx
+
+Package: keel-overlay-nginx
+Architecture: all
+Depends:
+ keel (>= 0.12.0),
+ libnginx-mod-stream (>= 1.26.3),
+ nginx (>= 1.26.3),
+ ${misc:Depends},
+Description: Keel overlay: Nginx, the front of Keel Web
+ The Nginx overlay of Keel Linux (handbook decisions 0030, 0036 and 0042):
+ trixie's nginx, used as it is, and the overlay manifest keel reads,
+ installed as /usr/share/keel/overlays/nginx.yaml (decision 0041).
+ .
+ It adds to Debian's layout, without editing nginx.conf: /keel-health,
+ answering 204 on the loopback addresses only, for the manifest's check;
+ a stream block reading /etc/nginx/streams-enabled/; and /run/nginx for
+ the sockets of Keel Web's internal hops. Debian's default site is left
+ as it is. nginx.service stays enabled, the state of every installation
+ mode.

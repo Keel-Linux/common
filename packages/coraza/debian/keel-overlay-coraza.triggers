@@ -1,0 +1,4 @@
+# nginx reloads a running server when this package is installed, upgraded
+# or removed, so a module link postinst or postrm took away is no longer
+# loaded: the same trigger trixie's libnginx-mod-* packages activate.
+activate-noawait nginx-reload

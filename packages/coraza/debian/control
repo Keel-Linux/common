@@ -1,0 +1,33 @@
+Source: keel-overlay-coraza
+Section: httpd
+Priority: optional
+Maintainer: KeelLinux maintainers <admin@keellinux.org>
+Uploaders: Marcos Mendez <mendez.foto@gmail.com>
+Build-Depends:
+ debhelper-compat (= 13),
+Standards-Version: 4.7.2
+Rules-Requires-Root: no
+Vcs-Git: https://github.com/Keel-Linux/common.git -b 19.x [packages/coraza]
+Vcs-Browser: https://github.com/Keel-Linux/common/tree/19.x/packages/coraza
+
+Package: keel-overlay-coraza
+Architecture: all
+Depends:
+ coreruleset (>= 4.25.1),
+ curl,
+ keel (>= 0.12.0),
+ keel-overlay-nginx (>= 0.1.0),
+ libnginx-mod-http-coraza (>= 0.21.0),
+ procps,
+ ${misc:Depends},
+Description: Keel overlay: Coraza, the WAF inside Nginx
+ The Coraza overlay of Keel Linux (handbook decisions 0030 and 0036): the
+ Coraza module for Nginx and the OWASP Core Rule Set, both built by Keel,
+ and the overlay manifest keel reads, installed as
+ /usr/share/keel/overlays/coraza.yaml (decision 0041).
+ .
+ The overlay is installed disabled, the state of a simple installation:
+ the module is not loaded, since it costs memory in every worker even when
+ unused. /usr/lib/keel/overlays/coraza/state turns it on and off; turning
+ it on reloads Nginx and checks that the workers are alive and that a Core
+ Rule Set probe gets 403, and rolls back otherwise.

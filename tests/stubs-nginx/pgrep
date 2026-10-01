@@ -1,0 +1,11 @@
+#!/bin/bash
+# Stand-in for pgrep, as tests/coraza-state.bats uses it (`pgrep -P PID`,
+# the workers of the Nginx master): records the call in STUB_LOG and lists
+# four workers, or none when STUB_CORAZA_KILLS_WORKERS is set and Coraza's
+# module is linked under KEEL_NGINX_DIR (upstream coraza-nginx #139).
+echo "pgrep $*" >> "${STUB_LOG:?}"
+if [ -n "${STUB_CORAZA_KILLS_WORKERS:-}" ] \
+        && [ -L "${KEEL_NGINX_DIR:?}/modules-enabled/50-mod-http-coraza.conf" ]; then
+    exit 1
+fi
+printf '%s\n' 4101 4102 4103 4104

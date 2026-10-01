@@ -1,0 +1,17 @@
+keel-overlay-coraza (0.1.0) trixie; urgency=medium
+
+  * First release (handbook decision 0041, first implementation, step 6).
+    Depends on libnginx-mod-http-coraza 0.21.0 and coreruleset 4.25.1,
+    built by Keel (step 5); ships the overlay manifest of
+    docs/manifest-v1.md as /usr/share/keel/overlays/coraza.yaml.
+  * Installed disabled, the module not loaded: postinst removes the
+    modules-enabled link dh_nginx made, on the first installation only;
+    preinst keeps a link that was there before on a live system, never in
+    an image build; postrm forgets that record on purge and abort-install.
+  * /usr/lib/keel/overlays/coraza/state enabled|disabled links the module
+    and /etc/nginx/coraza/keel.conf, tests, reloads, and checks that the
+    workers live and the manifest's probe gets 403, rolling back
+    otherwise: a rule Coraza refuses passes nginx -t and then kills every
+    worker (upstream corazawaf/coraza-nginx#139).
+
+ -- Marcos Mendez <mendez.foto@gmail.com>  Thu, 01 Oct 2026 03:00:00 +0000

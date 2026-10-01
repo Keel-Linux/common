@@ -1,0 +1,4 @@
+# nginx reloads a running server when this package is installed, upgraded
+# or removed, so the files it adds or takes away are read at once: the same
+# trigger trixie's libnginx-mod-* packages activate.
+activate-noawait nginx-reload

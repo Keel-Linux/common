@@ -1,0 +1,17 @@
+#!/usr/bin/make -f
+# The overlay manifest, Coraza's configuration and the state hook sit
+# beside debian/ (docs/manifest-v1.md, "Kinds, and where each file lives")
+# and are installed under the names keel and Nginx look them up by. The
+# files under /etc are conffiles. Nothing links them into Nginx at
+# installation: that is the state hook's, when the overlay is enabled.
+
+PKG = debian/keel-overlay-coraza
+
+%:
+	dh $@
+
+execute_after_dh_auto_install:
+	install -D -m 0644 manifest.yaml $(PKG)/usr/share/keel/overlays/coraza.yaml
+	install -D -m 0644 keel.conf $(PKG)/etc/nginx/coraza/keel.conf
+	install -D -m 0644 keel-rules.conf $(PKG)/etc/nginx/coraza/keel-rules.conf
+	install -D -m 0755 state $(PKG)/usr/lib/keel/overlays/coraza/state

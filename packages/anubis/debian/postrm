@@ -1,0 +1,15 @@
+#!/bin/sh
+# keel-overlay-anubis: on purge, delete the signing key the overlay made on
+# this machine (/etc/anubis/keel.key, made by keel-overlay-anubis-key.service
+# at the first start of anubis@keel.service). It is no conffile, so dpkg
+# would leave it behind; a key outlives its overlay nowhere. A remove keeps
+# it, so a reinstall signs with the same key and no visitor is challenged
+# again.
+set -e
+
+if [ "$1" = purge ]; then
+    rm -f /etc/anubis/keel.key
+fi
+#DEBHELPER#
+
+exit 0

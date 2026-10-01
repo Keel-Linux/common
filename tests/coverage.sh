@@ -29,6 +29,8 @@ targets=(
     "overlays/turnkey.d/webmin-net/usr/local/sbin/webmin-net-read-only:tests/webmin-net.bats"
     "overlays/turnkey.d/resolvconf-ifupdown-ng/etc/network/if-up.d/000resolvconf-ifupdown-ng:tests/resolvconf-ifupdown-ng.bats"
     "overlays/turnkey.d/resolvconf-ifupdown-ng/etc/network/if-down.d/resolvconf-ifupdown-ng:tests/resolvconf-ifupdown-ng.bats"
+    "packages/coraza/state:tests/coraza-state.bats"
+    "packages/anubis/signing-key:tests/anubis-signing-key.bats"
 )
 
 for tool in kcov bats; do

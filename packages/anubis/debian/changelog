@@ -1,0 +1,19 @@
+keel-overlay-anubis (0.1.0) trixie; urgency=medium
+
+  * First release (handbook decision 0041, first implementation, step 6).
+    Depends on anubis 1.27.0, built by Keel (step 5); ships the overlay
+    manifest as /usr/share/keel/overlays/anubis.yaml. Its unit is the
+    anubis package's template instance, anubis@keel.service, and its port
+    declares the address it binds, ::1, both departing from the worked
+    example of docs/manifest-v1.md, which names anubis.service.
+  * /etc/anubis/keel.env: Anubis on [::1]:8923 only, its metrics on a
+    unix socket, handing what it allows back to Nginx on
+    unix:/run/nginx/keel-app.sock (decision 0042); upstream's default
+    policy, the one policy of version 1. /etc/nginx/snippets/
+    keel-anubis.conf sends a location through it.
+  * Installed disabled and stopped: nothing enables the instance. On its
+    first start keel-overlay-anubis-key.service makes the signing key,
+    /etc/anubis/keel.key, when it is not there, so no image carries one;
+    postrm deletes it on purge.
+
+ -- Marcos Mendez <mendez.foto@gmail.com>  Thu, 01 Oct 2026 03:00:00 +0000
