@@ -124,13 +124,13 @@ jobs:
       download-dir: dist
       run: |
         # step 5's packages at their keel/trixie heads of 2026-10-01, and
-        # keel 0.15.0 at Keel-Linux/keel#63, which reads hooks.state (until
-        # it merges, the head of its branch)
+        # keel 0.15.0, the merge of Keel-Linux/keel#63, which reads
+        # hooks.state
         STEP5="libcoraza:2dd7785896df6bdad2faf9a13368081f9560187d
                coreruleset:7411b7a9b8b901fbea7c45078391ce3e7ec5e4f3
                libnginx-mod-http-coraza:630c68f203708d0819c70bc06427b04953f9ffdd
                anubis:e2512d3931cd82a994106513b8eece5034a7c7fe"
-        KEEL_COMMIT=a510b9fb094a0727c07c7ad6059d6e236a9c4741
+        KEEL_COMMIT=3143e870805c6214efe2bde1f589880fc47b0955
         apt-get update -qq
         apt-get install -y -qq --no-install-recommends \
           ca-certificates git git-buildpackage pristine-tar devscripts \
