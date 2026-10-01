@@ -291,9 +291,10 @@ What keel needs, for step 7 or the implementation of 0042
 `tests/overlay-web.bats` runs on a disposable trixie machine booted with
 systemd, with the three Web overlays and their dependencies installed
 (`KEEL_OVERLAY_INSTALL_TEST=1`, `OVERLAY_DEBS` the directory holding the
-overlay packages and `libnginx-mod-http-coraza`). Keel tests what needs
-systemd in system containers only, so it is not a CI job: it runs on an
-LXC container of the Core image on the test machine. It checks the
+overlay packages, `libnginx-mod-http-coraza` and `coreruleset`). The CI
+job `web` runs it in a booted trixie LXC system container on keel-lxc-1,
+with step 5's packages built there; it also ran on an LXC container of
+the Core image on the test machine. It checks the
 manifests on the machine, `/keel-health` on both loopbacks and not on the
 machine's own addresses, Debian's `nginx.conf` and default site
 untouched, Coraza off after a first installation (with the module

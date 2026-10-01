@@ -10,9 +10,10 @@
 # where KEEL_OVERLAY_INSTALL_TEST=1 says the machine is disposable, as
 # root, under systemd, after the three keel-overlay-* packages have been
 # installed with their dependencies. OVERLAY_DEBS names the directory
-# holding the overlay .deb files and libnginx-mod-http-coraza's (default
-# dist/ of the repository). The CI job "packages / web" runs it in a trixie
-# container booted with systemd; so does the test of the Core image.
+# holding the overlay .deb files, libnginx-mod-http-coraza's and
+# coreruleset's (default dist/ of the repository). The CI job "web" of
+# packages.yml runs it in a trixie LXC system container booted with
+# systemd; so does the test of the Core image.
 #
 # Every verdict is the one Nginx, curl, systemctl, dpkg and keel give on
 # the machine. Refutations are written "run ! cmd", never a bare "! cmd".
@@ -63,6 +64,9 @@ teardown() {
     fi
     if [ -f "$BATS_TEST_TMPDIR/instance.yaml" ]; then
         cp -p "$BATS_TEST_TMPDIR/instance.yaml" "$SPEC"
+    fi
+    if [ -f "$BATS_TEST_TMPDIR/no-spec" ]; then
+        rm -f "$SPEC"
     fi
     rm -f "$TEST_SITE" "$KEY.from-primary" "$PRIMARY_KEY"
     if [ "$(dpkg-query -W -f='${Version}' coreruleset)" != \
@@ -497,12 +501,19 @@ EOF
 }
 
 @test "the key file the spec names is the key, and none is made" {
-    cp -p "$SPEC" "$BATS_TEST_TMPDIR/instance.yaml"
-    install -m 0600 /dev/null "$PRIMARY_KEY"
+    install -D -m 0600 /dev/null "$PRIMARY_KEY"
     head -c 32 /dev/urandom | od -A n -v -t x1 | tr -d ' \n' > "$PRIMARY_KEY"
-    awk -v line="  anubis_signing_key: {file: $PRIMARY_KEY}" \
-        '{ print } /^secrets:/ { print line }' \
-        "$BATS_TEST_TMPDIR/instance.yaml" > "$SPEC"
+    local line="  anubis_signing_key: {file: $PRIMARY_KEY}"
+    if [ -f "$SPEC" ]; then
+        # a machine with a spec, the Core image's: the secret is added to it
+        cp -p "$SPEC" "$BATS_TEST_TMPDIR/instance.yaml"
+        awk -v line="$line" '{ print } /^secrets:/ { print line }' \
+            "$BATS_TEST_TMPDIR/instance.yaml" > "$SPEC"
+    else
+        : > "$BATS_TEST_TMPDIR/no-spec"
+        install -D -m 0600 /dev/null "$SPEC"
+        printf '%s\n' "version: 1" "secrets:" "$line" > "$SPEC"
+    fi
 
     systemctl enable --now "$ANUBIS"
 
