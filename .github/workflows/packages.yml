@@ -1,13 +1,22 @@
 # The overlay packages of packages/ (handbook decision 0041, first
-# implementation, step 2). The checks are "packages / build" and
+# implementation, steps 2 and 6). The checks are "packages / build" and
 # "packages / install".
 #
 # build: each package built, source and binary, with dpkg-buildpackage, and
 # both linted with lintian, any error or warning failing (packages/build).
 # Nothing is signed or published; the files are kept as the artifact
-# overlay-debs.
+# overlay-debs. That covers the three Keel Web overlays of step 6 (nginx,
+# coraza, anubis) as well.
 #
-# install: the four packages installed with their real dependencies in a
+# The Web overlays are not installed here. What they must show (Nginx
+# answering, Coraza's workers, Anubis's first start) needs systemd running,
+# and Keel tests that only in system containers, never in Docker or
+# podman: tests/overlay-web.bats runs on a booted LXC container of the
+# Core image on the test machine, and the pull request records the run
+# (packages/README.md, "The Web overlays"). Their hook scripts are unit
+# tested and measured by the "tests / coverage" check.
+#
+# install: the four Core packages installed with their real dependencies in a
 # trixie container, then tests/overlay-install.bats: keel manifest validate
 # on the machine, and the units of etcd and CrowdSec after a first
 # installation, a purge, a remove and reinstall, a transition from a unit
@@ -99,7 +108,7 @@ jobs:
             mv "$RUNNER_TEMP/src/"*.deb "$RUNNER_TEMP/deps/"
           done
           ls -l "$RUNNER_TEMP/deps"
-      - name: Install the four overlay packages with their dependencies
+      - name: Install the four Core overlay packages with their dependencies
         run: |
           set -euo pipefail
           printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d
@@ -111,7 +120,11 @@ jobs:
             > /etc/apt/sources.list.d/turnkey.list
           apt-get update -qq
           apt-get install -y -q --no-install-recommends \
-            "$RUNNER_TEMP"/deps/*.deb ./dist/*.deb
+            "$RUNNER_TEMP"/deps/*.deb \
+            ./dist/keel-overlay-installer_*.deb \
+            ./dist/keel-overlay-wireguard_*.deb \
+            ./dist/keel-overlay-etcd_*.deb \
+            ./dist/keel-overlay-crowdsec_*.deb
       - name: Unit states and manifests on the machine
         run: |
           set -o pipefail
