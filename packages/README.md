@@ -180,10 +180,37 @@ corazawaf/coraza-nginx#139, reproduced on trixie with
 `SecRule ARGS "@rx (" ...`). So it waits for the manifest's probe to get
 403 and `/keel-health` 204; if they do not within ten seconds it puts the
 links back as they were, reloads again, checks that Nginx answers, and
-fails naming the cause (no worker left, or the status the probe got). It
-refuses to turn Coraza on while Nginx is not running, since there would
-be nothing to check. Disabled removes both links, reloads and checks that
-the probe passes and `/keel-health` answers.
+fails naming the cause (no worker left, or the status the probe got). A
+reload that fails rolls back the same way. `nginx -s reload` only signals
+the master, so before probing the hook waits until no worker of before
+the reload still takes requests: otherwise an old worker that already
+had the rule set answers 403 while the new ones die (measured, in the
+upgrade below). It refuses to turn Coraza on while Nginx is not running,
+since there would be nothing to check. Disabled removes both links,
+reloads and checks that the probe passes and `/keel-health` answers.
+Runs are serialised with `flock` on `/run/lock/keel-overlay-coraza.lock`.
+
+`state recheck` guards upgrades. The overlay's dpkg trigger watches
+`/usr/share/coreruleset`, the module and `libcoraza.so.1`; when any of
+them is upgraded under an enabled Coraza with Nginx running, `postinst
+triggered` reloads, checks the probe the same way, and turns Coraza off
+when the new files fail (measured with a coreruleset carrying a rule
+Coraza refuses: the upgrade completes, Coraza is off, Nginx answers). The
+upgrade itself does not fail; Monit's `waf-blocks` check reports Coraza
+off until it is turned on again.
+
+**Only these runs are guarded**: `state enabled`, `state recheck` and
+`state disabled`. Any other reload still reaches corazawaf/coraza-nginx#139
+unchecked: one by hand, the reload after a certificate renewal, the
+`nginx-reload` trigger of another `libnginx-mod-*` package, and an edit of
+the rule set's conffiles under `/etc/coreruleset` followed by a reload.
+Monit's `nginx` check (a restart, which does not help) and `waf-blocks`
+check (an alert) are what report those.
+
+A remove of the overlay takes Coraza out of Nginx: `prerm remove` deletes
+both links and the `nginx-reload` trigger reloads a running Nginx, so
+apt autoremoving the module or the rule set afterwards cannot break the
+next reload. A reinstall finds Coraza off.
 
 **Anubis** runs as `anubis@keel.service`, an instance of the anubis
 package's template unit, reading `/etc/anubis/keel.env`: `[::1]:8923`
@@ -201,17 +228,29 @@ Its signing key (the manifest's `anubis_signing_key`, `generate:
 required`, `shared: true`) is `/etc/anubis/keel.key`. The package's unit
 refuses to start without it; a drop-in makes `anubis@keel.service`
 require `keel-overlay-anubis-key.service`, which runs
-`/usr/lib/keel-overlay-anubis/signing-key` when the key is not there. So
-the first start, the one `keel spec apply` makes when the spec enables the
-overlay, generates the key; nothing does at installation or in an image
-build, so no image carries one. A key that is there is never replaced,
-which is what a replica needs once something puts the primary's key there
-first. A purge deletes it.
+`/usr/lib/keel-overlay-anubis/signing-key` when the key is not there.
+Nothing runs it at installation or in an image build, so no image carries
+a key. At the first start, the one `keel spec apply` makes when the spec
+enables the overlay, it follows the instance spec (the manifest owns the
+policy, the spec the file, 0041):
+
+- `secrets.anubis_signing_key: {file: PATH}`: the key becomes a link to
+  PATH; a PATH that is not there is refused, and the start fails;
+- `database.server.role: replica`, or `/etc/anubis/keel.key.from-primary`
+  present: the key is shared and the primary's, so none is made and the
+  start fails until it is put in place (the spec has no role for a web
+  node, hence the marker for keel to write);
+- otherwise it generates one.
+
+A key that is there is never replaced. A purge stops and disables
+`anubis@keel.service`, whose environment file it deletes, and deletes the
+key (a link, when the spec named the file).
 
 The manifests depart from the worked example of docs/manifest-v1.md in
 two places, both for Anubis: the unit is `anubis@keel.service`, not
 `anubis.service`, because step 5 packaged a template; and its port
-declares `address: "::1"`, the one family it binds.
+declares `address: "::1"`, the one family it binds. The erratum to the
+format is Keel-Linux/handbook#33.
 
 ### What keel 0.14.0 does with them, and what it lacks
 
@@ -226,7 +265,8 @@ Measured on the Core image of step 4 with keel 0.14.0, a spec naming the
   converges units, and the overlay has none. The check fails (the probe
   gets 204) until the hook runs; after `state enabled` it passes.
 
-What keel needs, for step 7 or the implementation of 0042:
+What keel needs, for step 7 or the implementation of 0042
+(Keel-Linux/keel#62):
 
 1. Run `/usr/lib/keel/overlays/<name>/state enabled|disabled` when an
    overlay's state changes and the file exists, after its `requires`
@@ -237,10 +277,11 @@ What keel needs, for step 7 or the implementation of 0042:
    answer `state status`; today `diff` says "not compared".
 3. Secrets: `generate: true` in the spec makes a short random token for
    the first boot conf (`KEEL_SECRET_<NAME>`), which is not an Anubis key
-   and reaches no file Anubis reads. For Anubis the key
-   is the overlay's file; the installer's emitter should write
-   `anubis_signing_key: {file: /etc/anubis/keel.key}`, and a cloud replica
-   should receive the primary's file before its first start (0028).
+   and reaches no file Anubis reads. The installer's emitter should write
+   `anubis_signing_key: {file: /etc/anubis/keel.key}` for a generated
+   key, and a node that receives its primary's shared secrets (0028)
+   should get the primary's key, writing the `from-primary` marker until
+   it has.
 4. Monit encodes the `%` of the waf-blocks path again
    (`%253Cscript...`); the Core Rule Set still blocks it (403, measured),
    but the renderer may want to pass the path undecoded on purpose.
@@ -258,9 +299,12 @@ machine's own addresses, Debian's `nginx.conf` and default site
 untouched, Coraza off after a first installation (with the module
 installed in the same transaction, before, and in an image build) and
 after an upgrade of the module, the hook on and off and its rollback of a
-rule Coraza refuses, Anubis off, its key made at the first start and kept
-across a restart, listening on `[::1]` only, Nginx proxying through it,
-and the key gone with a purge. `tests/coraza-state.bats` and
+rule Coraza refuses, a remove taking Coraza out of Nginx, a rule set
+upgrade rechecked and kept, and one that kills the workers turning Coraza
+off; Anubis off, its key made at the first start and kept across a
+restart, the spec's key file linked, no key and no start where the
+from-primary marker is, listening on `[::1]` only, Nginx proxying
+through it, and a purge stopping and disabling it and deleting the key. `tests/coraza-state.bats` and
 `tests/anubis-signing-key.bats` unit test the two scripts with stubs, and
 `tests/coverage.sh` measures them.
 

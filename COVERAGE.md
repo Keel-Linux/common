@@ -11,8 +11,13 @@ measured with kcov 43 on Debian 13:
 
 | File | Suite | Lines | Covered |
 |------|-------|-------|---------|
-| packages/coraza/state | tests/coraza-state.bats (22 bats) | 87 | 87 |
-| packages/anubis/signing-key | tests/anubis-signing-key.bats (8 bats) | 20 | 20 |
+| packages/coraza/state | tests/coraza-state.bats (33 bats) | 115 | 115 |
+| packages/anubis/signing-key | tests/anubis-signing-key.bats (19 bats) | 43 | 43 |
+
+`packages/anubis/spec-key`, the Python reader of the instance spec that
+`signing-key` calls, is exercised by the same suite through
+`signing-key`; kcov measures shell only. The suite needs python3-yaml,
+which `.github/workflows/tests.yml` installs.
 
 `tests/coraza-state.bats` replaces nginx, curl and pgrep with stubs from
 `tests/stubs-nginx`, a directory of their own so no other suite's PATH
@@ -25,7 +30,8 @@ unchanged at 100, and the gate stays at 100.
 
 With statements continued over several lines, `state` measured 84 of 84
 here and 82 of 84 on the CI runner (Ubuntu 24.04, the same kcov 43), so
-every statement of it is kept on one line.
+every statement of it is kept on one line. An empty `case` branch (`;;`
+alone) counts as a line never run, so the argument check is an `if`.
 
 ## Branch fix/webmin-net-read-only: 100 percent, two new files (2026-09-29)
 

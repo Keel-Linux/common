@@ -30,6 +30,8 @@ ANUBIS=anubis@keel.service
 KEY=/etc/anubis/keel.key
 RULES=/etc/coreruleset/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf
 TEST_SITE=/etc/nginx/sites-enabled/zz-keel-anubis-test
+SPEC=/etc/keel/instance.yaml
+PRIMARY_KEY=/etc/keel/secrets/keel-test-anubis-key
 
 setup_file() {
     if [ "${KEEL_OVERLAY_INSTALL_TEST:-}" != 1 ]; then
@@ -59,7 +61,14 @@ teardown() {
     if [ -f "$BATS_TEST_TMPDIR/rules" ]; then
         cp "$BATS_TEST_TMPDIR/rules" "$RULES"
     fi
-    rm -f "$TEST_SITE"
+    if [ -f "$BATS_TEST_TMPDIR/instance.yaml" ]; then
+        cp -p "$BATS_TEST_TMPDIR/instance.yaml" "$SPEC"
+    fi
+    rm -f "$TEST_SITE" "$KEY.from-primary" "$PRIMARY_KEY"
+    if [ "$(dpkg-query -W -f='${Version}' coreruleset)" != \
+            "$(dpkg-deb -f "$(deb_of coreruleset)" Version)" ]; then
+        dpkg -i "$(deb_of coreruleset)"
+    fi
     if [ "$(dpkg-query -W -f='${db:Status-Status}' keel-overlay-coraza \
             2>/dev/null)" != installed ]; then
         dpkg -i "$(deb_of keel-overlay-coraza)"
@@ -71,6 +80,9 @@ teardown() {
     # every test starts from the simple installation: Coraza and Anubis off
     rm -f "$MODULE_LINK" "$MODULE_LINK.removed" "$WAF_LINK"
     systemctl disable --now "$ANUBIS" >/dev/null 2>&1 || true
+    systemctl reset-failed "$ANUBIS" keel-overlay-anubis-key.service \
+        >/dev/null 2>&1 || true
+    rm -f "$KEY"
     systemctl reload nginx.service
     answers 204 "$HEALTH"
 }
@@ -329,13 +341,62 @@ assert_coraza_off() {
     answers 204 "$HEALTH"
 }
 
-@test "remove and reinstall of the overlay keep Coraza enabled" {
+@test "a remove takes Coraza out of Nginx, and a reinstall leaves it off" {
     "$STATE" enabled
+
     dpkg -r keel-overlay-coraza
+
+    # the links are gone and the trigger reloaded Nginx without the module,
+    # so autoremoving the module or the rule set cannot break a reload
+    assert_coraza_off
+    answers 204 "$HEALTH"
+    nginx -t
     dpkg -i "$(deb_of keel-overlay-coraza)"
+    assert_coraza_off
+}
+
+# coreruleset rebuilt under a higher version, with RULE added as a rule
+# file of its own when given
+coreruleset_upgrade() {
+    local tree
+    tree="$(mktemp -d "$BATS_TEST_TMPDIR/crs.XXXXXX")"
+    dpkg-deb -R "$(deb_of coreruleset)" "$tree/root"
+    if [ -n "${1:-}" ]; then
+        echo "$1" > "$tree/root/usr/share/coreruleset/rules/REQUEST-899-KEEL-TEST.conf"
+        (cd "$tree/root" && find usr -type f -exec md5sum {} + > DEBIAN/md5sums)
+    fi
+    awk '/^Version: / { $0 = "Version: 99:0-keeltest1" } { print }' \
+        "$tree/root/DEBIAN/control" > "$tree/control"
+    mv "$tree/control" "$tree/root/DEBIAN/control"
+    dpkg-deb -b "$tree/root" "$tree/coreruleset.deb" >&2
+    echo "$tree/coreruleset.deb"
+}
+
+@test "an upgrade of the rule set under an enabled Coraza is rechecked and kept" {
+    "$STATE" enabled
+
+    run dpkg -i "$(coreruleset_upgrade)"
+
+    echo "$output"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"coraza: rechecked: the probe got 403"* ]]
     [ -L "$MODULE_LINK" ]
     [ -L "$WAF_LINK" ]
     answers 403 "$PROBE"
+}
+
+@test "an upgrade of the rule set that kills the workers turns Coraza off" {
+    "$STATE" enabled
+
+    run dpkg -i "$(coreruleset_upgrade 'SecRule ARGS "@rx (" "id:1000,phase:1,deny"')"
+
+    echo "$output"
+    # the upgrade itself succeeds; Coraza is off and Nginx answers
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"no nginx worker is running"* ]]
+    [[ "$output" == *"rolled back, Coraza is off"* ]]
+    assert_coraza_off
+    answers 204 "$HEALTH"
 }
 
 @test "a rule Coraza refuses is rolled back: Nginx answers and Coraza stays off" {
@@ -435,13 +496,44 @@ EOF
     [[ "$output" == *anubis* ]]
 }
 
-@test "a purge of the overlay deletes the signing key" {
+@test "the key file the spec names is the key, and none is made" {
+    cp -p "$SPEC" "$BATS_TEST_TMPDIR/instance.yaml"
+    install -m 0600 /dev/null "$PRIMARY_KEY"
+    head -c 32 /dev/urandom | od -A n -v -t x1 | tr -d ' \n' > "$PRIMARY_KEY"
+    awk -v line="  anubis_signing_key: {file: $PRIMARY_KEY}" \
+        '{ print } /^secrets:/ { print line }' \
+        "$BATS_TEST_TMPDIR/instance.yaml" > "$SPEC"
+
+    systemctl enable --now "$ANUBIS"
+
+    [ "$(readlink "$KEY")" = "$PRIMARY_KEY" ]
+    run systemctl is-active "$ANUBIS"
+    [ "$output" = active ]
+}
+
+@test "a node marked to take the key from its primary makes none and does not start" {
+    : > "$KEY.from-primary"
+
+    run systemctl enable --now "$ANUBIS"
+
+    [ "$status" -ne 0 ]
+    [ ! -e "$KEY" ]
+    run systemctl is-active "$ANUBIS"
+    [ "$output" != active ]
+    run journalctl -u keel-overlay-anubis-key.service -n 5 --no-pager
+    [[ "$output" == *"comes from the primary"* ]]
+}
+
+@test "a purge of the overlay stops and disables Anubis and deletes the key" {
     systemctl enable --now "$ANUBIS"
     [ -f "$KEY" ]
-    systemctl disable --now "$ANUBIS"
 
     dpkg -P keel-overlay-anubis
 
+    run systemctl is-enabled "$ANUBIS"
+    [ "$output" = disabled ]
+    run systemctl is-active "$ANUBIS"
+    [ "$output" = inactive ]
     [ ! -e "$KEY" ]
 }
 
