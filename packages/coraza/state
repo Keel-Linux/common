@@ -39,6 +39,12 @@ HEALTH="http://[::1]/keel-health"
 # the probe of the waf-blocks check of /usr/share/keel/overlays/coraza.yaml
 PROBE="$HEALTH?keel-waf-probe=%3Cscript%3Ealert(1)%3C%2Fscript%3E"
 ISSUE="corazawaf/coraza-nginx#139"
+# Every statement below is kept on one line, messages included, so that
+# kcov counts the same lines everywhere: with continued lines it measured
+# 84 of 84 on Debian 13 and 82 of 84 on the CI runner.
+NOT_RUNNING="nginx is not running: start it first, since Coraza is only turned on where its probe can be checked"
+NO_WORKER="no nginx worker is running: a rule Coraza refuses passes nginx -t and kills every worker ($ISSUE); the reason is in Nginx's error log"
+IN_USE="nginx -t refuses the configuration without Coraza (does a site use its directives?); the links are put back"
 
 say() {
     echo "coraza: $*"
@@ -57,8 +63,7 @@ master() {
 
 # code URL: the status code Nginx gives URL, 000 when it does not answer
 code() {
-    curl --globoff --silent --output /dev/null --max-time 2 \
-        --write-out '%{http_code}' "$1" || true
+    curl --globoff --silent --output /dev/null --max-time 2 --write-out '%{http_code}' "$1" || true
 }
 
 # answers CODE URL: URL gets CODE within TRIES attempts. A reload is
@@ -75,8 +80,7 @@ answers() {
 
 # the module and the WAF configuration both linked: the enabled state
 linked() {
-    [ "$(readlink "$MODULE_LINK")" = "$MODULE_CONF" ] \
-        && [ "$(readlink "$WAF_LINK")" = "$WAF_CONF" ]
+    [ "$(readlink "$MODULE_LINK")" = "$MODULE_CONF" ] && [ "$(readlink "$WAF_LINK")" = "$WAF_CONF" ]
 }
 
 # a file of the operator's where a link goes is never replaced
@@ -102,9 +106,7 @@ why_not_blocking() {
     # pgrep exits 1 when it finds none, which is the answer wanted
     workers="$({ pgrep -P "$1" || true; } | wc -l)"
     if [ "$workers" -eq 0 ]; then
-        echo "no nginx worker is running: a rule Coraza refuses passes" \
-            "nginx -t and kills every worker ($ISSUE); the reason is in" \
-            "Nginx's error log"
+        echo "$NO_WORKER"
     else
         echo "the probe got $GOT, not 403"
     fi
@@ -112,8 +114,7 @@ why_not_blocking() {
 
 enable() {
     local pid had_module=no reason
-    pid="$(master)" || fail "nginx is not running: start it first, since" \
-        "Coraza is only turned on where its probe can be checked"
+    pid="$(master)" || fail "$NOT_RUNNING"
     refuse_files
     if linked; then
         blocking || fail "enabled, but $(why_not_blocking "$pid")"
@@ -135,8 +136,7 @@ enable() {
     reason="$(why_not_blocking "$pid")"
     rollback "$had_module"
     reload
-    answers 204 "$HEALTH" || fail "$reason; rolled back, but nginx does" \
-        "not answer /keel-health after the rollback either (got $GOT)"
+    answers 204 "$HEALTH" || fail "$reason; rolled back, but nginx does not answer /keel-health after the rollback either (got $GOT)"
     fail "$reason; rolled back, Coraza is off"
 }
 
@@ -158,8 +158,7 @@ disable() {
     if ! nginx -t; then
         [ -z "$module" ] || ln -s "$module" "$MODULE_LINK"
         [ -z "$waf" ] || ln -s "$waf" "$WAF_LINK"
-        fail "nginx -t refuses the configuration without Coraza (does a" \
-            "site use its directives?); the links are put back"
+        fail "$IN_USE"
     fi
     if ! master >/dev/null; then
         say "disabled (nginx is not running: the module is loaded by no one)"
@@ -167,8 +166,7 @@ disable() {
     fi
     reload
     # the probe passing is the new workers answering, without the WAF
-    answers 204 "$PROBE" && answers 204 "$HEALTH" || fail "disabled, but" \
-        "nginx does not answer /keel-health and its probe with 204 (got $GOT)"
+    answers 204 "$PROBE" && answers 204 "$HEALTH" || fail "disabled, but nginx does not answer /keel-health and its probe with 204 (got $GOT)"
     say "disabled: the module is not loaded"
 }
 

@@ -11,7 +11,7 @@ measured with kcov 43 on Debian 13:
 
 | File | Suite | Lines | Covered |
 |------|-------|-------|---------|
-| packages/coraza/state | tests/coraza-state.bats (22 bats) | 84 | 84 |
+| packages/coraza/state | tests/coraza-state.bats (22 bats) | 87 | 87 |
 | packages/anubis/signing-key | tests/anubis-signing-key.bats (8 bats) | 20 | 20 |
 
 `tests/coraza-state.bats` replaces nginx, curl and pgrep with stubs from
@@ -22,6 +22,10 @@ corazawaf/coraza-nginx#139 (no worker left, every request timing out).
 The real Nginx, module and rule set are `tests/overlay-web.bats`', run on
 a booted LXC container (packages/README.md). Every other target is
 unchanged at 100, and the gate stays at 100.
+
+With statements continued over several lines, `state` measured 84 of 84
+here and 82 of 84 on the CI runner (Ubuntu 24.04, the same kcov 43), so
+every statement of it is kept on one line.
 
 ## Branch fix/webmin-net-read-only: 100 percent, two new files (2026-09-29)
 
