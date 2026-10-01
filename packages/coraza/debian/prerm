@@ -1,0 +1,29 @@
+#!/bin/sh
+# keel-overlay-coraza: on remove, take Coraza out of Nginx: the two links
+# the state hook made go, so the module is no longer loaded and nothing
+# includes /etc/nginx/coraza/keel.conf. Kept, they would outlive the
+# overlay, and once apt autoremoves coreruleset or the module, the next
+# reload of Nginx would fail on a rule file or a module that is gone. The
+# nginx-reload trigger (debian/keel-overlay-coraza.triggers), activated by
+# the remove, reloads a running Nginx gracefully afterwards. An upgrade
+# ("upgrade" here) keeps them. A reinstall finds Coraza disabled, and keel
+# apply turns it on again where the spec says so.
+set -e
+
+WAF_LINK=/etc/nginx/conf.d/keel-coraza.conf
+WAF_CONF=/etc/nginx/coraza/keel.conf
+MODULE_LINK=/etc/nginx/modules-enabled/50-mod-http-coraza.conf
+MODULE_CONF=/usr/share/nginx/modules-available/mod-http-coraza.conf
+
+if [ "$1" = remove ]; then
+    if [ "$(readlink "$WAF_LINK" || true)" = "$WAF_CONF" ]; then
+        rm -f "$WAF_LINK"
+    fi
+    if [ "$(readlink "$MODULE_LINK" || true)" = "$MODULE_CONF" ]; then
+        rm -f "$MODULE_LINK"
+    fi
+fi
+
+#DEBHELPER#
+
+exit 0

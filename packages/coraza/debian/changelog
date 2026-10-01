@@ -12,6 +12,12 @@ keel-overlay-coraza (0.1.0) trixie; urgency=medium
     and /etc/nginx/coraza/keel.conf, tests, reloads, and checks that the
     workers live and the manifest's probe gets 403, rolling back
     otherwise: a rule Coraza refuses passes nginx -t and then kills every
-    worker (upstream corazawaf/coraza-nginx#139).
+    worker (upstream corazawaf/coraza-nginx#139). A failed reload rolls
+    back too; it probes only once the workers of before the reload stop
+    taking requests; runs are serialised with flock.
+  * A dpkg trigger on coreruleset, the module and libcoraza runs
+    `state recheck` after their upgrades, turning Coraza off rather than
+    leave Nginx without workers. prerm remove takes both links away, so
+    autoremoving the module or the rule set cannot break Nginx.
 
  -- Marcos Mendez <mendez.foto@gmail.com>  Thu, 01 Oct 2026 03:00:00 +0000

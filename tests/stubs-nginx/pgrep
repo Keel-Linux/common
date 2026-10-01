@@ -1,11 +1,23 @@
 #!/bin/bash
-# Stand-in for pgrep, as tests/coraza-state.bats uses it (`pgrep -P PID`,
-# the workers of the Nginx master): records the call in STUB_LOG and lists
-# four workers, or none when STUB_CORAZA_KILLS_WORKERS is set and Coraza's
-# module is linked under KEEL_NGINX_DIR (upstream coraza-nginx #139).
+# Stand-in for pgrep, as tests/coraza-state.bats uses it: `pgrep -P PID`
+# and `pgrep -P PID -xf 'nginx: worker process'`, the workers of the Nginx
+# master. Records the call in STUB_LOG and lists four workers of the
+# current generation, which the nginx stub counts up at every reload in
+# STUB_LOG.generation: 11..14, then 21..24, and so on.
+#
+# - STUB_CORAZA_KILLS_WORKERS set and Coraza's module linked under
+#   KEEL_NGINX_DIR: no worker at all (upstream coraza-nginx #139).
+# - STUB_RELOAD_LAG=N: the first N listings after a reload still show the
+#   workers of before it, as a master that has not handled the signal yet.
 echo "pgrep $*" >> "${STUB_LOG:?}"
 if [ -n "${STUB_CORAZA_KILLS_WORKERS:-}" ] \
         && [ -L "${KEEL_NGINX_DIR:?}/modules-enabled/50-mod-http-coraza.conf" ]; then
     exit 1
 fi
-printf '%s\n' 4101 4102 4103 4104
+generation="$(cat "$STUB_LOG.generation" 2>/dev/null || echo 1)"
+listed="$(cat "$STUB_LOG.listed" 2>/dev/null || echo 0)"
+echo "$((listed + 1))" > "$STUB_LOG.listed"
+if [ "$listed" -lt "${STUB_RELOAD_LAG:-0}" ] && [ "$generation" -gt 1 ]; then
+    generation=$((generation - 1))
+fi
+printf '%s\n' "${generation}1" "${generation}2" "${generation}3" "${generation}4"

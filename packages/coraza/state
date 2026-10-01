@@ -1,5 +1,5 @@
 #!/bin/bash
-# /usr/lib/keel/overlays/coraza/state enabled|disabled
+# /usr/lib/keel/overlays/coraza/state enabled|disabled|recheck
 #
 # Turns the Coraza overlay of Keel Web on or off (handbook decisions 0030
 # and 0041). Coraza is an Nginx module, not a unit, so keel spec apply has
@@ -20,6 +20,17 @@
 # engine costs memory in every worker even when no server uses it), tests
 # and reloads, and checks that /keel-health and the probe both get 204.
 #
+# recheck: what the dpkg trigger of keel-overlay-coraza runs when the rule
+# set, the module or the engine is upgraded. With Coraza enabled and Nginx
+# running, it reloads and checks as enabled does, and turns Coraza off
+# when the new files fail the check.
+#
+# A failed reload rolls back as a failed check does. Runs are serialised
+# with flock(1) on KEEL_CORAZA_LOCK, waiting at most KEEL_CORAZA_LOCK_WAIT
+# seconds. Only these runs are checked: a reload made any other way (by
+# hand, at a certificate renewal, by the nginx-reload trigger of another
+# package) is not; Monit's waf-blocks and nginx checks report it.
+#
 # Exit codes: 0 done or unchanged, 1 refused or rolled back, 2 usage.
 #
 # The KEEL_* variables exist for tests/coraza-state.bats; on a machine the
@@ -31,6 +42,8 @@ MODULE_CONF="${KEEL_CORAZA_MODULE_CONF:-/usr/share/nginx/modules-available/mod-h
 PID_FILE="${KEEL_NGINX_PID:-/run/nginx.pid}"
 TRIES="${KEEL_CORAZA_TRIES:-10}"
 INTERVAL="${KEEL_CORAZA_INTERVAL:-1}"
+LOCK="${KEEL_CORAZA_LOCK:-/run/lock/keel-overlay-coraza.lock}"
+LOCK_WAIT="${KEEL_CORAZA_LOCK_WAIT:-120}"
 
 MODULE_LINK="$NGINX_DIR/modules-enabled/50-mod-http-coraza.conf"
 WAF_CONF="$NGINX_DIR/coraza/keel.conf"
@@ -93,8 +106,31 @@ refuse_files() {
     done
 }
 
+# serving PID: the workers of the master PID that still take requests; one
+# told to quit is titled "nginx: worker process is shutting down"
+serving() {
+    pgrep -P "$1" -xf 'nginx: worker process' || true
+}
+
+# reload PID: reload, then wait until no worker of before the reload still
+# takes requests. `nginx -s reload` only signals the master, so a probe
+# sent at once can reach an old worker; with the rule set already loaded
+# there, it would get 403 from workers about to go while the new ones die
+# (measured: an upgrade of coreruleset under an enabled Coraza). After the
+# wait a probe reaches the new workers, or none at all.
 reload() {
-    nginx -s reload
+    local pid="$1" before try worker old
+    before=" $(serving "$pid" | tr '\n' ' ')"
+    nginx -s reload || return 1
+    for try in $(seq "$TRIES"); do
+        old=no
+        for worker in $(serving "$pid"); do
+            [[ "$before" == *" $worker "* ]] && old=yes
+        done
+        [ "$old" = no ] && return 0
+        [ "$try" -lt "$TRIES" ] && sleep "$INTERVAL"
+    done
+    return 0
 }
 
 blocking() {
@@ -124,20 +160,42 @@ enable() {
     [ -L "$MODULE_LINK" ] && had_module=yes
     ln -sfn "$MODULE_CONF" "$MODULE_LINK"
     ln -sfn "$WAF_CONF" "$WAF_LINK"
+    checked "$pid" "$had_module"
+    say "enabled: the probe got 403 and /keel-health 204"
+}
+
+# checked PID HAD_MODULE: with both links made, test, reload and check;
+# anything that fails rolls the links back and fails the run
+checked() {
+    local pid="$1" had_module="$2" reason
     if ! nginx -t; then
         rollback "$had_module"
         fail "nginx -t refused the configuration with Coraza; rolled back"
     fi
-    reload
-    if blocking; then
-        say "enabled: the probe got 403 and /keel-health 204"
-        return 0
+    if ! reload "$pid"; then
+        rollback "$had_module"
+        fail "nginx -s reload failed; rolled back, Coraza is off"
     fi
+    blocking && return 0
     reason="$(why_not_blocking "$pid")"
     rollback "$had_module"
-    reload
+    reload "$pid" || fail "$reason; rolled back, but nginx -s reload failed after the rollback"
     answers 204 "$HEALTH" || fail "$reason; rolled back, but nginx does not answer /keel-health after the rollback either (got $GOT)"
     fail "$reason; rolled back, Coraza is off"
+}
+
+recheck() {
+    local pid
+    if ! linked; then
+        say "nothing to recheck (disabled)"
+        return 0
+    fi
+    if ! pid="$(master)"; then
+        say "enabled; nginx is not running, nothing to recheck"
+        return 0
+    fi
+    checked "$pid" no
+    say "rechecked: the probe got 403 and /keel-health 204"
 }
 
 rollback() {
@@ -151,7 +209,7 @@ disable() {
         say "unchanged (disabled)"
         return 0
     fi
-    local module waf
+    local module waf pid
     module="$(readlink "$MODULE_LINK" || true)"
     waf="$(readlink "$WAF_LINK" || true)"
     rm -f "$MODULE_LINK" "$WAF_LINK"
@@ -160,21 +218,27 @@ disable() {
         [ -z "$waf" ] || ln -s "$waf" "$WAF_LINK"
         fail "$IN_USE"
     fi
-    if ! master >/dev/null; then
+    if ! pid="$(master)"; then
         say "disabled (nginx is not running: the module is loaded by no one)"
         return 0
     fi
-    reload
+    reload "$pid" || fail "disabled, but nginx -s reload failed: the running workers keep Coraza until Nginx restarts"
     # the probe passing is the new workers answering, without the WAF
     answers 204 "$PROBE" && answers 204 "$HEALTH" || fail "disabled, but nginx does not answer /keel-health and its probe with 204 (got $GOT)"
     say "disabled: the module is not loaded"
 }
 
-case "${1:-}" in
+if [[ ! "${1:-}" =~ ^(enabled|disabled|recheck)$ ]]; then
+    echo "usage: state enabled|disabled|recheck" >&2
+    exit 2
+fi
+
+# one run at a time: keel apply, the dpkg trigger and an operator
+exec 9>"$LOCK"
+flock -w "$LOCK_WAIT" 9 || fail "another run holds $LOCK; nothing changed"
+
+case "$1" in
     enabled) enable ;;
     disabled) disable ;;
-    *)
-        echo "usage: state enabled|disabled" >&2
-        exit 2
-        ;;
+    recheck) recheck ;;
 esac

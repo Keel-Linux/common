@@ -1,4 +1,12 @@
 # nginx reloads a running server when this package is installed, upgraded
-# or removed, so a module link postinst or postrm took away is no longer
+# or removed, so a module link postinst or prerm took away is no longer
 # loaded: the same trigger trixie's libnginx-mod-* packages activate.
 activate-noawait nginx-reload
+# An upgrade of the rule set, the module or the engine under an enabled
+# Coraza: postinst runs `state recheck`, which reloads, checks the probe
+# and turns Coraza off rather than leave Nginx without workers
+# (corazawaf/coraza-nginx#139). Both architectures Keel builds for.
+interest-noawait /usr/share/coreruleset
+interest-noawait /usr/lib/nginx/modules/ngx_http_coraza_module.so
+interest-noawait /usr/lib/x86_64-linux-gnu/libcoraza.so.1
+interest-noawait /usr/lib/aarch64-linux-gnu/libcoraza.so.1

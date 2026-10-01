@@ -27,6 +27,8 @@ setup() {
     export KEEL_NGINX_PID="$BATS_TEST_TMPDIR/run/nginx.pid"
     export KEEL_CORAZA_TRIES=2
     export KEEL_CORAZA_INTERVAL=0
+    export KEEL_CORAZA_LOCK="$BATS_TEST_TMPDIR/keel-overlay-coraza.lock"
+    unset STUB_NGINX_RELOAD KEEL_CORAZA_LOCK_WAIT STUB_RELOAD_LAG
     mkdir -p "$KEEL_NGINX_DIR/modules-enabled" "$KEEL_NGINX_DIR/conf.d" \
         "$KEEL_NGINX_DIR/coraza" "${KEEL_CORAZA_MODULE_CONF%/*}" \
         "${KEEL_NGINX_PID%/*}"
@@ -41,6 +43,16 @@ teardown() {
     if [ -n "${MASTER:-}" ]; then
         kill "$MASTER" 2>/dev/null || true
     fi
+    if [ -n "${HOLDER:-}" ]; then
+        kill "$HOLDER" 2>/dev/null || true
+    fi
+}
+
+# another run of the hook, holding the lock for SECONDS
+lock_held() {
+    flock "$KEEL_CORAZA_LOCK" sleep "$1" &
+    HOLDER=$!
+    until ! flock -n "$KEEL_CORAZA_LOCK" true; do sleep 0.1; done
 }
 
 # a live process stands for the master; its pid goes in the pid file
@@ -86,14 +98,33 @@ reloads() {
 @test "refuses to run without a state" {
     run "$SCRIPT"
     [ "$status" -eq 2 ]
-    [ "$output" = "usage: state enabled|disabled" ]
+    [ "$output" = "usage: state enabled|disabled|recheck" ]
     [ ! -s "$STUB_LOG" ]
 }
 
 @test "refuses a state that is not enabled or disabled" {
     run "$SCRIPT" on
     [ "$status" -eq 2 ]
-    [ "$output" = "usage: state enabled|disabled" ]
+    [ "$output" = "usage: state enabled|disabled|recheck" ]
+    [ ! -s "$STUB_LOG" ]
+}
+
+# ------------------------------------------------------------ the lock
+
+@test "waits for another run to finish before it starts" {
+    lock_held 1
+    run "$SCRIPT" enabled
+    [ "$status" -eq 0 ]
+    assert_enabled_links
+}
+
+@test "gives up, changing nothing, when another run keeps the lock" {
+    export KEEL_CORAZA_LOCK_WAIT=1
+    lock_held 30
+    run "$SCRIPT" enabled
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"another run holds $KEEL_CORAZA_LOCK"* ]]
+    assert_no_links
     [ ! -s "$STUB_LOG" ]
 }
 
@@ -168,6 +199,33 @@ reloads() {
     [[ "$output" == *"nginx -t refused the configuration with Coraza; rolled back"* ]]
     assert_no_links
     [ "$(reloads)" -eq 0 ]
+}
+
+@test "enabled probes only once the workers of before the reload stop taking requests" {
+    export STUB_RELOAD_LAG=2 KEEL_CORAZA_TRIES=4
+    run "$SCRIPT" enabled
+    [ "$status" -eq 0 ]
+    # the listing before the reload, two that still show the old workers,
+    # one that shows only new ones, and only then the probe
+    [ "$(grep -c -- "-xf nginx: worker process" "$STUB_LOG")" -eq 4 ]
+    [ "$(grep -n -m1 keel-waf-probe "$STUB_LOG" | cut -d: -f1)" -gt \
+      "$(grep -n -- "-xf nginx: worker process" "$STUB_LOG" | tail -1 | cut -d: -f1)" ]
+}
+
+@test "enabled probes anyway when old workers keep taking requests" {
+    export STUB_RELOAD_LAG=99
+    run "$SCRIPT" enabled
+    [ "$status" -eq 0 ]
+    assert_enabled_links
+}
+
+@test "enabled rolls back when the reload fails" {
+    export STUB_NGINX_RELOAD=fail
+    run "$SCRIPT" enabled
+    echo "$output"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"nginx -s reload failed; rolled back"* ]]
+    assert_no_links
 }
 
 @test "enabled rolls back when a rule Coraza refuses killed every worker" {
@@ -274,10 +332,70 @@ reloads() {
     assert_no_links
 }
 
+@test "disabled says so when the reload fails, the links gone" {
+    link_enabled
+    export STUB_NGINX_RELOAD=fail
+    run "$SCRIPT" disabled
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"nginx -s reload failed"* ]]
+    assert_no_links
+}
+
 @test "disabled refuses a file of the operator's where a link goes" {
     echo "load_module x;" > "$MODULE_LINK"
     run "$SCRIPT" disabled
     [ "$status" -eq 1 ]
     [[ "$output" == *"$MODULE_LINK is not a link"* ]]
     [ "$(cat "$MODULE_LINK")" = "load_module x;" ]
+}
+
+# ------------------------------------------------------------ recheck
+# what the dpkg trigger of keel-overlay-coraza runs when the rule set, the
+# module or the engine is upgraded under an enabled Coraza
+
+@test "recheck with Coraza disabled does nothing" {
+    run "$SCRIPT" recheck
+    [ "$status" -eq 0 ]
+    [ "$output" = "coraza: nothing to recheck (disabled)" ]
+    [ ! -s "$STUB_LOG" ]
+}
+
+@test "recheck with nginx stopped does nothing" {
+    link_enabled
+    nginx_stopped
+    run "$SCRIPT" recheck
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"nginx is not running"* ]]
+    assert_enabled_links
+    [ ! -s "$STUB_LOG" ]
+}
+
+@test "recheck reloads and keeps Coraza when the probe still gets 403" {
+    link_enabled
+    run "$SCRIPT" recheck
+    [ "$status" -eq 0 ]
+    [ "$output" = "coraza: rechecked: the probe got 403 and /keel-health 204" ]
+    [ "$(reloads)" -eq 1 ]
+    assert_enabled_links
+}
+
+@test "recheck turns Coraza off when the new rules kill every worker" {
+    link_enabled
+    export STUB_CORAZA_KILLS_WORKERS=1
+    run "$SCRIPT" recheck
+    echo "$output"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"no nginx worker is running"* ]]
+    [[ "$output" == *"rolled back, Coraza is off"* ]]
+    assert_no_links
+    [ "$(reloads)" -eq 2 ]
+}
+
+@test "recheck turns Coraza off when nginx -t refuses the new files" {
+    link_enabled
+    export STUB_NGINX_T=fail
+    run "$SCRIPT" recheck
+    [ "$status" -eq 1 ]
+    assert_no_links
+    [ "$(reloads)" -eq 0 ]
 }

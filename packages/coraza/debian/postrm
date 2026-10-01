@@ -1,31 +1,15 @@
 #!/bin/sh
 # keel-overlay-coraza: on purge and abort-install, delete what preinst may
 # have left behind, so a later first installation never reads a stale
-# record. On purge, also the two links the state hook made: the
-# configuration conf.d/keel-coraza.conf points to is a conffile, gone with
-# the purge, and a dangling link there would stop Nginx; the module goes
-# unloaded with it. A remove keeps both, so a reinstall finds the overlay
-# as keel apply left it. The nginx-reload trigger reloads a running Nginx.
+# record. The links of the state hook are prerm's, at the remove that
+# comes before every purge.
 set -e
 
 KEPT=/var/lib/keel-overlay-coraza/kept-link
-WAF_LINK=/etc/nginx/conf.d/keel-coraza.conf
-WAF_CONF=/etc/nginx/coraza/keel.conf
-MODULE_LINK=/etc/nginx/modules-enabled/50-mod-http-coraza.conf
-MODULE_CONF=/usr/share/nginx/modules-available/mod-http-coraza.conf
 
 if [ "$1" = purge ] || [ "$1" = abort-install ]; then
     rm -f "$KEPT"
     rmdir "${KEPT%/*}" 2>/dev/null || :
-fi
-
-if [ "$1" = purge ]; then
-    if [ "$(readlink "$WAF_LINK" || true)" = "$WAF_CONF" ]; then
-        rm -f "$WAF_LINK"
-        if [ "$(readlink "$MODULE_LINK" || true)" = "$MODULE_CONF" ]; then
-            rm -f "$MODULE_LINK"
-        fi
-    fi
 fi
 
 #DEBHELPER#

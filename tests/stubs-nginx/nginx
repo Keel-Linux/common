@@ -1,9 +1,20 @@
 #!/bin/bash
 # Stand-in for nginx: records the call in STUB_LOG. `nginx -t` fails when
-# STUB_NGINX_T is "fail"; every other call succeeds.
+# STUB_NGINX_T is "fail", `nginx -s reload` when STUB_NGINX_RELOAD is;
+# every other call succeeds.
 echo "nginx $*" >> "${STUB_LOG:?}"
 if [ "$*" = "-t" ] && [ "${STUB_NGINX_T:-}" = fail ]; then
     echo "nginx: [emerg] stub refuses the configuration" >&2
     exit 1
+fi
+if [ "$*" = "-s reload" ] && [ "${STUB_NGINX_RELOAD:-}" = fail ]; then
+    echo "nginx: [error] stub cannot signal the master" >&2
+    exit 1
+fi
+# a reload starts a new generation of workers (see the pgrep stub)
+if [ "$*" = "-s reload" ]; then
+    generation="$(cat "$STUB_LOG.generation" 2>/dev/null || echo 1)"
+    echo "$((generation + 1))" > "$STUB_LOG.generation"
+    echo 0 > "$STUB_LOG.listed"
 fi
 exit 0

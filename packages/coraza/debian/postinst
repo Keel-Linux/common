@@ -20,6 +20,16 @@ LINK=/etc/nginx/modules-enabled/50-mod-http-coraza.conf
 TARGET=/usr/share/nginx/modules-available/mod-http-coraza.conf
 KEPT=/var/lib/keel-overlay-coraza/kept-link
 
+# The rule set, the module or the engine was upgraded (the interests of
+# debian/keel-overlay-coraza.triggers): with Coraza enabled, reload and
+# check again, turning it off if the new files kill the workers
+# (corazawaf/coraza-nginx#139). Its failure does not fail the upgrade:
+# Coraza is off by then, Nginx answers, and the hook said why; Monit's
+# waf-blocks check reports it until it is turned on again.
+if [ "$1" = triggered ]; then
+    /usr/lib/keel/overlays/coraza/state recheck || :
+fi
+
 if [ "$1" = configure ] && [ -z "$2" ]; then
     if [ -f "$KEPT" ] && grep -qxF "$LINK" "$KEPT"; then
         echo "keel-overlay-coraza: $LINK was there before the overlay" \
