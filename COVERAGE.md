@@ -4,6 +4,21 @@ Measured on 2026-09-24 against upstream 19.x (b60dd23), following the
 project decision 0003 (90 percent floor per repository, 95 percent for every
 file our changes touch).
 
+## Branch fix/utf8-login-locale: 100 percent, one new file (2026-10-02)
+
+`conf/turnkey.d/locale` is measured for the first time: 15 of 15 lines,
+kcov 43 on Debian 13, from 7 tests in `tests/locale.bats` (the file a
+login reads, LANG alone with nothing overriding it, the debconf default
+the locales postinst writes back, C.UTF-8 shipped by libc-bin, dialog's
+boxes under C
+and under C.UTF-8, en_US.UTF-8 generated and kept from localepurge,
+Webmin's other languages removed). localepurge, dpkg-reconfigure and
+debconf-set-selections are stubs written by the suite; the dialog test
+runs the real dialog, which `.github/workflows/tests.yml` installs, and
+skips where it is absent. The Webmin language list is two assignments:
+kcov counted the continued line of the old one as never run. Every other
+target is unchanged at 100.
+
 ## Branch fix/keel-branding: 100 percent, three files newly measured (2026-10-02)
 
 Three conf scripts the branding change touches are measured for the first

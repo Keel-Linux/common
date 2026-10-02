@@ -1,5 +1,20 @@
 turnkey-core-19.0 (1) turnkey; urgency=low
 
+  * A login gets a UTF-8 locale. 'conf/turnkey.d/locale' wrote LC_ALL=C
+    and LC_CTYPE=C into /etc/default/locale, which pam_env gives every
+    login, so a shell ran in an ASCII locale and dialog, confconsole after
+    login among them, drew its boxes with the VT100 line drawing set; an
+    LXC console shows those as lqqqk and x (the maintainer's screenshot
+    027 of Keel Core, 2026-10-02). Both are gone, with LANGUAGE, and the
+    file says only LANG=C.UTF-8: UTF-8, shipped compiled by libc-bin
+    (/usr/lib/locale/C.utf8) so it exists whatever localepurge leaves,
+    and overridden by nothing, so keel's locale.lang, which writes LANG,
+    takes effect. The debconf default_environment_locale is C.UTF-8 as
+    well, since dpkg-reconfigure locales writes LANG from it over the
+    file; en_US.UTF-8 is still generated. The script's paths can be
+    pointed at a scratch tree for its first tests, tests/locale.bats (100
+    percent of its lines).
+
   * Webmin shows the Keel Linux lockup instead of the TurnKey logo, on the
     login page and in the menu. The overlay ships the handbook's exports
     as they are (docs/brand/site/keel-lockup-horizontal-dark.png for the
