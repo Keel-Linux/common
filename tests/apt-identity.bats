@@ -3,14 +3,12 @@
 #
 #   overlays/turnkey.d/apt-identity/etc/apt/apt.conf.d/01keel   the User-Agent
 #   conf/turnkey.d/apt-identity                                 keeps it the one in force
-#   conf/bootstrap_apt                                          the source URIs
 #
 # Every User-Agent verdict is taken off the wire: a local server records the
 # header a real apt-get update sent it, so what is asserted is what apt
 # announces, not what the file says it should announce (docs/traps.md,
 # "Asserting the configuration is not asserting the behaviour"). The source
-# URIs are likewise read back from apt, which is asked what it would fetch
-# from the stanzas conf/bootstrap_apt generates.
+# URIs conf/bootstrap_apt writes are tested in tests/apt-sources.bats.
 #
 # Every refutation is written "run ! cmd", never a bare "! cmd": bash does not
 # apply errexit to a negated command, so a bare one passes whatever happens
@@ -23,7 +21,6 @@ setup() {
     REPO="$(cd "$TESTS_DIR/.." && pwd)"
     SCRIPT="$REPO/conf/turnkey.d/apt-identity"
     SHIPPED="$REPO/overlays/turnkey.d/apt-identity/etc/apt/apt.conf.d"
-    BOOTSTRAP="$REPO/conf/bootstrap_apt"
     RECORDER="$TESTS_DIR/ua-recorder.py"
 
     # a scratch apt root: everything apt reads and writes is under here
@@ -175,84 +172,4 @@ sent_user_agents() {
     run "$SCRIPT"
     [ "$status" -eq 1 ]
     [[ "$output" == *apt.conf.d* ]]
-}
-
-# ------------------------------------------- the URIs the bootstrap generates
-
-# the body of the heredoc conf/bootstrap_apt writes to the named source file
-stanza() {
-    sed -n "/^ *cat > \$SOURCES_LIST\/$1 <<EOF\$/,/^EOF\$/p" "$BOOTSTRAP" \
-        | sed '1d;$d'
-}
-
-# that body with the build's variables filled in, which is byte for byte what
-# the bootstrap puts in the image.
-#
-# Every local below is read by the heredoc the eval expands, which is the
-# build's own text, so shellcheck cannot see the use.
-# shellcheck disable=SC2034
-render() {
-    local body
-    body="$(stanza "$1")"
-    [ -n "$body" ] || {
-        echo "no heredoc for '$1' in $BOOTSTRAP" >&2
-        return 1
-    }
-    local KEY_CODENAME=trixie CODENAME=trixie
-    local MIRROR_URL=http://deb.debian.org/debian
-    local SEC_MIRROR=http://security.debian.org/debian-security
-    local sec_repo=trixie-security
-    local tkl_apt_repo_enabled=yes tkl_apt_testing_enabled=yes
-    local debian_backports_enabled=yes
-    local SUPPORTED_ARCH=(amd64 arm64)
-    local debian_components=(main non-free-firmware)
-    eval "cat <<EOF
-$body
-EOF"
-}
-
-# every URI apt would fetch from the sources in the scratch tree, no network
-fetch_uris() {
-    apt-get indextargets --no-release-info --format '$(URI)' | sort -u
-}
-
-write_all_sources() {
-    local f
-    for f in sources.sources security.sources.sources turnkey-testing.sources \
-             debian-backports.sources; do
-        render "$f" > "$APTROOT/etc/apt/sources.list.d/$f"
-    done
-}
-
-@test "no source the bootstrap writes fetches the turnkey archive over plain http" {
-    write_all_sources
-    fetch_uris > "$BATS_TEST_TMPDIR/uris"
-    [ -s "$BATS_TEST_TMPDIR/uris" ]
-    run ! grep -q '^http://archive\.turnkeylinux\.org' "$BATS_TEST_TMPDIR/uris"
-}
-
-@test "the turnkey archive is fetched over https, in all three suites" {
-    write_all_sources
-    run fetch_uris
-    [ "$status" -eq 0 ]
-    local suite
-    for suite in trixie trixie-security trixie-testing; do
-        grep -q "^https://archive\.turnkeylinux\.org/debian/dists/$suite/" <<< "$output"
-    done
-}
-
-@test "the debian sources are left as Debian ships them" {
-    write_all_sources
-    run fetch_uris
-    [ "$status" -eq 0 ]
-    grep -q '^http://deb\.debian\.org/debian/dists/trixie/' <<< "$output"
-    grep -q '^http://security\.debian\.org/debian-security/dists/trixie-security/' <<< "$output"
-    grep -q '^http://deb\.debian\.org/debian/dists/trixie-backports/' <<< "$output"
-}
-
-@test "the legacy sources.list the bootstrap writes for older releases is https too" {
-    # the pre deb822 branch of conf/bootstrap_apt, still reached for bookworm
-    grep -n 'deb .*archive\.turnkeylinux\.org' "$BOOTSTRAP" > "$BATS_TEST_TMPDIR/legacy"
-    [ -s "$BATS_TEST_TMPDIR/legacy" ]
-    run ! grep -q 'http://archive\.turnkeylinux\.org' "$BATS_TEST_TMPDIR/legacy"
 }

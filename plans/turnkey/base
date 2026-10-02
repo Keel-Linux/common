@@ -7,7 +7,7 @@ curl
 rsync
 zstd                    /* if installed will be used to compress initramfs */
 
-turnkey-keys            /* TKL keys packaged for v19.x */
+keel-archive-keyring    /* the key of archive.keellinux.org, overlays/turnkey.d/keel-apt */
 
 // Grub packages
 // * 'grub-pc' is required for legacy BIOS boot install

@@ -100,7 +100,7 @@ jobs:
         printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d
         chmod 0755 /usr/sbin/policy-rc.d
         gpg --dearmor \
-          < overlays/bootstrap_apt/usr/share/keyrings/tkl-trixie-main.asc \
+          < tests/fixtures/tkl-trixie-main.asc \
           > /usr/share/keyrings/tkl-trixie-main.gpg
         echo "deb [signed-by=/usr/share/keyrings/tkl-trixie-main.gpg] https://archive.turnkeylinux.org/debian trixie main" \
           > /etc/apt/sources.list.d/turnkey.list
