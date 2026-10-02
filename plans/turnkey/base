@@ -35,9 +35,9 @@ dbus                    /* dbus installed by default since v18.x */
 // in early boot (especially useful when live booting).
 jitterentropy-rngd
 
-tklbam                  /* depends on pypy2 for now */
-
-hubdns
+/* tklbam, hubdns and webmin-tklbam are not installed: backup is Keel Backup
+   (handbook decision 0040) and DNS registration is Keel Cloud, and neither
+   turnkey-pypy2 nor py3curl-wrapper, which only they pulled in, is wanted */
 inithooks
 turnkey-sysinfo
 turnkey-version
@@ -70,7 +70,6 @@ webmin-custom
 webmin-fdisk
 webmin-raid
 webmin-lvm
-webmin-tklbam
 webmin-updown
 webmin-filemin
 webmin-logviewer
