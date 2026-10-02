@@ -1,0 +1,19 @@
+# Keel Linux packages, from the Keel repository (handbook decision 0039).
+# Debian's packages come from Debian: debian.sources and security.sources.
+#
+# trixie is the stable track, the one an installation follows by default.
+# trixie-testing is the testing track, off unless the operator turns it on.
+# Both are signed by the key keel-archive-keyring installs.
+Types: deb
+URIs: https://archive.keellinux.org
+Suites: trixie
+Components: main
+Enabled: yes
+Signed-By: /usr/share/keyrings/keel-archive-keyring.gpg
+
+Types: deb
+URIs: https://archive.keellinux.org
+Suites: trixie-testing
+Components: main
+Enabled: no
+Signed-By: /usr/share/keyrings/keel-archive-keyring.gpg

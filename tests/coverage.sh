@@ -21,6 +21,7 @@ targets=(
     "conf/turnkey.d/locale:tests/locale.bats"
     "conf/turnkey.d/dpkg-vendor:tests/dpkg-vendor.bats"
     "conf/turnkey.d/apt-identity:tests/apt-identity.bats"
+    "conf/turnkey.d/keel-apt:tests/apt-sources.bats"
     "conf/samba-rootpass:tests/samba-rootpass.bats"
     "conf/desktop:tests/desktop.bats"
     "conf/turnkey.d/rootpass:tests/rootpass.bats"

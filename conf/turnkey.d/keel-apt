@@ -1,0 +1,117 @@
+#!/bin/bash -e
+#
+# Holds an image to the package sources of handbook decision 0039: Debian's
+# packages from Debian (conf/bootstrap_apt) and Keel's from
+# archive.keellinux.org (overlays/turnkey.d/keel-apt), signed by the key the
+# keel-archive-keyring package installs.
+#
+# A layer built on a bootstrap or a parent layer from before this change
+# still carries TurnKey's apt files: the source files TurnKey's bootstrap
+# wrote, removed by their names as conf/turnkey.d/apt-identity removes
+# 01turnkey, and turnkey-keys, which is purged through dpkg so that what it
+# owns goes with its record. Anything else that names TurnKey as a source,
+# a key or a pin stops the build, because something this script does not
+# know put it there.
+#
+# APT_ROOT is a test hook; a build leaves it unset.
+
+fatal() { echo "'$(basename "$0")' Error: $*" >&2; exit 1; }
+
+root="${APT_ROOT:-}"
+apt="$root/etc/apt"
+sources="$apt/sources.list.d"
+keyrings="$root/usr/share/keyrings"
+dpkg_root=()
+[ -z "$root" ] || dpkg_root=(--root="$root")
+
+# 0.1.0 shipped the key with a signing subkey that 0.1.1 ships revoked
+KEYRING_MIN=0.1.1
+# the one priority the Keel pin may have, overlays/turnkey.d/keel-apt's
+KEEL_PIN_PRIORITY=990
+
+# pkg_state NAME: "status version", empty when dpkg has no record of NAME
+pkg_state() {
+    # ${...} is dpkg-query's format, not the shell's
+    # shellcheck disable=SC2016
+    dpkg-query "${dpkg_root[@]}" -W -f='${db:Status-Status} ${Version}\n' "$1" 2>/dev/null || true
+}
+
+# turnkey_keys FILE: true when the OpenPGP keys in FILE name TurnKey
+turnkey_keys() {
+    local home
+    home="$(mktemp -d)"
+    gpg --homedir "$home" --batch --quiet --show-keys --with-colons "$1" 2>/dev/null \
+        | grep -E '^uid:' | grep -qi turnkey
+    local found=$?
+    rm -rf "$home"
+    return $found
+}
+
+# --- the Keel source and its key
+
+[ -f "$sources/keel.sources" ] \
+    || fatal "'$sources/keel.sources' is missing - it is shipped by overlays/turnkey.d/keel-apt"
+# a recipe overlay at the same path wins over common's, so what is there is
+# read, not assumed
+# (one stanza a record: URIs the Keel archive, Suites trixie, not disabled)
+stable='BEGIN { RS = "" } /(^|\n)URIs:[ \t]*https:\/\/archive\.keellinux\.org\/?[ \t]*(\n|$)/ && /(^|\n)Suites:[ \t]*trixie[ \t]*(\n|$)/ && !/(^|\n)Enabled:[ \t]*no[ \t]*(\n|$)/ { found = 1 } END { exit !found }'
+awk "$stable" "$sources/keel.sources" \
+    || fatal "'$sources/keel.sources' has no enabled https://archive.keellinux.org trixie stanza - a recipe overlay may have replaced common's"
+
+[ -f "$keyrings/keel-archive-keyring.gpg" ] \
+    || fatal "'$keyrings/keel-archive-keyring.gpg' is missing - install keel-archive-keyring (plans/turnkey/base)"
+read -r state version <<< "$(pkg_state keel-archive-keyring)"
+[ "$state" = installed ] \
+    || fatal "keel-archive-keyring is not installed, so nothing owns '$keyrings/keel-archive-keyring.gpg'"
+dpkg --compare-versions "$version" ge "$KEYRING_MIN" \
+    || fatal "keel-archive-keyring $version is older than $KEYRING_MIN"
+
+# --- the Keel pin is 990 wherever it is (tracker#23): above 1000 it
+# downgrades every package newer than the archive's, and a recipe overlay
+# at preferences.d/keel wins over common's
+
+pin_files=()
+for f in "$apt/preferences" "$apt"/preferences.d/*; do
+    [ -f "$f" ] && pin_files+=("$f")
+done
+# each stanza pinning o=Keel Linux (not the build's o=Keel Linux Pool), as
+# "FILE: PRIORITY"; the $ are awk's
+# shellcheck disable=SC2016
+pin_prog='BEGIN { RS = "" } /(^|\n)Pin:[ \t]*release[ \t]+o=Keel Linux[ \t]*(,[^\n]*)?(\n|$)/ { p = "none"; n = split($0, l, "\n"); for (i = 1; i <= n; i++) if (l[i] ~ /^Pin-Priority:/) { p = l[i]; sub(/^Pin-Priority:[ \t]*/, "", p) } print FILENAME ": " p }'
+pins=""
+[ "${#pin_files[@]}" -eq 0 ] || pins="$(awk "$pin_prog" "${pin_files[@]}")"
+[ -n "$pins" ] \
+    || fatal "no pin on o=Keel Linux in $apt/preferences or preferences.d - it is shipped by overlays/turnkey.d/keel-apt"
+bad="$(grep -v ": $KEEL_PIN_PRIORITY\$" <<< "$pins" || true)"
+[ -z "$bad" ] \
+    || fatal "the Keel pin must be Pin-Priority $KEEL_PIN_PRIORITY (tracker#23): $(tr '\n' ' ' <<< "$bad")"
+
+# --- what a parent layer from before this change left
+
+read -r state _ <<< "$(pkg_state turnkey-keys)"
+if [ -n "$state" ] && [ "$state" != not-installed ]; then
+    dpkg "${dpkg_root[@]}" -P turnkey-keys
+fi
+rm -f "$sources/sources.sources" "$sources/security.sources.sources" \
+    "$sources/turnkey-testing.sources"
+if [ -f "$apt/preferences" ] \
+    && grep -q '^Pin: release o=turnkeylinux$' "$apt/preferences"; then
+    rm -f "$apt/preferences"
+fi
+
+# --- nothing names TurnKey as a source, a key or a pin
+
+found=()
+named="$(grep -rlsE 'turnkeylinux\.org|o=turnkeylinux' "$apt/sources.list" "$sources" "$apt/preferences" "$apt/preferences.d" || true)"
+while IFS= read -r f; do
+    [ -z "$f" ] || found+=("$f")
+done <<< "$named"
+for f in "$keyrings"/tkl-*; do
+    [ -e "$f" ] && found+=("$f")
+done
+for f in "$apt/trusted.gpg" "$apt"/trusted.gpg.d/*; do
+    [ -f "$f" ] && turnkey_keys "$f" && found+=("$f")
+done
+[ "${#found[@]}" -eq 0 ] \
+    || fatal "these name TurnKey, which is no package source of a Keel image: ${found[*]}"
+exit 0

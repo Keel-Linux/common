@@ -7,8 +7,6 @@
 #       - will fallback to host system if not set
 #   - NONFREE <optional>:
 #       - set to enable non-free by default
-#   - TKL_TESTING <optional>:
-#       - set to enable the TUrnKey testing repo
 #   - BACKPORTS <optional>:
 #       - set to enable Debian backports repo
 #   - PHP_VERSION <optional>:
@@ -24,11 +22,17 @@
 #           - 'disable' (disable proxy)
 #   - HOST_DEB_VER <optional>:
 #       - if not the same as guest, apply relevant transition changes
-#   - NO_TURNKEY_APT_REPO <optional>:
-#       - disable TurnKey apt repos - useful during early transition
 #   - NO_PROXY <optional>:
 #       - same as APT_PROXY_OVERRIDE=disable (will override APT_PROXY_OVERRIDE
 #         if both set to different values)
+#
+# What a Keel image installs comes from two places only (handbook decisions
+# 0039 and 0043): Debian's packages from Debian, written here, and Keel's
+# from archive.keellinux.org, written by overlays/turnkey.d/keel-apt once
+# the plan has installed keel-archive-keyring, the key that source names.
+# The TurnKey archive is no package source of a Keel image, enabled or
+# disabled: TurnKey is an upstream in git only. TKL_TESTING and
+# NO_TURNKEY_APT_REPO, which switched it, are therefore ignored.
 
 # Note, to install packages from backports:
 # - set 'BACKPORTS=y'; and either:
@@ -61,7 +65,6 @@ case $CODENAME in
     bullseye|bookworm|trixie)
         MIRROR_URL=http://deb.debian.org/debian
         SEC_MIRROR=http://security.debian.org/
-        KEY_CODENAME=$CODENAME
         MAIN=(main)
         CONTRIB=(contrib)
         NON_FREE=(non-free)
@@ -77,15 +80,6 @@ case $CODENAME in
         MAIN=(main)
         CONTRIB=(universe)
         NON_FREE=(restricted multiverse)
-        ;;&
-    focal)
-        KEY_CODENAME="bullseye"
-        ;;
-    jammy)
-        KEY_CODENAME="bookworm"
-        ;;
-    noble)
-        KEY_CODENAME="trixie"
         ;;
     *)
         fatal "Codename '$CODENAME' not supported"
@@ -110,13 +104,13 @@ if [[ "$HOST_DEB_VER" != "$deb_ver" ]]; then
     fi
 fi
 
-if [[ $deb_ver -le 10 ]] && [[ "$distro" == 'debian' ]]; then
-    sec_repo="$CODENAME/updates"
-    PROXY_PORT=8124
-elif [[ $deb_ver -ge 11 ]] || [[ "$distro" == 'ubuntu' ]]; then
-    sec_repo="$CODENAME-security"
-    PROXY_PORT=3128
+# Keel builds on Debian 13 (trixie) and later, whose sources are deb822
+# files; the one line sources.list of older releases is not written.
+if [[ "$distro" != 'debian' ]] || [[ $deb_ver -lt 13 ]]; then
+    fatal "Keel images are built on Debian 13 (trixie) or later (got '$distro' $deb_ver)"
 fi
+sec_repo="$CODENAME-security"
+PROXY_PORT=3128
 
 if [[ "${APT_PROXY_OVERRIDE,,}" == "disable" ]] || [[ -n "$NO_PROXY" ]]; then
     PROXY_PORT=
@@ -147,17 +141,14 @@ fi
 DEBIAN_PHP_V=$(apt-cache policy php \
                 | sed -n "\|Candidate:|s|.*:\([0-9]\.[0-9]*\)+.*|\1|p")
 
-tkl_apt_repo_enabled="yes"
-tkl_apt_testing_enabled="no"
 debian_backports_enabled="no"
 sury_php_enabled="no"
 debian_components=("${MAIN[@]}")
 if [[ -n "$NONFREE" ]]; then
     debian_components+=("${CONTRIB[@]}" "${NON_FREE[@]}")
 fi
-if [[ -n "$TKL_TESTING" ]]; then
-    # note that if 'NO_TURNKEY_APT_REPO' is set, this will be overridden
-    tkl_apt_testing_enabled="yes"
+if [[ -n "$TKL_TESTING" ]] || [[ -n "$NO_TURNKEY_APT_REPO" ]]; then
+    warning "TKL_TESTING and NO_TURNKEY_APT_REPO are ignored: a Keel image has no TurnKey package source"
 fi
 if [[ -n "$BACKPORTS" ]]; then
     debian_backports_enabled="yes"
@@ -167,133 +158,42 @@ if [[ -n "$PHP_VERSION" ]] \
     && [[ "$PHP_VERSION" != "$DEBIAN_PHP_V" ]]; then
         sury_php_enabled="yes"
 fi
-if [[ -n "$NO_TURNKEY_APT_REPO" ]]; then
-    tkl_apt_repo_enabled="no"
-    tkl_apt_testing_enabled="no"
-else
-    key_dir=/usr/share/keyrings
-    # As of TKL v19.x apt repos use a single gpg keyring that is generated from
-    # the 3 separate raw ascii armored keys
-    #
-    # For prior releases, each repo had a separate gpg key generated from each
-    # of the sepaate asc keys
-    repos=(main security testing)
-    for repo in "${repos[@]}"; do
-        full_path=$key_dir/tkl-$CODENAME-$repo
-        keyfile=$full_path.asc
-        if [[ $deb_ver -ge 13 ]]; then
-            keyring=$key_dir/tkl-archive-keyring.gpg
-        else
-            keyring=$full_path.gpg
-        fi
-        # by default gpg generates "GPG keybox database version 1" files
-        # apt in Trixie requires a "PGP/GPG key public ring (v4)"
-        gpg --no-default-keyring --keyring gnupg-ring:"$keyring" --import "$keyfile"
-        chmod a+r "$keyring"
-    done
-    # ensure that gpg-agent is killed after processing keys
-    gpgconf --kill gpg-agent
-    rm -rf "$key_dir"/*~
-    rm -rf "$HOME/.gnupg"
-fi
+# Debian's own keyring, under the name Debian 13's debian.sources uses
+DEBIAN_KEYRING=/usr/share/keyrings/debian-archive-keyring.pgp
 
-if [[ $deb_ver -ge 13 ]]; then
-    # As of TKL v19.x apt sources files are deb822 style '.sources' files
+# The names this script gave TurnKey's sources. Left beside debian.sources,
+# sources.sources names the same Debian archive with another Signed-By, and
+# apt then refuses every source.
+rm -f $SOURCES_LIST/sources.sources $SOURCES_LIST/security.sources.sources $SOURCES_LIST/turnkey-testing.sources
 
-    SUPPORTED_ARCH=(amd64 arm64)
-
-    # Main repos
-    cat > $SOURCES_LIST/sources.sources <<EOF
-Types: deb
-URIs: https://archive.turnkeylinux.org/debian
-Suites: $KEY_CODENAME
-Components: main
-Architectures: ${SUPPORTED_ARCH[*]}
-Enabled: $tkl_apt_repo_enabled
-Signed-By: /usr/share/keyrings/tkl-archive-keyring.gpg
-
+# Debian: the release and its point updates
+cat > $SOURCES_LIST/debian.sources <<EOF
 Types: deb
 URIs: $MIRROR_URL
-Suites: $CODENAME
+Suites: $CODENAME $CODENAME-updates
 Components: ${debian_components[*]}
 Enabled: yes
-Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+Signed-By: $DEBIAN_KEYRING
 EOF
-    # Security repos
-    cat > $SOURCES_LIST/security.sources.sources <<EOF
-Types: deb
-URIs: https://archive.turnkeylinux.org/debian
-Suites: $KEY_CODENAME-security
-Components: main
-Enabled: $tkl_apt_repo_enabled
-Architectures: ${SUPPORTED_ARCH[*]}
-Signed-By: /usr/share/keyrings/tkl-archive-keyring.gpg
-
+# Debian security: the one source the first boot's security updates
+# (inithooks 95secupdates) and cron-apt's install action read, by this name
+cat > $SOURCES_LIST/security.sources <<EOF
 Types: deb
 URIs: $SEC_MIRROR
 Suites: $sec_repo
 Components: ${debian_components[*]}
 Enabled: yes
-Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+Signed-By: $DEBIAN_KEYRING
 EOF
-    # Debian backports repo
-    cat > $SOURCES_LIST/debian-backports.sources <<EOF
+# Debian backports
+cat > $SOURCES_LIST/debian-backports.sources <<EOF
 Types: deb
 URIs: http://deb.debian.org/debian
 Suites: $CODENAME-backports
 Components: main
 Enabled: $debian_backports_enabled
-Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+Signed-By: $DEBIAN_KEYRING
 EOF
-    # TurnKey testing repo
-    cat > $SOURCES_LIST/turnkey-testing.sources <<EOF
-Types: deb
-URIs: https://archive.turnkeylinux.org/debian
-Suites: $KEY_CODENAME-testing
-Components: main
-Enabled: $tkl_apt_testing_enabled
-Architectures: ${SUPPORTED_ARCH[*]}
-Signed-By: /usr/share/keyrings/tkl-archive-keyring.gpg
-EOF
-else
-    # legacy sources.list files for bookworm and earlier
-    cat > $SOURCES_LIST/sources.list <<EOF
-deb [signed-by=$key_dir/tkl-$KEY_CODENAME-main.gpg] https://archive.turnkeylinux.org/debian $KEY_CODENAME main
-
-deb $MIRROR_URL $CODENAME ${MAIN[*]}
-deb $MIRROR_URL $CODENAME ${CONTRIB[*]}
-#deb $MIRROR_URL $CODENAME ${NON_FREE[*]}
-EOF
-    cat > $SOURCES_LIST/security.sources.list <<EOF
-deb [signed-by=$key_dir/tkl-$KEY_CODENAME-security.gpg] https://archive.turnkeylinux.org/debian $KEY_CODENAME-security main
-
-deb $SEC_MIRROR $sec_repo ${MAIN[*]}
-deb $MIRROR_URL $CODENAME ${CONTRIB[*]}
-#deb $MIRROR_URL $CODENAME ${NON_FREE[*]}
-EOF
-    TKL_TESTING_LIST=$SOURCES_LIST/turnkey-testing.list
-    if [[ -z "$TKL_TESTING" ]]; then
-        TKL_TESTING_LIST=$TKL_TESTING_LIST.disabled
-    fi
-    cat > $SOURCES_LIST/$TKL_TESTING_LIST <<EOF
-deb [signed-by=$key_dir/tkl-$KEY_CODENAME-testing.gpg] https://archive.turnkeylinux.org/debian $KEY_CODENAME-testing main
-EOF
-    DEB_BACKPORT_LIST=$SOURCES_LIST/debian-backports.list
-    if [[ -z "$BACKPORTS" ]]; then
-        DEB_BACKPORT_LIST=$DEB_BACKPORT_LIST.disabled
-    fi
-    cat > $DEB_BACKPORT_LIST <<EOF
-deb $MIRROR_URL $CODENAME-backports ${MAIN[*]}
-deb $MIRROR_URL $CODENAME-backports ${CONTRIB[*]}
-#deb $MIRROR_URL $CODENAME-backports ${NON_FREE[*]}
-EOF
-    if [[ -n "$NO_TURNKEY_APT_REPO" ]]; then
-        find $SOURCES_LIST -type f -exec sed -i '/archive.turnkeylinux.org/ s|^|#|g' {} \;
-    fi
-    if [[ -n "$NONFREE" ]]; then
-        find $SOURCES_LIST -type f -exec sed -i '/non-free/ s|^#||g' {} \;
-    fi
-fi
 
 if [[ -n "$PHP_VERSION" ]]; then
     # Use 3rd party sury.org repo

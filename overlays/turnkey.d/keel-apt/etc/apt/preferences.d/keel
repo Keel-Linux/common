@@ -1,0 +1,11 @@
+# Keel Linux: prefer the project's packages over Debian's, never by
+# going backwards (tracker#23).
+#
+# 990 is above the 500 of every other archive, so the Keel version of a
+# package is the candidate whatever version Debian publishes. It is below
+# 1000, so apt never installs it over a newer installed version: above 1000
+# it would downgrade any package newer on the machine than in the archive.
+# The pin is on the Origin of the signed Release, not the host name.
+Package: *
+Pin: release o=Keel Linux
+Pin-Priority: 990

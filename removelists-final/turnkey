@@ -41,8 +41,11 @@
 # arrangement that holds whether or not a recipe remembers to, which is why it
 # belongs here: the same defect has now had to be fixed in four recipes. The
 # '~' prefix is a glob, so a build that used no staging archive passes over
-# these three silently.
+# these silently. preferences.d/keel-staging is the build-only pin at 1001
+# the recipes give the staging archive so it wins over TurnKey's 999 pin
+# during their upgrade; left in an image, it would pin a source that is gone.
 ~/etc/apt/sources.list.d/keel-staging.list
+~/etc/apt/preferences.d/keel-staging
 ~/etc/apt/keyrings/keel-staging-keyring.asc
 ~/srv/keel-apt
 

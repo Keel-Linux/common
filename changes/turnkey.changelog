@@ -14,6 +14,50 @@ turnkey-core-19.0 (1) turnkey; urgency=low
     (100 percent of its lines); the ROOT_PASS tests of rootpass.bats,
     samba-rootpass.bats and before-firstboot.bats now expect it ignored.
 
+  * An image takes its packages from Debian and from the Keel repository,
+    and from nothing else (handbook decisions 0039 and 0043). The first
+    boot's security updates fetched from archive.turnkeylinux.org: the
+    bootstrap wrote a TurnKey stanza, enabled, into sources.sources and
+    into security.sources.sources, the file 95secupdates and cron-apt read,
+    with turnkey-testing.sources beside them and TurnKey's keys trusted.
+    conf/bootstrap_apt now writes debian.sources (deb.debian.org, trixie
+    and trixie-updates), security.sources (security.debian.org,
+    trixie-security; the double extension is gone) and
+    debian-backports.sources, all signed by Debian's own keyring.
+    overlays/turnkey.d/keel-apt adds keel.sources, archive.keellinux.org
+    trixie, the stable track, with trixie-testing disabled, signed by
+    /usr/share/keyrings/keel-archive-keyring.gpg from keel-archive-keyring,
+    which the base plan installs instead of turnkey-keys. TurnKey's keys
+    and its o=turnkeylinux pin at 999 leave overlays/bootstrap_apt.
+
+  * The Keel repository is pinned at 990, on the Origin of its signed
+    Release (o=Keel Linux), in /etc/apt/preferences.d/keel. Above Debian's
+    500, a Keel package is the candidate whatever version Debian has;
+    below 1000, apt never installs it over a newer installed one, which a
+    pin above 1000 does (tracker#23). tests/apt-sources.bats asserts both
+    against apt itself, and fails at 1001 and at 500.
+
+  * conf/turnkey.d/keel-apt stops a build whose image lacks an enabled
+    archive.keellinux.org trixie stanza in keel.sources (seven appliance
+    recipes ship their own keel.sources, disabled, at that path), whose
+    keel-archive-keyring is missing or older than 0.1.1, whose pin on
+    o=Keel Linux is missing or anything but 990 in /etc/apt/preferences or
+    preferences.d (seven recipes shipped preferences.d/keel at 1001; the
+    build's o=Keel Linux Pool pin is the removelist's), or where anything
+    still names TurnKey: /etc/apt/sources.list, sources.list.d,
+    preferences, preferences.d, a tkl-* keyring, or a key in trusted.gpg or
+    trusted.gpg.d whose user id is TurnKey's. turnkey-keys a parent layer
+    installed is purged with dpkg -P, so its files go with its record; the
+    source files TurnKey's bootstrap wrote are removed by name, as
+    conf/turnkey.d/apt-identity does for 01turnkey.
+
+  * cron-apt's install actions read security.sources.
+
+  * removelists-final/turnkey also takes out
+    /etc/apt/preferences.d/keel-staging, the build-only pin at 1001 the
+    seven recipes that read the staging archive now write instead of
+    shipping /etc/apt/preferences.d/keel at 1001 in their overlay.
+
   * A login gets a UTF-8 locale. 'conf/turnkey.d/locale' wrote LC_ALL=C
     and LC_CTYPE=C into /etc/default/locale, which pam_env gives every
     login, so a shell ran in an ASCII locale and dialog, confconsole after

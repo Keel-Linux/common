@@ -4,6 +4,15 @@ Measured on 2026-09-24 against upstream 19.x (b60dd23), following the
 project decision 0003 (90 percent floor per repository, 95 percent for every
 file our changes touch).
 
+## Branch fix/keel-apt-sources: 100 percent, one new file (2026-10-02)
+
+`conf/turnkey.d/keel-apt` is measured for the first time: 44 of 44 lines,
+kcov 43 on Debian 13, from `tests/apt-sources.bats`. The suite also reads
+back from apt what the sources of `conf/bootstrap_apt` and
+`overlays/turnkey.d/keel-apt` fetch, and which version the pin makes the
+candidate, from local archives carrying the real Origin; the bootstrap URI
+tests that were in `tests/apt-identity.bats` moved there.
+
 ## Branch fix/utf8-login-locale: 100 percent, one new file (2026-10-02)
 
 `conf/turnkey.d/locale` is measured for the first time: 15 of 15 lines,
