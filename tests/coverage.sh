@@ -18,6 +18,7 @@ threshold="${1:-${COVERAGE_THRESHOLD:-95}}"
 # Each entry is a measured file and the bats file that exercises it.
 targets=(
     "conf/turnkey.d/postfix-local:tests/postfix-local.bats"
+    "conf/turnkey.d/locale:tests/locale.bats"
     "conf/turnkey.d/dpkg-vendor:tests/dpkg-vendor.bats"
     "conf/turnkey.d/apt-identity:tests/apt-identity.bats"
     "conf/samba-rootpass:tests/samba-rootpass.bats"

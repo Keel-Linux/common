@@ -1,13 +1,24 @@
 #!/bin/bash -e
 
-cat >> /etc/default/locale << EOF
+# The paths are the image's; tests/locale.bats points them at a scratch tree.
+LOCALE_FILE=${LOCALE_FILE:-/etc/default/locale}
+LOCALE_GEN=${LOCALE_GEN:-/etc/locale.gen}
+LOCALE_NOPURGE=${LOCALE_NOPURGE:-/etc/locale.nopurge}
+WEBMIN_DIR=${WEBMIN_DIR:-/usr/share/webmin}
+
+# LC_ALL wins over what an SSH client forwards, so a login always gets a
+# locale that exists here. It was C, which is ASCII: dialog then draws its
+# boxes with the VT100 line drawing set, which an LXC console shows as
+# lqqqk and x (confconsole after login). C.UTF-8 is built into glibc,
+# exists whatever localepurge leaves, and is UTF-8.
+cat >> "$LOCALE_FILE" << EOF
 LANG=en_US.UTF-8
 LANGUAGE=en_US.UTF-8
-LC_ALL=C
-LC_CTYPE=C
+LC_ALL=C.UTF-8
+LC_CTYPE=C.UTF-8
 EOF
 
-cat > /etc/locale.nopurge << EOF
+cat > "$LOCALE_NOPURGE" << EOF
 ## Configuration file for localepurge(8)
 
 # Remove localized man pages
@@ -32,7 +43,7 @@ en_US.UTF-8
 EOF
 
 # hack: https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=684134
-sed -i '/en_US.UTF-8 UTF-8/ s/# //' /etc/locale.gen
+sed -i '/en_US.UTF-8 UTF-8/ s/# //' "$LOCALE_GEN"
 
 debconf-set-selections <<END
 locales locales/locales_to_be_generated multiselect en_US.UTF-8 UTF-8
@@ -43,10 +54,11 @@ DEBIAN_FRONTEND=noninteractive dpkg-reconfigure locales
 localepurge
 
 # remove non en webmin docs
-if [[ -d /usr/share/webmin ]]; then
-    locales="af ar be bg ca cs da de el es eu fa fi fr he hr hu it ja ko lt \
-             lv ms mt nl no pl pt pt_BR ro ru sk sl sv th tr ur uk vi zh zh_TW"
+if [[ -d "$WEBMIN_DIR" ]]; then
+    # two assignments, not one continued line, which kcov counts as unrun
+    locales="af ar be bg ca cs da de el es eu fa fi fr he hr hu it ja ko lt"
+    locales+=" lv ms mt nl no pl pt pt_BR ro ru sk sl sv th tr ur uk vi zh zh_TW"
     for locale in $locales; do
-        find /usr/share/webmin/ -name "*\.$locale\.*" -exec rm -rf {} +
+        find "$WEBMIN_DIR/" -name "*\.$locale\.*" -exec rm -rf {} +
     done
 fi

@@ -1,5 +1,17 @@
 turnkey-core-19.0 (1) turnkey; urgency=low
 
+  * A login gets a UTF-8 locale. 'conf/turnkey.d/locale' wrote LC_ALL=C
+    and LC_CTYPE=C into /etc/default/locale, which pam_env gives every
+    login, so a shell ran in an ASCII locale and dialog, confconsole after
+    login among them, drew its boxes with the VT100 line drawing set; an
+    LXC console shows those as lqqqk and x (the maintainer's screenshot
+    027 of Keel Core, 2026-10-02). Both are now C.UTF-8: still a locale
+    that always exists here, built into glibc whatever localepurge
+    leaves, and still winning over what an SSH client forwards, which is
+    what TurnKey wanted of C. LANG and LANGUAGE stay en_US.UTF-8. The
+    script's paths can be pointed at a scratch tree for its first tests,
+    tests/locale.bats (100 percent of its lines).
+
   * 'conf/desktop' no longer runs 'chmod -x' on the inithooks hook
     80hub-services, which Keel-Linux/inithooks#29 removes (80keel-cloud,
     an optional Keel Cloud key, takes its place). Under 'bash -e' the

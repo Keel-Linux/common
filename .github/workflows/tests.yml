@@ -12,5 +12,6 @@ jobs:
     with:
       threshold: 100
       # tests/anubis-signing-key.bats: packages/anubis/spec-key reads the
-      # instance spec with PyYAML, as keel does
-      apt-packages: python3-yaml
+      # instance spec with PyYAML, as keel does. tests/locale.bats: dialog,
+      # to see the boxes it draws under C and under C.UTF-8
+      apt-packages: python3-yaml dialog

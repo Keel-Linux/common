@@ -4,6 +4,19 @@ Measured on 2026-09-24 against upstream 19.x (b60dd23), following the
 project decision 0003 (90 percent floor per repository, 95 percent for every
 file our changes touch).
 
+## Branch fix/utf8-login-locale: 100 percent, one new file (2026-10-02)
+
+`conf/turnkey.d/locale` is measured for the first time: 15 of 15 lines,
+kcov 43 on Debian 13, from 5 tests in `tests/locale.bats` (the file a
+login reads, C.UTF-8 existing without generation, dialog's boxes under C
+and under C.UTF-8, en_US.UTF-8 generated and kept from localepurge,
+Webmin's other languages removed). localepurge, dpkg-reconfigure and
+debconf-set-selections are stubs written by the suite; the dialog test
+runs the real dialog, which `.github/workflows/tests.yml` installs, and
+skips where it is absent. The Webmin language list is two assignments:
+kcov counted the continued line of the old one as never run. Every other
+target is unchanged at 100.
+
 ## Branch feat/web-overlay-packages: 100 percent, two new files (2026-10-01)
 
 The Web overlays of step 6 of decision 0041 bring two scripts, both
