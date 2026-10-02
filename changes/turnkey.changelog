@@ -1,5 +1,20 @@
 turnkey-core-19.0 (1) turnkey; urgency=low
 
+  * An image says what it is: /etc/keel_version, written beside
+    /etc/turnkey_version in root.patched/post by bin/keel-version-files
+    (decision 0014). Both carry the same four fields, app, version,
+    codename and architecture, from the first line of the product
+    changelog through fab's turnkey-version.py; the Keel file begins
+    keel-, the compatibility file always begins turnkey-, whatever the
+    changelog's release package is called, because sysversion,
+    turnkey-version, 29tagid and keel inspect parse it by that prefix.
+    Keel's turnkey-version fork reads /etc/keel_version first. Desktop
+    builds (mk/turnkey-desktop.mk) write both too, and a common checkout
+    without the script stops the build naming it, instead of dying with
+    "No such file" after the whole root was built. tests/version-files.bats
+    and tests/mk-identity.bats, which makes the recipe of both makefiles
+    against stubs of fab, with the real seal-root last.
+
   * An image is exported with root locked, or the build fails. The last
     step of root.patched, mk/turnkey/seal-root, accepts a root password
     field of '*', '!' or '!*' and nothing else, without printing it, then

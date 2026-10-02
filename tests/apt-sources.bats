@@ -236,9 +236,14 @@ fetch_hosts() {
         run ! grep -qE "^$name([[:space:]]|\$)" "$REPO/plans/turnkey/base"
     done
     run ! grep -q 'make-release-deb' "$REPO/mk/turnkey.mk"
-    # the compatibility file is still written (decision 0014)
-    grep -q 'turnkey_version=.*turnkey-version.py' "$REPO/mk/turnkey.mk"
-    grep -q '> \$O/root.patched/etc/turnkey_version' "$REPO/mk/turnkey.mk"
+    # the compatibility file is still written (decision 0014), by
+    # bin/keel-version-files beside /etc/keel_version, from the version
+    # turnkey-version.py derives; tests/mk-identity.bats makes the recipe
+    # against stubs of fab and reads both files back
+    grep -q 'release_version=.*turnkey-version.py' "$REPO/mk/turnkey.mk"
+    # the $ are make's, matched literally
+    # shellcheck disable=SC2016
+    grep -q 'keel-version-files "\$\$release_version" \$O/root.patched' "$REPO/mk/turnkey.mk"
 }
 
 # ------------------------------------------------ the security-only upgrade
