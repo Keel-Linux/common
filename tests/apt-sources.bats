@@ -568,3 +568,16 @@ run_conf() {
     run_conf
     [ "$status" -eq 0 ]
 }
+
+@test "the final removelist takes out every build time apt file, the staging pin included" {
+    # the recipes pin the staging archive at 1001 for the build only
+    # (preferences.d/keel-staging); the removelist is what holds whether or
+    # not a recipe remembers to remove it
+    local list="$REPO/removelists-final/turnkey" path
+    for path in /etc/apt/sources.list.d/keel-staging.list \
+        /etc/apt/preferences.d/keel-staging \
+        /etc/apt/keyrings/keel-staging-keyring.asc /srv/keel-apt \
+        /etc/apt/sources.list.d/keel-pool.sources /etc/apt/preferences.d/keel-pool; do
+        grep -qxF "~$path" "$list"
+    done
+}
