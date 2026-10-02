@@ -116,6 +116,8 @@ fetch_hosts() {
     [ "$output" = "$(printf 'debian.sources\nsecurity.sources\ndebian-backports.sources')" ]
 }
 
+# the \$ in the patterns are grep's, not the shell's
+# shellcheck disable=SC2016
 @test "the bootstrap removes the files it used to write before writing its own" {
     # left beside debian.sources, sources.sources names the same Debian
     # archive with another Signed-By and apt refuses every source (measured
@@ -312,34 +314,130 @@ pin_setup() {
 
 # ---------------------------------------------------- conf/turnkey.d/keel-apt
 
+# dpkg-query and dpkg as the conf script sees them in the image: the
+# installed packages are the lines of $PKGS ("name status version"). dpkg
+# records its calls, and its purge of turnkey-keys removes what that package
+# owns, as the real one does; --compare-versions is the real dpkg.
+stub_dpkg() {
+    PKGS="$BATS_TEST_TMPDIR/pkgs"
+    : > "$PKGS"
+    local bin="$BATS_TEST_TMPDIR/bin"
+    mkdir -p "$bin"
+    cat > "$bin/dpkg-query" <<STUB
+#!/bin/bash
+name="\${@: -1}"
+line="\$(awk -v n="\$name" '\$1 == n { print \$2, \$3 }' "$PKGS")"
+[ -n "\$line" ] || { echo "dpkg-query: no packages found matching \$name" >&2; exit 1; }
+echo "\$line"
+STUB
+    cat > "$bin/dpkg" <<STUB
+#!/bin/bash
+[ "\$1" = --compare-versions ] && exec /usr/bin/dpkg "\$@"
+echo "\$*" >> "$BATS_TEST_TMPDIR/dpkg.calls"
+if [ "\${@: -1}" = turnkey-keys ] && [[ " \$* " == *" -P "* ]]; then
+    rm -f "$APTROOT"/usr/share/keyrings/tkl-*
+    sed -i '/^turnkey-keys /d' "$PKGS"
+fi
+STUB
+    chmod +x "$bin/dpkg-query" "$bin/dpkg"
+    PATH="$bin:$PATH"
+}
+
+installed_pkg() {
+    echo "$1 installed $2" >> "$PKGS"
+}
+
 conf_tree() {
+    stub_dpkg
     ship_sources
     : > "$APTROOT/usr/share/keyrings/keel-archive-keyring.gpg"
+    installed_pkg keel-archive-keyring 0.1.1
+}
+
+run_conf() {
+    APT_ROOT="$APTROOT" run "$KEEL_CONF"
 }
 
 @test "the conf script passes a tree with Keel's sources and keyring" {
     conf_tree
-    APT_ROOT="$APTROOT" run "$KEEL_CONF"
+    run_conf
     [ "$status" -eq 0 ]
+    [ ! -e "$BATS_TEST_TMPDIR/dpkg.calls" ]
 }
 
 @test "the conf script refuses an image without the Keel keyring" {
     conf_tree
     rm "$APTROOT/usr/share/keyrings/keel-archive-keyring.gpg"
-    APT_ROOT="$APTROOT" run "$KEEL_CONF"
+    run_conf
     [ "$status" -eq 1 ]
     [[ "$output" == *keel-archive-keyring* ]]
+}
+
+@test "the conf script refuses a keyring package older than 0.1.1" {
+    # 0.1.0 carries the signing subkey that 0.1.1 ships revoked
+    conf_tree
+    sed -i 's/^keel-archive-keyring installed .*/keel-archive-keyring installed 0.1.0/' "$PKGS"
+    run_conf
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"0.1.0"* ]]
+    [[ "$output" == *"0.1.1"* ]]
+}
+
+@test "the conf script refuses a keyring file no package installed" {
+    conf_tree
+    : > "$PKGS"
+    run_conf
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"keel-archive-keyring is not installed"* ]]
 }
 
 @test "the conf script refuses an image without keel.sources" {
     conf_tree
     rm "$SOURCES/keel.sources"
-    APT_ROOT="$APTROOT" run "$KEEL_CONF"
+    run_conf
     [ "$status" -eq 1 ]
     [[ "$output" == *keel.sources* ]]
 }
 
-@test "the conf script removes TurnKey's files a parent layer left" {
+@test "the conf script refuses a keel.sources whose stable track is not enabled" {
+    # what seven appliance recipes ship in their overlay at the same path,
+    # which wins over common's: apt.keellinux.org, Enabled: no
+    conf_tree
+    printf 'Types: deb\nURIs: https://apt.keellinux.org\nSuites: trixie\nComponents: main\nEnabled: no\nSigned-By: /usr/share/keyrings/keel-archive-keyring.gpg\n' \
+        > "$SOURCES/keel.sources"
+    run_conf
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"no enabled https://archive.keellinux.org trixie stanza"* ]]
+}
+
+@test "the conf script purges turnkey-keys, never deleting its files by hand" {
+    conf_tree
+    installed_pkg turnkey-keys 0.1
+    : > "$APTROOT/usr/share/keyrings/tkl-archive-keyring.gpg"
+    : > "$APTROOT/usr/share/keyrings/tkl-trixie-main.asc"
+    run_conf
+    [ "$status" -eq 0 ]
+    [ "$(cat "$BATS_TEST_TMPDIR/dpkg.calls")" = "--root=$APTROOT -P turnkey-keys" ]
+    [ ! -e "$APTROOT/usr/share/keyrings/tkl-trixie-main.asc" ]
+}
+
+@test "the conf script purges turnkey-keys left as config-files too" {
+    conf_tree
+    echo "turnkey-keys config-files 0.1" >> "$PKGS"
+    run_conf
+    [ "$status" -eq 0 ]
+    grep -qx -- "--root=$APTROOT -P turnkey-keys" "$BATS_TEST_TMPDIR/dpkg.calls"
+}
+
+@test "the conf script refuses a TurnKey keyring no package owns" {
+    conf_tree
+    : > "$APTROOT/usr/share/keyrings/tkl-trixie-main.asc"
+    run_conf
+    [ "$status" -eq 1 ]
+    [[ "$output" == *tkl-trixie-main.asc* ]]
+}
+
+@test "the conf script removes TurnKey's source files a parent layer left" {
     conf_tree
     # what a layer built on a bootstrap from before this change inherits
     printf 'Types: deb\nURIs: https://archive.turnkeylinux.org/debian\n' \
@@ -348,15 +446,12 @@ conf_tree() {
     cp "$SOURCES/sources.sources" "$SOURCES/turnkey-testing.sources"
     printf 'Package: *\nPin: release o=turnkeylinux\nPin-Priority: 999\n' \
         > "$APTROOT/etc/apt/preferences"
-    : > "$APTROOT/usr/share/keyrings/tkl-archive-keyring.gpg"
-    : > "$APTROOT/usr/share/keyrings/tkl-trixie-main.asc"
-    APT_ROOT="$APTROOT" run "$KEEL_CONF"
+    run_conf
     [ "$status" -eq 0 ]
     [ ! -e "$SOURCES/sources.sources" ]
     [ ! -e "$SOURCES/security.sources.sources" ]
     [ ! -e "$SOURCES/turnkey-testing.sources" ]
     [ ! -e "$APTROOT/etc/apt/preferences" ]
-    [ ! -e "$APTROOT/usr/share/keyrings/tkl-trixie-main.asc" ]
     run fetch_hosts
     [ "$output" = "$(printf 'archive.keellinux.org\ndeb.debian.org\nsecurity.debian.org')" ]
 }
@@ -365,16 +460,64 @@ conf_tree() {
     conf_tree
     printf 'deb https://archive.turnkeylinux.org/debian trixie main\n' \
         > "$SOURCES/recipe.list"
-    APT_ROOT="$APTROOT" run "$KEEL_CONF"
+    run_conf
     [ "$status" -eq 1 ]
     [[ "$output" == *recipe.list* ]]
+}
+
+@test "the conf script refuses a TurnKey source in /etc/apt/sources.list" {
+    conf_tree
+    printf 'deb http://archive.turnkeylinux.org/debian trixie main\n' \
+        > "$APTROOT/etc/apt/sources.list"
+    run_conf
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"/etc/apt/sources.list"* ]]
+}
+
+@test "the conf script refuses a TurnKey key in trusted.gpg.d, by its user id" {
+    # renamed, so only the key itself says whose it is
+    conf_tree
+    mkdir -p "$APTROOT/etc/apt/trusted.gpg.d"
+    cp "$TESTS_DIR/fixtures/tkl-trixie-main.asc" "$APTROOT/etc/apt/trusted.gpg.d/vendor.asc"
+    run_conf
+    [ "$status" -eq 1 ]
+    [[ "$output" == *trusted.gpg.d/vendor.asc* ]]
+}
+
+@test "the conf script refuses a TurnKey key in the legacy trusted.gpg" {
+    conf_tree
+    gpg --dearmor < "$TESTS_DIR/fixtures/tkl-trixie-main.asc" > "$APTROOT/etc/apt/trusted.gpg"
+    run_conf
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"/etc/apt/trusted.gpg"* ]]
+}
+
+@test "the conf script accepts Debian's keys in trusted.gpg.d" {
+    conf_tree
+    mkdir -p "$APTROOT/etc/apt/trusted.gpg.d"
+    local k
+    for k in /usr/share/keyrings/debian-archive-trixie-*.pgp; do
+        [ -e "$k" ] || skip "no Debian archive keys on this host"
+        cp "$k" "$APTROOT/etc/apt/trusted.gpg.d/"
+    done
+    run_conf
+    [ "$status" -eq 0 ]
+}
+
+@test "the conf script refuses a TurnKey pin in preferences.d" {
+    conf_tree
+    printf 'Package: *\nPin: release o=turnkeylinux\nPin-Priority: 999\n' \
+        > "$APTROOT/etc/apt/preferences.d/turnkey"
+    run_conf
+    [ "$status" -eq 1 ]
+    [[ "$output" == *preferences.d/turnkey* ]]
 }
 
 @test "the conf script leaves an operator's own preferences file alone" {
     conf_tree
     printf 'Package: foo\nPin: release a=trixie-backports\nPin-Priority: 500\n' \
         > "$APTROOT/etc/apt/preferences"
-    APT_ROOT="$APTROOT" run "$KEEL_CONF"
+    run_conf
     [ "$status" -eq 0 ]
     [ -e "$APTROOT/etc/apt/preferences" ]
 }

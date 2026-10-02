@@ -37,10 +37,16 @@ turnkey-core-19.0 (1) turnkey; urgency=low
     pin above 1000 does (tracker#23). tests/apt-sources.bats asserts both
     against apt itself, and fails at 1001 and at 500.
 
-  * conf/turnkey.d/keel-apt stops a build whose image lacks keel.sources or
-    the Keel keyring, or has a source naming the TurnKey archive. It
-    removes, by name, TurnKey's files a layer inherits from a parent built
-    before this change, as conf/turnkey.d/apt-identity does for 01turnkey.
+  * conf/turnkey.d/keel-apt stops a build whose image lacks an enabled
+    archive.keellinux.org trixie stanza in keel.sources (seven appliance
+    recipes ship their own keel.sources, disabled, at that path), whose
+    keel-archive-keyring is missing or older than 0.1.1, or where anything
+    still names TurnKey: /etc/apt/sources.list, sources.list.d,
+    preferences, preferences.d, a tkl-* keyring, or a key in trusted.gpg or
+    trusted.gpg.d whose user id is TurnKey's. turnkey-keys a parent layer
+    installed is purged with dpkg -P, so its files go with its record; the
+    source files TurnKey's bootstrap wrote are removed by name, as
+    conf/turnkey.d/apt-identity does for 01turnkey.
 
   * cron-apt's install actions read security.sources.
 

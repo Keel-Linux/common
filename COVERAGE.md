@@ -6,7 +6,7 @@ file our changes touch).
 
 ## Branch fix/keel-apt-sources: 100 percent, one new file (2026-10-02)
 
-`conf/turnkey.d/keel-apt` is measured for the first time: 11 of 11 lines,
+`conf/turnkey.d/keel-apt` is measured for the first time: 35 of 35 lines,
 kcov 43 on Debian 13, from `tests/apt-sources.bats`. The suite also reads
 back from apt what the sources of `conf/bootstrap_apt` and
 `overlays/turnkey.d/keel-apt` fetch, and which version the pin makes the
