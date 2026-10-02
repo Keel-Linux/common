@@ -203,6 +203,37 @@ http context and `nginx -t` refuses the duplicate. The line goes once
 0.21.0-0keel2, which holds the body in memory whenever the headers are
 held, is installed.
 
+**The audit log** says which rule blocked. Nginx's error log only says
+`Coraza: Access denied with code 403, unique_id "..."`.
+`keel-rules.conf` has Coraza write `/var/log/coraza/audit.log`: one JSON
+object a line (`SecAuditLogFormat JSON`), for each request it blocked
+and each answer 4xx or 5xx other than 404 (`RelevantOnly`). The
+`transaction.id` of the line is the error log's `unique_id`, and
+`messages[].error_message` holds each rule that matched in ModSecurity's
+format (`[id "941100"] [msg "XSS Attack Detected via libinjection"]
+[data "..."] [severity "critical"]`), so CrowdSec can parse the file
+later. Parts A, B, H and Z only: the request line, its headers and the
+matches, never a body. The workers write it as `www-data`, so the
+directory is `www-data:adm 0750`, made at boot by the package's
+tmpfiles.d entry (a worker that cannot open the file dies with its WAF);
+logrotate copies and truncates it daily, since Coraza keeps it open. A
+request served normally writes nothing, even when a rule only warned
+(measured: a request by IP matches CRS 920350 and is not logged).
+
+**Keel's exclusions** are `/etc/nginx/coraza/keel-exclusions.conf`,
+read before the Core Rule Set; the operator's stay in coreruleset's files.
+There is one. Anubis's challenge page sends the browser to
+`/.within.website/x/cmd/anubis/api/pass-challenge` with `redir`, the URL
+first asked for. Opened by IP, that URL names an IP, and the Core Rule
+Set scored 5, the blocking threshold, so no browser passed the challenge
+by IP: by IPv4 CRS 931100 ("URL Parameter using IP Address", tag
+`attack-rfi`), by IPv6 CRS 932130 ("Unix Shell Expression Found", which
+reads the brackets of `https://[2001:db8::1]/` as a shell glob). CRS
+920350, "Host header is a numeric IP", only warns, with 3. Rule 10001
+removes `ARGS:redir` from the `attack-rfi` rules and from 932130 on paths
+under `/.within.website/` only. Every other rule still reads `redir`, and
+every other argument and path keeps them all (tests/overlay-web.bats).
+
 `state recheck` guards upgrades. The overlay's dpkg trigger watches
 `/usr/share/coreruleset`, the module and `libcoraza.so.1`; when any of
 them is upgraded under an enabled Coraza with Nginx running, `postinst
@@ -313,7 +344,9 @@ machine's own addresses, Debian's `nginx.conf` and default site
 untouched, Coraza off after a first installation (with the module
 installed in the same transaction, before, and in an image build) and
 after an upgrade of the module, the hook on and off and its rollback of a
-rule Coraza refuses, a remove taking Coraza out of Nginx, a rule set
+rule Coraza refuses, a blocked request in the audit log as JSON naming
+its rules and a served one not in it, Anubis's `redir` carrying an IP
+let through on Anubis's paths only, a remove taking Coraza out of Nginx, a rule set
 upgrade rechecked and kept, and one that kills the workers turning Coraza
 off; Anubis off, its key made at the first start and kept across a
 restart, the spec's key file linked, no key and no start where the

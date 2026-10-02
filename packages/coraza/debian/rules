@@ -14,4 +14,5 @@ execute_after_dh_auto_install:
 	install -D -m 0644 manifest.yaml $(PKG)/usr/share/keel/overlays/coraza.yaml
 	install -D -m 0644 keel.conf $(PKG)/etc/nginx/coraza/keel.conf
 	install -D -m 0644 keel-rules.conf $(PKG)/etc/nginx/coraza/keel-rules.conf
+	install -D -m 0644 keel-exclusions.conf $(PKG)/etc/nginx/coraza/keel-exclusions.conf
 	install -D -m 0755 state $(PKG)/usr/lib/keel/overlays/coraza/state
