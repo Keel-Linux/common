@@ -1,0 +1,44 @@
+#!/bin/bash
+# seal-root ROOTFS
+#
+# The last step of root.patched (mk/turnkey.mk): fails the build unless
+# root's password field in ROOTFS/etc/shadow is '*', '!' or '!*' (what
+# passwd --lock makes of '*'), then writes the build date, YYYY-MM-DD in
+# UTC, to ROOTFS/etc/keel/build-date.
+#
+# inithooks' first boot offers to keep a root password set when the
+# container was created (pct create --password) only when the password
+# changed on or after that date: the image must ship none of its own. A
+# build with ROOT_PASS shipped one every copy shared, and five older
+# WordPress images shipped U6aMy0wojraho, the crypt() of the empty string.
+#
+# The field is compared and never printed.
+
+set -euo pipefail
+
+if [[ $# -ne 1 ]]; then
+    echo "usage: seal-root ROOTFS" >&2
+    exit 2
+fi
+rootfs=$1
+shadow=$rootfs/etc/shadow
+
+if [[ ! -r "$shadow" ]]; then
+    echo "seal-root: cannot read $shadow" >&2
+    exit 1
+fi
+
+if ! entry=$(grep -m 1 '^root:' "$shadow"); then
+    echo "seal-root: $shadow has no root entry" >&2
+    exit 1
+fi
+IFS=: read -r _ field _ <<< "$entry"
+
+if [[ "$field" != '*' ]] && [[ "$field" != '!' ]] && [[ "$field" != '!*' ]]; then
+    echo "seal-root: root has a password in $shadow; an image ships" \
+        "root locked ('*'), and the first boot sets its password" >&2
+    exit 1
+fi
+
+mkdir -p "$rootfs/etc/keel"
+date -u +%F > "$rootfs/etc/keel/build-date"

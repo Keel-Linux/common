@@ -71,6 +71,9 @@ define _root.patched/post
 	fab-chroot $O/root.patched "dpkg -i *.deb && rm *.deb && rm -f /var/log/dpkg.log"
 
 	fab-chroot $O/root.patched "which postsuper >/dev/null && postsuper -d ALL || true"
+
+	# last: root locked or the build fails, and the build date stamped
+	$(FAB_PATH)/common/mk/turnkey/seal-root $O/root.patched
 endef
 root.patched/post += $(_root.patched/post)
 

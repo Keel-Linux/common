@@ -17,14 +17,12 @@ NO_PASSWORD='*'
 
 passwd --unlock root                      # useful when testing in chroot
 
+# A build time ROOT_PASS is not used, as in conf/turnkey.d/rootpass: the
+# image ships both accounts without a password, and the first boot sets
+# them (overlays/samba-fileserver, 35samba-*).
 if [ -n "$ROOT_PASS" ]; then
-    echo "root:$ROOT_PASS" | chpasswd
-else
-    usermod -p "$NO_PASSWORD" root
+    echo "samba-rootpass: ROOT_PASS is ignored; the image ships root locked" >&2
 fi
 
-if [ -n "$ROOT_PASS" ]; then
-    (echo "$ROOT_PASS" ; echo "$ROOT_PASS" ) | smbpasswd -a -s root
-else
-    smbpasswd -a -n root
-fi
+usermod -p "$NO_PASSWORD" root
+smbpasswd -a -n root

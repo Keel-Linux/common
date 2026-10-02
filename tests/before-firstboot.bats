@@ -85,11 +85,11 @@ build_image() {
     [ "$status" -eq 0 ]
 }
 
-@test "a build given a root password is held shut the same way" {
+@test "a build given a root password is held shut, and the password is not set" {
     export ROOT_PASS=s3cret
     build_image
     run ! unit_would_start "$DROPIN"
-    run authenticates "s3cret"
+    run refuses "s3cret"
     [ "$status" -eq 0 ]
     run refuses ""
     [ "$status" -eq 0 ]
