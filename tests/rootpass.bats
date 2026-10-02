@@ -62,27 +62,27 @@ setup() {
     [ "$status" -eq 0 ]
 }
 
-@test "a build time ROOT_PASS is the password, and nothing else is" {
+# A build time ROOT_PASS was a password every copy of the image shared, and
+# the first boot cannot tell it from one set when the container was created
+# (mk/turnkey/seal-root). The image ships root locked whatever it says.
+
+@test "a build time ROOT_PASS is ignored and root stays locked" {
     export ROOT_PASS=s3cret
-    run "$SCRIPT"
+    run --separate-stderr "$SCRIPT"
     [ "$status" -eq 0 ]
-    run authenticates "s3cret"
+    [ "$(field_of root)" = '*' ]
+    run refuses "s3cret"
     [ "$status" -eq 0 ]
-    run refuses ""
+    run nothing_authenticates
     [ "$status" -eq 0 ]
 }
 
-@test "a ROOT_PASS holding a glob character is set as written" {
-    mkdir -p "$IMAGE/build"
-    touch "$IMAGE/build/root:pass"
-    cd "$IMAGE/build"
-    export ROOT_PASS='p*ss'
-    run "$SCRIPT"
+@test "an ignored ROOT_PASS is said, without its value" {
+    export ROOT_PASS='n0t-in-the-log'
+    run --separate-stderr "$SCRIPT"
     [ "$status" -eq 0 ]
-    run authenticates 'p*ss'
-    [ "$status" -eq 0 ]
-    run refuses 'pass'
-    [ "$status" -eq 0 ]
+    [[ "$stderr" == *"ROOT_PASS is ignored"* ]]
+    [[ "$output$stderr" != *"n0t-in-the-log"* ]]
 }
 
 @test "a chroot only build locks the account instead" {

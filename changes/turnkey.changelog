@@ -1,5 +1,19 @@
 turnkey-core-19.0 (1) turnkey; urgency=low
 
+  * An image is exported with root locked, or the build fails. The last
+    step of root.patched, mk/turnkey/seal-root, accepts a root password
+    field of '*', '!' or '!*' and nothing else, without printing it, then
+    writes the build date (UTC) to /etc/keel/build-date. A build time
+    ROOT_PASS is ignored, with a line saying so and not its value, by
+    conf/turnkey.d/rootpass and conf/samba-rootpass: it gave every copy
+    of the image the same password, and five older WordPress images
+    shipped U6aMy0wojraho, the crypt() of the empty string. inithooks'
+    first boot offers to keep a root password set when the container was
+    created (pct create --password) only when the image shipped none and
+    the password changed on or after the build date. tests/seal-root.bats
+    (100 percent of its lines); the ROOT_PASS tests of rootpass.bats,
+    samba-rootpass.bats and before-firstboot.bats now expect it ignored.
+
   * A login gets a UTF-8 locale. 'conf/turnkey.d/locale' wrote LC_ALL=C
     and LC_CTYPE=C into /etc/default/locale, which pam_env gives every
     login, so a shell ran in an ASCII locale and dialog, confconsole after

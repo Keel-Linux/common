@@ -11,13 +11,17 @@
 # passwordless account"), exits 3 and leaves the rest of that hook undone.
 NO_PASSWORD='*'
 
+# A build time ROOT_PASS is not used: it was a password every copy of the
+# image shared, and the first boot could not tell it from one set when the
+# container was created. The image ships root locked, which
+# mk/turnkey/seal-root checks before export; the first boot sets it.
+if [ -n "$ROOT_PASS" ]; then
+    echo "rootpass: ROOT_PASS is ignored; the image ships root locked" >&2
+fi
+
 # chroot only environments don't need a root password
 if [ ! "$CHROOT_ONLY" ]; then
-    if [ -n "$ROOT_PASS" ]; then
-        echo "root:$ROOT_PASS" | chpasswd
-    else
-        usermod -p "$NO_PASSWORD" root
-    fi
+    usermod -p "$NO_PASSWORD" root
 else
     passwd --lock root
 fi

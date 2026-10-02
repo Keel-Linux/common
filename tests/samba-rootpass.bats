@@ -40,29 +40,18 @@ setup() {
     [ "$(tail -1 "$STUB_LOG")" = "smbpasswd -a -n root" ]
 }
 
-@test "a build time ROOT_PASS is the password for both, and nothing else is" {
-    export ROOT_PASS=s3cret
-    run "$SCRIPT"
-    [ "$status" -eq 0 ]
-    run authenticates s3cret
-    [ "$status" -eq 0 ]
-    run refuses ""
-    [ "$status" -eq 0 ]
-    [ "$(tail -1 "$STUB_LOG")" = "smbpasswd -a -s root" ]
-    [ "$(cat "$STUB_LOG.stdin")" = "$(printf 's3cret\ns3cret')" ]
-}
+# A build time ROOT_PASS was shared by every copy of the image; the image
+# ships both accounts without one whatever it says (mk/turnkey/seal-root).
 
-@test "a ROOT_PASS holding a glob character is set as written" {
-    mkdir -p "$IMAGE/build"
-    touch "$IMAGE/build/root:pass"
-    cd "$IMAGE/build"
-    export ROOT_PASS='p*ss'
-    run "$SCRIPT"
+@test "a build time ROOT_PASS is ignored for both accounts" {
+    export ROOT_PASS=s3cret
+    run --separate-stderr "$SCRIPT"
     [ "$status" -eq 0 ]
-    run authenticates 'p*ss'
+    [ "$(field_of root)" = '*' ]
+    run refuses s3cret
     [ "$status" -eq 0 ]
-    run refuses 'pass'
-    [ "$status" -eq 0 ]
+    [ "$(tail -1 "$STUB_LOG")" = "smbpasswd -a -n root" ]
+    [[ "$stderr" == *"ROOT_PASS is ignored"* ]]
 }
 
 @test "the build password is not written to the build log" {
