@@ -237,10 +237,14 @@ by IP: by IPv4 CRS 931100 ("URL Parameter using IP Address", tag
 `attack-rfi`), by IPv6 CRS 932130 ("Unix Shell Expression Found", which
 reads the brackets of `https://[2001:db8::1]/` as a shell glob). CRS
 920350, "Host header is a numeric IP", only warns, with 3. Rule 10001
-removes `ARGS:redir` from 931100 and 932130 only, on that one path only.
-The path is compared whole (`@streq`) after `t:urlDecodeUni` and
-`t:normalisePath`, as Nginx routes it: Coraza's `REQUEST_FILENAME` keeps
-dot segments, so a prefix match let `/.within.website/../x.php` and
+removes `ARGS:redir` from 931100 and 932130 only, on that one path only,
+and for GET only: Anubis serves pass-challenge for GET, and a POST or PUT
+to the same path falls through to its `/` handler, which proxies it to
+the application. The path is compared whole (`@streq`) after
+`t:normalisePath` alone, as Nginx and Anubis route it: Coraza's
+`REQUEST_FILENAME` is already decoded once, so a second decode would let
+`pass-%2563hallenge` match and reach the application, and it keeps dot
+segments, so a prefix match let `/.within.website/../x.php` and
 `%2e%2e` reach another location with the rules lifted. Every other rule
 still reads `redir`, and every other argument and path keeps them all
 (tests/overlay-web.bats). Anubis does not check `redir`'s host itself
@@ -249,8 +253,8 @@ unless `REDIRECT_DOMAINS` is set; keel-web sets it.
 Rule 10002 is for a site opened by a `*.localhost` name, which only the
 machine itself resolves (RFC 6761). Its `redir` names localhost, and CRS
 934190 ("Scheme-less localhost or internal hostname", `attack-ssrf`)
-scored 5 and blocked pass-challenge. On the same path, compared the same
-way, 934190 no longer reads `redir` when there is exactly one (query and
+scored 5 and blocked pass-challenge. On the same path, for GET only and
+compared the same way, 934190 no longer reads `redir` when there is exactly one (query and
 body together, hence phase 2), the request's `Host` is `localhost` or a
 name under it (with or without a port), and `redir` starts with
 `https://` followed by that very `Host` and `/`. Another localhost name, a

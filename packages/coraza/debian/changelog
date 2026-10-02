@@ -12,6 +12,13 @@ keel-overlay-coraza (0.1.3) trixie; urgency=medium
     address, a second redir, another path or argument is still blocked,
     and every other rule still reads redir. Anubis never fetches redir:
     it redirects the browser, to the request's own host only (anubis#3).
+  * keel-exclusions.conf, rules 10001 and 10002: lifted for GET only, and
+    on the path decoded once. Anubis serves pass-challenge for GET; a
+    POST or PUT to that path reached its "/" handler, which proxies to
+    the application, with the rules lifted. Coraza's REQUEST_FILENAME is
+    already decoded, and t:urlDecodeUni decoded it a second time, so
+    pass-%2563hallenge matched while Anubis handed it to the application
+    too. Both are blocked again; t:normalisePath stays.
 
  -- Marcos Mendez <mendez.foto@gmail.com>  Fri, 02 Oct 2026 14:00:00 +0000
 

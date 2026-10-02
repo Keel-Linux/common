@@ -490,6 +490,15 @@ print(yaml.safe_load(open("/usr/share/keel/overlays/coraza.yaml"))["hooks"]["sta
         answers 403 "http://$address$PASS?id=x&redir=%3Cscript%3Ealert(1)%3C%2Fscript%3E"
         # another shell expression in redir: only 932130 is lifted
         answers 403 "http://$address$PASS?id=x&redir=%3Bcat%20%2Fetc%2Fpasswd"
+        # another method than GET: Anubis serves pass-challenge for GET
+        # only, and hands the others to its "/" handler, the application.
+        # The POST carries a form, as a browser's does: one with no body
+        # is blocked by another rule of the Core Rule Set either way.
+        answers 403 -X POST --data a=b "http://$address$PASS?id=x&redir=http%3A%2F%2F10.0.3.158%2F"
+        answers 403 -X PUT "http://$address$PASS?id=x&redir=http%3A%2F%2F10.0.3.158%2F"
+        # the path encoded twice: Nginx and Anubis decode it once, to
+        # pass-%63hallenge, which is not pass-challenge
+        answers 403 "http://$address/.within.website/x/cmd/anubis/api/pass-%2563hallenge?id=x&redir=http%3A%2F%2F10.0.3.158%2F"
     done
 }
 
@@ -544,6 +553,11 @@ LOCAL=web.localhost
         answers 403 -H "Host: $LOCAL" --path-as-is "http://$address$PASS/../../../../../x?redir=https%3A%2F%2F$LOCAL%2F"
         # another argument
         answers 403 -H "Host: $LOCAL" "http://$address$PASS?id=x&next=https%3A%2F%2F$LOCAL%2F"
+        # another method than GET, and the path encoded twice: what Anubis
+        # hands to the application rather than serving as pass-challenge
+        answers 403 -H "Host: $LOCAL" -X POST --data a=b "http://$address$PASS?id=x&redir=https%3A%2F%2F$LOCAL%2F"
+        answers 403 -H "Host: $LOCAL" -X PUT "http://$address$PASS?id=x&redir=https%3A%2F%2F$LOCAL%2F"
+        answers 403 -H "Host: $LOCAL" "http://$address/.within.website/x/cmd/anubis/api/pass-%2563hallenge?id=x&redir=https%3A%2F%2F$LOCAL%2F"
         # every other rule still reads redir
         answers 403 -H "Host: $LOCAL" "http://$address$PASS?id=x&redir=https%3A%2F%2F$LOCAL%2F%3Cscript%3Ealert(1)%3C%2Fscript%3E"
     done
