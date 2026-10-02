@@ -229,7 +229,7 @@ even when a rule only warned (measured: a request by IP matches CRS
 
 **Keel's exclusions** are `/etc/nginx/coraza/keel-exclusions.conf`,
 read before the Core Rule Set; the operator's stay in coreruleset's files.
-There is one. Anubis's challenge page sends the browser to
+There are two, both for Anubis's challenge. Its page sends the browser to
 `/.within.website/x/cmd/anubis/api/pass-challenge` with `redir`, the URL
 first asked for. Opened by IP, that URL names an IP, and the Core Rule
 Set scored 5, the blocking threshold, so no browser passed the challenge
@@ -245,6 +245,20 @@ dot segments, so a prefix match let `/.within.website/../x.php` and
 still reads `redir`, and every other argument and path keeps them all
 (tests/overlay-web.bats). Anubis does not check `redir`'s host itself
 unless `REDIRECT_DOMAINS` is set; keel-web sets it.
+
+Rule 10002 is for a site opened by a `*.localhost` name, which only the
+machine itself resolves (RFC 6761). Its `redir` names localhost, and CRS
+934190 ("Scheme-less localhost or internal hostname", `attack-ssrf`)
+scored 5 and blocked pass-challenge. On the same path, compared the same
+way, 934190 no longer reads `redir` when there is exactly one (query and
+body together, hence phase 2), the request's `Host` is `localhost` or a
+name under it (with or without a port), and `redir` starts with
+`https://` followed by that very `Host` and `/`. Another localhost name, a
+longer name, user information, another port, plain http, a request by
+another name or by address, a second `redir`, another path or another
+argument is still blocked, and every other rule still reads `redir`
+(tests/overlay-web.bats). No server-side request follows `redir`: Anubis
+redirects the browser, to the request's own host only (anubis#3).
 
 `state recheck` guards upgrades. The overlay's dpkg trigger watches
 `/usr/share/coreruleset`, the module and `libcoraza.so.1`; when any of

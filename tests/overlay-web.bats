@@ -493,6 +493,62 @@ print(yaml.safe_load(open("/usr/share/keel/overlays/coraza.yaml"))["hooks"]["sta
     done
 }
 
+# The maintainer's screenshot 103 of step 8: opened by a *.localhost name,
+# which only the machine itself resolves (RFC 6761), the page sends
+# pass-challenge a redir naming https://web.localhost/, and CRS 934190
+# ("Scheme-less localhost or internal hostname", attack-ssrf) blocked it.
+# Rule 10002 lifts 934190 from redir on that path only when redir is an
+# https URL on the very name, port included, the request was sent to, and
+# that name is localhost or one under it.
+LOCAL=web.localhost
+
+@test "pass-challenge may carry redir naming the *.localhost host it was sent to" {
+    "$STATE" enabled
+    local address
+    for address in $(own_addresses); do
+        answers 404 -H "Host: $LOCAL" "http://$address$PASS?id=x&redir=https%3A%2F%2F$LOCAL%2F"
+        answers 404 -H "Host: $LOCAL" "http://$address$PASS?id=x&redir=https%3A%2F%2F$LOCAL%2Fwp-admin%2F%3Fa%3Db"
+        # the name in any case, and with the port the browser sent
+        answers 404 -H "Host: Web.LocalHost:8443" "http://$address$PASS?id=x&redir=https%3A%2F%2Fweb.localhost%3A8443%2F"
+        answers 404 -H "Host: localhost" "http://$address$PASS?id=x&redir=https%3A%2F%2Flocalhost%2F"
+    done
+}
+
+@test "the localhost exclusion is 934190's on redir, for the request's own name only" {
+    "$STATE" enabled
+    local address
+    for address in $(own_addresses); do
+        # without the exclusion, the request of screenshot 103 is blocked
+        # by the name: by another localhost name than the request's
+        answers 403 -H "Host: $LOCAL" "http://$address$PASS?id=x&redir=https%3A%2F%2Fother.localhost%2F"
+        # a name that only starts with the request's
+        answers 403 -H "Host: $LOCAL" "http://$address$PASS?id=x&redir=https%3A%2F%2Fweb.localhost.example%2Flocalhost%2F"
+        # the same name on another port than the request's
+        answers 403 -H "Host: $LOCAL:8443" "http://$address$PASS?id=x&redir=https%3A%2F%2F$LOCAL%2F"
+        # user info that makes another host the URL's
+        answers 403 -H "Host: $LOCAL" "http://$address$PASS?id=x&redir=https%3A%2F%2Fweb.localhost%40localhost%2F"
+        # plain http, which the cloud modes never serve a challenge on
+        answers 403 -H "Host: $LOCAL" "http://$address$PASS?id=x&redir=http%3A%2F%2F$LOCAL%2F"
+        # a request by a name that is not localhost, or by address
+        answers 403 -H "Host: web.example" "http://$address$PASS?id=x&redir=https%3A%2F%2F$LOCAL%2F"
+        answers 403 -H "Host: web.example" "http://$address$PASS?id=x&redir=https%3A%2F%2Fweb.example%2Flocalhost%2F"
+        answers 403 "http://$address$PASS?id=x&redir=https%3A%2F%2Flocalhost%2F"
+        # a Host header that is not one name: Nginx refuses it before the
+        # WAF, and the rule's own pattern would not take it either
+        answers 400 -H "Host: x/../$LOCAL" "http://$address$PASS?id=x&redir=https%3A%2F%2Fx%2F..%2F$LOCAL%2F"
+        answers 403 -H "Host: x.$LOCAL.example" "http://$address$PASS?id=x&redir=https%3A%2F%2Fx.$LOCAL.example%2Flocalhost%2F"
+        # a second redir, which would ride on the first
+        answers 403 -H "Host: $LOCAL" "http://$address$PASS?id=x&redir=https%3A%2F%2F$LOCAL%2F&redir=https%3A%2F%2Fother.localhost%2F"
+        # another path, and dot segments Nginx resolves to another path
+        answers 403 -H "Host: $LOCAL" "http://$address/.within.website/x?id=x&redir=https%3A%2F%2F$LOCAL%2F"
+        answers 403 -H "Host: $LOCAL" --path-as-is "http://$address$PASS/../../../../../x?redir=https%3A%2F%2F$LOCAL%2F"
+        # another argument
+        answers 403 -H "Host: $LOCAL" "http://$address$PASS?id=x&next=https%3A%2F%2F$LOCAL%2F"
+        # every other rule still reads redir
+        answers 403 -H "Host: $LOCAL" "http://$address$PASS?id=x&redir=https%3A%2F%2F$LOCAL%2F%3Cscript%3Ealert(1)%3C%2Fscript%3E"
+    done
+}
+
 @test "state disabled unloads the module and the probe passes again" {
     "$STATE" enabled
     run "$STATE" disabled

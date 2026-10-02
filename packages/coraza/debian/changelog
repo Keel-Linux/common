@@ -1,3 +1,20 @@
+keel-overlay-coraza (0.1.3) trixie; urgency=medium
+
+  * keel-exclusions.conf, rule 10002: a site opened by a *.localhost name
+    passes Anubis's challenge. Its pass-challenge carried a redir naming
+    https://web.localhost/, and CRS 934190 (SSRF, "Scheme-less localhost
+    or internal hostname") scored 5 and blocked it (screenshot 103 of
+    step 8). On that path only, compared as rule 10001 compares it,
+    934190 no longer reads redir when there is exactly one, the request's
+    Host is localhost or a name under it, and redir is an https URL on
+    that very Host, port included. Any other localhost name, a longer
+    name, user information, plain http, a request by another name or by
+    address, a second redir, another path or argument is still blocked,
+    and every other rule still reads redir. Anubis never fetches redir:
+    it redirects the browser, to the request's own host only (anubis#3).
+
+ -- Marcos Mendez <mendez.foto@gmail.com>  Fri, 02 Oct 2026 14:00:00 +0000
+
 keel-overlay-coraza (0.1.2) trixie; urgency=medium
 
   * keel-rules.conf: an audit log, /var/log/coraza/audit.log. Nginx's
