@@ -1,10 +1,16 @@
-#!/bin/sh -e
+#!/bin/bash -e
 
-# Webmin now has a dashboard by default, so instead make
-# tklbam the default module. Users can adjust.
+# Webmin opens on its own dashboard (the theme's System Information page).
+# TurnKey made it open on the TKLBAM module instead, a page asking for a
+# TurnKey Hub API key, which a Keel appliance does not use (handbook
+# decision 0020). No module is opened first; users can still choose one.
 
-cat >> /etc/webmin/config <<EOF
+# WEBMIN_CONF_DIR is a test hook; a build leaves it unset.
+CONF=${WEBMIN_CONF_DIR:-/etc/webmin}/config
+
+sed -i '/^gotomodule=/d' "$CONF"
+
+cat >> "$CONF" <<EOF
 gotoone=0
 nomoduleup=1
-gotomodule=tklbam
 EOF

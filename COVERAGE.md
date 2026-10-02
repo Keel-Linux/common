@@ -4,6 +4,24 @@ Measured on 2026-09-24 against upstream 19.x (b60dd23), following the
 project decision 0003 (90 percent floor per repository, 95 percent for every
 file our changes touch).
 
+## Branch fix/keel-branding: 100 percent, three files newly measured (2026-10-02)
+
+Three conf scripts the branding change touches are measured for the first
+time, with kcov 43 on Debian 13; each gained a test hook for the paths it
+writes, which a build leaves unset:
+
+| File | Suite | Covered |
+|------|-------|---------|
+| `conf/turnkey.d/webmin-theme` | `tests/webmin-brand.bats` | 100 percent |
+| `conf/turnkey.d/webmin-defmodule` | `tests/webmin-brand.bats` | 100 percent |
+| `conf/turnkey.d/motd` | `tests/motd.bats` | 100 percent |
+
+The two webmin scripts were `#!/bin/sh -e`, which kcov does not trace; they
+are bash now,
+which every image carries. The six inithooks dialogs of the mysql, pgsql,
+tomcat, web2py and samba-fileserver overlays only change a title and stay
+unmeasured, as before.
+
 ## Branch feat/web-overlay-packages: 100 percent, two new files (2026-10-01)
 
 The Web overlays of step 6 of decision 0041 bring two scripts, both
