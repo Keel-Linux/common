@@ -53,6 +53,11 @@ turnkey-core-19.0 (1) turnkey; urgency=low
 
   * cron-apt's install actions read security.sources.
 
+  * removelists-final/turnkey also takes out
+    /etc/apt/preferences.d/keel-staging, the build-only pin at 1001 the
+    seven recipes that read the staging archive now write instead of
+    shipping /etc/apt/preferences.d/keel at 1001 in their overlay.
+
   * A login gets a UTF-8 locale. 'conf/turnkey.d/locale' wrote LC_ALL=C
     and LC_CTYPE=C into /etc/default/locale, which pam_env gives every
     login, so a shell ran in an ASCII locale and dialog, confconsole after
