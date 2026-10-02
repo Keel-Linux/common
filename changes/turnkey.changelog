@@ -40,7 +40,10 @@ turnkey-core-19.0 (1) turnkey; urgency=low
   * conf/turnkey.d/keel-apt stops a build whose image lacks an enabled
     archive.keellinux.org trixie stanza in keel.sources (seven appliance
     recipes ship their own keel.sources, disabled, at that path), whose
-    keel-archive-keyring is missing or older than 0.1.1, or where anything
+    keel-archive-keyring is missing or older than 0.1.1, whose pin on
+    o=Keel Linux is missing or anything but 990 in /etc/apt/preferences or
+    preferences.d (seven recipes shipped preferences.d/keel at 1001; the
+    build's o=Keel Linux Pool pin is the removelist's), or where anything
     still names TurnKey: /etc/apt/sources.list, sources.list.d,
     preferences, preferences.d, a tkl-* keyring, or a key in trusted.gpg or
     trusted.gpg.d whose user id is TurnKey's. turnkey-keys a parent layer

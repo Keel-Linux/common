@@ -521,3 +521,50 @@ run_conf() {
     [ "$status" -eq 0 ]
     [ -e "$APTROOT/etc/apt/preferences" ]
 }
+
+# ------------------------------------------------- the Keel pin must be 990
+
+@test "the conf script refuses a Keel pin at 1001, as recipe overlays shipped" {
+    conf_tree
+    printf 'Package: *\nPin: release o=Keel Linux\nPin-Priority: 1001\n' \
+        > "$APTROOT/etc/apt/preferences.d/keel"
+    run_conf
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"preferences.d/keel"* ]]
+    [[ "$output" == *1001* ]]
+}
+
+@test "the conf script refuses an image with no Keel pin" {
+    conf_tree
+    rm "$APTROOT/etc/apt/preferences.d/keel"
+    run_conf
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"no pin on o=Keel Linux"* ]]
+}
+
+@test "the conf script refuses a second Keel pin at another priority anywhere" {
+    conf_tree
+    printf 'Package: *\nPin: release o=Keel Linux\nPin-Priority: 1001\n' \
+        > "$APTROOT/etc/apt/preferences"
+    run_conf
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"/etc/apt/preferences"* ]]
+}
+
+@test "the conf script refuses a Keel pin without a priority line" {
+    conf_tree
+    printf 'Package: *\nPin: release o=Keel Linux\n' > "$APTROOT/etc/apt/preferences.d/keel"
+    run_conf
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"preferences.d/keel"* ]]
+}
+
+@test "the conf script leaves the build's pool pin, o=Keel Linux Pool at 1001, to the removelist" {
+    # the captured pool a pinned build reads (decision 0012): its pin is the
+    # pool's, removed by removelists-final/turnkey before the image is packed
+    conf_tree
+    printf 'Package: *\nPin: release o=Keel Linux Pool\nPin-Priority: 1001\n' \
+        > "$APTROOT/etc/apt/preferences.d/keel-pool"
+    run_conf
+    [ "$status" -eq 0 ]
+}

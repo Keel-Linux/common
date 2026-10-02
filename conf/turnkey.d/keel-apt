@@ -26,6 +26,8 @@ dpkg_root=()
 
 # 0.1.0 shipped the key with a signing subkey that 0.1.1 ships revoked
 KEYRING_MIN=0.1.1
+# the one priority the Keel pin may have, overlays/turnkey.d/keel-apt's
+KEEL_PIN_PRIORITY=990
 
 # pkg_state NAME: "status version", empty when dpkg has no record of NAME
 pkg_state() {
@@ -63,6 +65,26 @@ read -r state version <<< "$(pkg_state keel-archive-keyring)"
     || fatal "keel-archive-keyring is not installed, so nothing owns '$keyrings/keel-archive-keyring.gpg'"
 dpkg --compare-versions "$version" ge "$KEYRING_MIN" \
     || fatal "keel-archive-keyring $version is older than $KEYRING_MIN"
+
+# --- the Keel pin is 990 wherever it is (tracker#23): above 1000 it
+# downgrades every package newer than the archive's, and a recipe overlay
+# at preferences.d/keel wins over common's
+
+pin_files=()
+for f in "$apt/preferences" "$apt"/preferences.d/*; do
+    [ -f "$f" ] && pin_files+=("$f")
+done
+# each stanza pinning o=Keel Linux (not the build's o=Keel Linux Pool), as
+# "FILE: PRIORITY"; the $ are awk's
+# shellcheck disable=SC2016
+pin_prog='BEGIN { RS = "" } /(^|\n)Pin:[ \t]*release[ \t]+o=Keel Linux[ \t]*(,[^\n]*)?(\n|$)/ { p = "none"; n = split($0, l, "\n"); for (i = 1; i <= n; i++) if (l[i] ~ /^Pin-Priority:/) { p = l[i]; sub(/^Pin-Priority:[ \t]*/, "", p) } print FILENAME ": " p }'
+pins=""
+[ "${#pin_files[@]}" -eq 0 ] || pins="$(awk "$pin_prog" "${pin_files[@]}")"
+[ -n "$pins" ] \
+    || fatal "no pin on o=Keel Linux in $apt/preferences or preferences.d - it is shipped by overlays/turnkey.d/keel-apt"
+bad="$(grep -v ": $KEEL_PIN_PRIORITY\$" <<< "$pins" || true)"
+[ -z "$bad" ] \
+    || fatal "the Keel pin must be Pin-Priority $KEEL_PIN_PRIORITY (tracker#23): $(tr '\n' ' ' <<< "$bad")"
 
 # --- what a parent layer from before this change left
 
