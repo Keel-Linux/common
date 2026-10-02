@@ -1,0 +1,13 @@
+# keel-overlay-coraza: rotate Coraza's audit log (daily, or at 100 MiB),
+# run every hour by keel-overlay-coraza-logrotate.timer.
+[Unit]
+Description=Rotate Coraza's audit log
+Documentation=man:logrotate(8)
+ConditionPathExists=/var/log/coraza/audit.log
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/logrotate --state /var/lib/keel-overlay-coraza/logrotate.status /etc/keel-overlay-coraza/logrotate.conf
+StateDirectory=keel-overlay-coraza
+Nice=19
+IOSchedulingClass=idle
