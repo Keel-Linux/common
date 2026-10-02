@@ -195,6 +195,39 @@ Enabled: $debian_backports_enabled
 Signed-By: $DEBIAN_KEYRING
 EOF
 
+# Keel: the archive every Keel package comes from, in the bootstrap too, so
+# that the plan installs keel-archive-keyring, inithooks and the rest from it.
+# The key is the armored public key mk/turnkey.mk copied into the bootstrap
+# from common's keys/, which apt reads as it is; the package later installs
+# the same key as a binary keyring, and overlays/turnkey.d/keel-apt replaces
+# this file with the one an installed machine keeps. KEEL_APT_TRACK says which
+# track the build installs from (handbook decision 0043): stable, the default,
+# reads trixie alone; testing also enables trixie-testing, where a package
+# lands first, for an image of the testing channel.
+KEEL_KEYRING=/usr/share/keyrings/keel-archive-keyring.asc
+case "${KEEL_APT_TRACK:-stable}" in
+    stable) keel_testing_enabled=no ;;
+    testing) keel_testing_enabled=yes ;;
+    *) fatal "KEEL_APT_TRACK must be 'stable' or 'testing', got '$KEEL_APT_TRACK'" ;;
+esac
+[[ -f "$KEEL_KEYRING" ]] \
+    || fatal "'$KEEL_KEYRING' is missing - mk/turnkey.mk copies it into the bootstrap from common's keys/"
+cat > $SOURCES_LIST/keel.sources <<EOF
+Types: deb
+URIs: https://archive.keellinux.org
+Suites: $CODENAME
+Components: main
+Enabled: yes
+Signed-By: $KEEL_KEYRING
+
+Types: deb
+URIs: https://archive.keellinux.org
+Suites: $CODENAME-testing
+Components: main
+Enabled: $keel_testing_enabled
+Signed-By: $KEEL_KEYRING
+EOF
+
 if [[ -n "$PHP_VERSION" ]]; then
     # Use 3rd party sury.org repo
     # install support for https repo & wget (to download gpg key)

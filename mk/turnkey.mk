@@ -5,6 +5,9 @@ HOSTNAME ?= $(shell basename "$(shell pwd)")
 
 # general TKL vars
 CONF_VARS += HOSTNAME ROOT_PASS NONFREE BACKPORTS_NONFREE TKL_TESTING BACKPORTS
+# the Keel archive track a build installs from and the image follows:
+# stable (default) or testing (conf/bootstrap_apt, conf/turnkey.d/keel-apt)
+CONF_VARS += KEEL_APT_TRACK
 # set specific software versions
 CONF_VARS += PHP_VERSION RUBY_VER NODE_VER
 # Webmin/firewall related
@@ -39,12 +42,20 @@ define _bootstrap/post
 	mkdir -p $O/bootstrap/usr/local/share/ca-certificates/;
 	# temporarily allow cert to not exist
 	cp /usr/local/share/ca-certificates/squid_proxyCA.crt $O/bootstrap/usr/local/share/ca-certificates/ || true;
+	# the key of archive.keellinux.org, which bootstrap_apt's keel.sources
+	# names, so the plan can install Keel's packages (keys/, the public
+	# half published at the archive root; the package installs the same key)
+	mkdir -p $O/bootstrap/usr/share/keyrings;
+	cp $(COMMON_CONF_PATH)/../keys/keel-archive-keyring.asc $O/bootstrap/usr/share/keyrings/keel-archive-keyring.asc;
 	fab-chroot $O/bootstrap --script $(COMMON_CONF_PATH)/bootstrap_apt;
 endef
 bootstrap/post += $(_bootstrap/post)
 
-# tag package management system with release package
 # set /etc/turnkey_version
+#
+# fab's release meta package (turnkey-<app>-<version>) is no longer built:
+# keel-core is the meta package of a Keel image (handbook decision 0047),
+# and the compatibility file is written on its own.
 #
 # The apt User-Agent is no longer written here. It used to carry the appliance
 # and its version to every archive the machine ever contacted; it is now a
@@ -54,12 +65,9 @@ bootstrap/post += $(_bootstrap/post)
 define _root.patched/post
 
 	#
-	# tagging package management system with release package
 	# setting /etc/turnkey_version
 	#
 	@if [ -f ./changelog ]; then \
-		echo $(FAB_SHARE_PATH)/make-release-deb.py ./changelog $O/root.patched; \
-		$(FAB_SHARE_PATH)/make-release-deb.py ./changelog $O/root.patched; \
 		turnkey_version=$$($(FAB_SHARE_PATH)/turnkey-version.py --dist=$(CODENAME) --tag=$(VERSION_TAG) ./changelog $(FAB_ARCH)); \
 		echo $$turnkey_version > $O/root.patched/etc/turnkey_version; \
 	else \

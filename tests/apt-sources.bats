@@ -72,9 +72,22 @@ render() {
     local debian_backports_enabled=no
     local debian_components=(main non-free-firmware)
     local DEBIAN_KEYRING=/usr/share/keyrings/debian-archive-keyring.pgp
+    local KEEL_KEYRING=/usr/share/keyrings/keel-archive-keyring.asc
+    local keel_testing_enabled="${KEEL_TESTING_ENABLED:-no}"
     eval "cat <<EOF
 $body
 EOF"
+}
+
+# what conf/bootstrap_apt decides from KEEL_APT_TRACK: the case block, run
+# with the variable set as a build would set it, prints keel_testing_enabled
+track_decision() {
+    local block
+    block="$(sed -n '/^case "\${KEEL_APT_TRACK:-stable}" in$/,/^esac$/p' "$BOOTSTRAP")"
+    [ -n "$block" ] || { echo "no KEEL_APT_TRACK case in $BOOTSTRAP" >&2; return 1; }
+    KEEL_APT_TRACK="$1" bash -c "fatal() { echo \"fatal: \$*\" >&2; exit 1; }
+$block
+echo \"\$keel_testing_enabled\""
 }
 
 # the names of the files conf/bootstrap_apt writes into sources.list.d,
@@ -110,10 +123,35 @@ fetch_hosts() {
 
 # ------------------------------------------------- what the image fetches
 
-@test "the bootstrap writes debian, security and backports, and no TurnKey file" {
+@test "the bootstrap writes debian, security, backports and keel, and no TurnKey file" {
     run bootstrap_files
     [ "$status" -eq 0 ]
-    [ "$output" = "$(printf 'debian.sources\nsecurity.sources\ndebian-backports.sources')" ]
+    [ "$output" = "$(printf 'debian.sources\nsecurity.sources\ndebian-backports.sources\nkeel.sources')" ]
+}
+
+@test "the bootstrap gives the plan the Keel archive, stable on and testing off by default" {
+    run render keel.sources
+    [ "$status" -eq 0 ]
+    [ "$(awk '/^URIs:/ { print $2 }' <<< "$output" | sort -u)" = https://archive.keellinux.org ]
+    [ "$(awk '/^Suites:/ { print $2 }' <<< "$output" | tr '\n' ' ')" = "trixie trixie-testing " ]
+    [ "$(awk '/^Enabled:/ { print $2 }' <<< "$output" | tr '\n' ' ')" = "yes no " ]
+    [ "$(awk '/^Signed-By:/ { print $2 }' <<< "$output" | sort -u)" = /usr/share/keyrings/keel-archive-keyring.asc ]
+    # the key that file names is the one mk/turnkey.mk copies in from keys/
+    grep -q 'keys/keel-archive-keyring.asc \$O/bootstrap/usr/share/keyrings/keel-archive-keyring.asc' "$REPO/mk/turnkey.mk"
+    gpg --batch --quiet --show-keys --with-colons "$REPO/keys/keel-archive-keyring.asc" \
+        | grep -q '^fpr:::::::::AD0964BE3F09DED469A3B6B2148E951314703180:'
+    grep -q '^CONF_VARS += KEEL_APT_TRACK$' "$REPO/mk/turnkey.mk"
+}
+
+@test "KEEL_APT_TRACK picks the track: stable or unset keeps testing off, testing turns it on, anything else stops the build" {
+    [ "$(track_decision "")" = no ]
+    [ "$(track_decision stable)" = no ]
+    [ "$(track_decision testing)" = yes ]
+    run track_decision nightly
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"KEEL_APT_TRACK must be 'stable' or 'testing', got 'nightly'"* ]]
+    KEEL_TESTING_ENABLED=yes run render keel.sources
+    [ "$(awk '/^Enabled:/ { print $2 }' <<< "$output" | tr '\n' ' ')" = "yes yes " ]
 }
 
 # the \$ in the patterns are grep's, not the shell's
@@ -190,6 +228,17 @@ fetch_hosts() {
 @test "the base plan installs the Keel keyring package, not turnkey-keys" {
     grep -qE '^keel-archive-keyring([[:space:]]|$)' "$REPO/plans/turnkey/base"
     run ! grep -qE '^turnkey-keys' "$REPO/plans/turnkey/base"
+}
+
+@test "the base plan installs none of TurnKey's backup and DNS services, and no release meta package is built" {
+    local name
+    for name in tklbam hubdns webmin-tklbam turnkey-pypy2 py3curl-wrapper; do
+        run ! grep -qE "^$name([[:space:]]|\$)" "$REPO/plans/turnkey/base"
+    done
+    run ! grep -q 'make-release-deb' "$REPO/mk/turnkey.mk"
+    # the compatibility file is still written (decision 0014)
+    grep -q 'turnkey_version=.*turnkey-version.py' "$REPO/mk/turnkey.mk"
+    grep -q '> \$O/root.patched/etc/turnkey_version' "$REPO/mk/turnkey.mk"
 }
 
 # ------------------------------------------------ the security-only upgrade
@@ -363,6 +412,45 @@ run_conf() {
     run_conf
     [ "$status" -eq 0 ]
     [ ! -e "$BATS_TEST_TMPDIR/dpkg.calls" ]
+}
+
+@test "the conf script leaves the stable track alone by default and drops the bootstrap's key copy" {
+    conf_tree
+    echo "armored copy" > "$APTROOT/usr/share/keyrings/keel-archive-keyring.asc"
+    local before
+    before="$(cat "$SOURCES/keel.sources")"
+    run_conf
+    [ "$status" -eq 0 ]
+    [ "$(cat "$SOURCES/keel.sources")" = "$before" ]
+    [ "$(sed -n '/^Suites: trixie-testing$/,/^$/p' "$SOURCES/keel.sources" | awk '/^Enabled:/ { print $2 }')" = no ]
+    [ ! -e "$APTROOT/usr/share/keyrings/keel-archive-keyring.asc" ]
+    [ -f "$APTROOT/usr/share/keyrings/keel-archive-keyring.gpg" ]
+}
+
+@test "KEEL_APT_TRACK=testing makes the image follow the testing track, and changes nothing else" {
+    conf_tree
+    local before
+    before="$(grep -v '^Enabled:' "$SOURCES/keel.sources")"
+    KEEL_APT_TRACK=testing run_conf
+    [ "$status" -eq 0 ]
+    [ "$(grep -v '^Enabled:' "$SOURCES/keel.sources")" = "$before" ]
+    [ "$(sed -n '/^Suites: trixie$/,/^$/p' "$SOURCES/keel.sources" | awk '/^Enabled:/ { print $2 }')" = yes ]
+    [ "$(sed -n '/^Suites: trixie-testing$/,/^$/p' "$SOURCES/keel.sources" | awk '/^Enabled:/ { print $2 }')" = yes ]
+    run fetch_uris
+    grep -q '^https://archive\.keellinux\.org/dists/trixie-testing/main/' <<< "$output"
+    grep -q '^https://archive\.keellinux\.org/dists/trixie/main/' <<< "$output"
+}
+
+@test "the conf script refuses an unknown KEEL_APT_TRACK, and testing without a stanza to enable" {
+    conf_tree
+    KEEL_APT_TRACK=nightly run_conf
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"KEEL_APT_TRACK must be 'stable' or 'testing', got 'nightly'"* ]]
+    conf_tree
+    sed -i '/^Suites: trixie-testing$/,/^$/d' "$SOURCES/keel.sources"
+    KEEL_APT_TRACK=testing run_conf
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"no trixie-testing stanza to enable"* ]]
 }
 
 @test "the conf script refuses an image without the Keel keyring" {

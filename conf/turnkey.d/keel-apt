@@ -86,6 +86,22 @@ bad="$(grep -v ": $KEEL_PIN_PRIORITY\$" <<< "$pins" || true)"
 [ -z "$bad" ] \
     || fatal "the Keel pin must be Pin-Priority $KEEL_PIN_PRIORITY (tracker#23): $(tr '\n' ' ' <<< "$bad")"
 
+# --- the track the image follows (KEEL_APT_TRACK, as conf/bootstrap_apt read it)
+
+case "${KEEL_APT_TRACK:-stable}" in
+    stable) : ;;
+    testing)
+        # an image built from the testing track follows it: the stanza the
+        # overlay ships off is turned on, nothing else in the file changes
+        sed -i '/^Suites: trixie-testing$/,/^$/ s/^Enabled: no$/Enabled: yes/' "$sources/keel.sources"
+        grep -qx 'Enabled: yes' <(sed -n '/^Suites: trixie-testing$/,/^$/p' "$sources/keel.sources") \
+            || fatal "KEEL_APT_TRACK=testing, but '$sources/keel.sources' has no trixie-testing stanza to enable" ;;
+    *) fatal "KEEL_APT_TRACK must be 'stable' or 'testing', got '$KEEL_APT_TRACK'" ;;
+esac
+# the armored copy conf/bootstrap_apt named is the bootstrap's; the package's
+# binary keyring, checked above, is what keel.sources names from here on
+rm -f "$keyrings/keel-archive-keyring.asc"
+
 # --- what a parent layer from before this change left
 
 read -r state _ <<< "$(pkg_state turnkey-keys)"
