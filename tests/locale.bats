@@ -5,9 +5,10 @@
 # over SSH. It said LC_ALL=C and LC_CTYPE=C, so a login ran in an ASCII
 # locale, and dialog (confconsole after login) drew its boxes with the
 # VT100 line drawing set, which the LXC console shows as lqqqk and x (the
-# maintainer's screenshot 027). C.UTF-8 keeps what TurnKey wanted of C, a
-# locale that always exists and wins over what an SSH client forwards,
-# and is UTF-8, so the boxes are drawn with Unicode lines.
+# maintainer's screenshot 027). LANG=C.UTF-8 alone is a locale that
+# always exists (libc-bin ships /usr/lib/locale/C.utf8), is UTF-8, so the
+# boxes are drawn with Unicode lines, and is overridden by nothing, so
+# keel's locale.lang, which writes LANG, takes effect.
 #
 # localepurge, dpkg-reconfigure and debconf-set-selections are stubs that
 # record their arguments in STUB_LOG.
@@ -22,10 +23,12 @@ setup() {
     export STUB_LOG=$BATS_TEST_TMPDIR/calls.log
     : > "$STUB_LOG"
     for name in localepurge dpkg-reconfigure debconf-set-selections; do
-        printf '#!/bin/bash\necho "%s $*" >> "$STUB_LOG"\ncat >/dev/null\n' \
-            "$name" > "$STUBS/$name"
+        printf '#!/bin/bash\necho "%s $*" >> "$STUB_LOG"\n' "$name" \
+            > "$STUBS/$name"
         chmod +x "$STUBS/$name"
     done
+    # the one fed on its standard input, which it records too
+    echo 'cat >> "$STUB_LOG"' >> "$STUBS/debconf-set-selections"
     export PATH="$STUBS:$PATH"
 
     IMAGE=$BATS_TEST_TMPDIR/image
@@ -41,13 +44,33 @@ setup() {
     run "$SCRIPT"
 
     [ "$status" -eq 0 ]
-    [ "$(cat "$LOCALE_FILE")" = $'LANG=en_US.UTF-8\nLANGUAGE=en_US.UTF-8\nLC_ALL=C.UTF-8\nLC_CTYPE=C.UTF-8' ]
-    run grep -E '=C$' "$LOCALE_FILE"
+    [ "$(cat "$LOCALE_FILE")" = 'LANG=C.UTF-8' ]
+}
+
+@test "dpkg-reconfigure locales writes LANG=C.UTF-8 back, not en_US" {
+    # on a reconfigure the locales postinst runs update-locale with the
+    # debconf default_environment_locale, over what the file says
+    run "$SCRIPT"
+
+    [ "$status" -eq 0 ]
+    grep -qx 'locales locales/default_environment_locale select C.UTF-8' \
+        "$STUB_LOG"
+    grep -qx 'locales locales/locales_to_be_generated multiselect en_US.UTF-8 UTF-8' \
+        "$STUB_LOG"
+}
+
+@test "nothing overrides LANG, so a later locale.lang takes effect" {
+    run "$SCRIPT"
+
+    [ "$status" -eq 0 ]
+    run grep -E '^(LC_ALL|LC_CTYPE|LANGUAGE)=' "$LOCALE_FILE"
     [ "$status" -eq 1 ]
 }
 
 @test "the locale it sets exists without being generated" {
-    # C.UTF-8 is built into glibc, so localepurge cannot take it away
+    # libc-bin ships C.UTF-8 compiled, outside the locale archive that
+    # locale-gen and localepurge manage
+    [ -d /usr/lib/locale/C.utf8 ]
     run env -i LC_ALL=C.UTF-8 locale charmap
     [ "$status" -eq 0 ]
     [ "$output" = "UTF-8" ]

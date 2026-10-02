@@ -7,8 +7,10 @@ file our changes touch).
 ## Branch fix/utf8-login-locale: 100 percent, one new file (2026-10-02)
 
 `conf/turnkey.d/locale` is measured for the first time: 15 of 15 lines,
-kcov 43 on Debian 13, from 5 tests in `tests/locale.bats` (the file a
-login reads, C.UTF-8 existing without generation, dialog's boxes under C
+kcov 43 on Debian 13, from 7 tests in `tests/locale.bats` (the file a
+login reads, LANG alone with nothing overriding it, the debconf default
+the locales postinst writes back, C.UTF-8 shipped by libc-bin, dialog's
+boxes under C
 and under C.UTF-8, en_US.UTF-8 generated and kept from localepurge,
 Webmin's other languages removed). localepurge, dpkg-reconfigure and
 debconf-set-selections are stubs written by the suite; the dialog test

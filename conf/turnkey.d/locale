@@ -6,16 +6,14 @@ LOCALE_GEN=${LOCALE_GEN:-/etc/locale.gen}
 LOCALE_NOPURGE=${LOCALE_NOPURGE:-/etc/locale.nopurge}
 WEBMIN_DIR=${WEBMIN_DIR:-/usr/share/webmin}
 
-# LC_ALL wins over what an SSH client forwards, so a login always gets a
-# locale that exists here. It was C, which is ASCII: dialog then draws its
-# boxes with the VT100 line drawing set, which an LXC console shows as
-# lqqqk and x (confconsole after login). C.UTF-8 is built into glibc,
-# exists whatever localepurge leaves, and is UTF-8.
+# What a login gets (pam_env reads this file). It held LC_ALL=C and
+# LC_CTYPE=C, which are ASCII and override LANG: dialog then drew its boxes
+# with the VT100 line drawing set, which an LXC console shows as lqqqk and
+# x (confconsole after login). LANG alone, C.UTF-8: UTF-8, shipped compiled
+# by libc-bin (/usr/lib/locale/C.utf8) so it exists whatever localepurge
+# leaves, and overridden by nothing, so keel's locale.lang takes effect.
 cat >> "$LOCALE_FILE" << EOF
-LANG=en_US.UTF-8
-LANGUAGE=en_US.UTF-8
-LC_ALL=C.UTF-8
-LC_CTYPE=C.UTF-8
+LANG=C.UTF-8
 EOF
 
 cat > "$LOCALE_NOPURGE" << EOF
@@ -45,9 +43,12 @@ EOF
 # hack: https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=684134
 sed -i '/en_US.UTF-8 UTF-8/ s/# //' "$LOCALE_GEN"
 
+# dpkg-reconfigure makes the locales postinst write LANG from this default
+# over what the file above says, so it is C.UTF-8 too; en_US.UTF-8 is
+# still generated for whoever sets it
 debconf-set-selections <<END
 locales locales/locales_to_be_generated multiselect en_US.UTF-8 UTF-8
-locales locales/default_environment_locale select en_US.UTF-8
+locales locales/default_environment_locale select C.UTF-8
 END
 DEBIAN_FRONTEND=noninteractive dpkg-reconfigure locales
 
