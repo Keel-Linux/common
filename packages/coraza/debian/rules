@@ -14,4 +14,15 @@ execute_after_dh_auto_install:
 	install -D -m 0644 manifest.yaml $(PKG)/usr/share/keel/overlays/coraza.yaml
 	install -D -m 0644 keel.conf $(PKG)/etc/nginx/coraza/keel.conf
 	install -D -m 0644 keel-rules.conf $(PKG)/etc/nginx/coraza/keel-rules.conf
+	install -D -m 0644 keel-exclusions.conf $(PKG)/etc/nginx/coraza/keel-exclusions.conf
 	install -D -m 0755 state $(PKG)/usr/lib/keel/overlays/coraza/state
+	install -D -m 0644 logrotate.conf $(PKG)/etc/keel-overlay-coraza/logrotate.conf
+	install -D -m 0644 keel-overlay-coraza-logrotate.service \
+		$(PKG)/usr/lib/systemd/system/keel-overlay-coraza-logrotate.service
+	install -D -m 0644 keel-overlay-coraza-logrotate.timer \
+		$(PKG)/usr/lib/systemd/system/keel-overlay-coraza-logrotate.timer
+
+# The hourly rotation of the audit log runs in every mode: with Coraza off
+# there is no file, and the service's condition skips it.
+override_dh_installsystemd:
+	dh_installsystemd keel-overlay-coraza-logrotate.timer

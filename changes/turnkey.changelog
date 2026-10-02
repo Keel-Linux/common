@@ -15,6 +15,41 @@ turnkey-core-19.0 (1) turnkey; urgency=low
     pointed at a scratch tree for its first tests, tests/locale.bats (100
     percent of its lines).
 
+  * Webmin shows the Keel Linux lockup instead of the TurnKey logo, on the
+    login page and in the menu. The overlay ships the handbook's exports
+    as they are (docs/brand/site/keel-lockup-horizontal-dark.png for the
+    navy menu, -light.png for the white login card), and
+    conf/turnkey.d/webmin-theme installs them as the theme's logo.png and
+    logo_welcome.png in place of tkl-logo-white.png and
+    tkl-logo-black.png, which are removed.
+
+  * Webmin opens on its own dashboard. conf/turnkey.d/webmin-defmodule
+    made the TKLBAM module the first page, which asks for a TurnKey Hub
+    API key; it now sets no first module and removes one already set.
+
+  * Webmin's disabled Let's Encrypt tab (usr/local/src/webmin.patch)
+    speaks of this appliance's SSL configuration and links to Keel's
+    confconsole and its Let's Encrypt docs, not to turnkeylinux.org.
+
+  * The login message: the system information leaves out the TKLBAM
+    block, which told the operator to link the machine to a TurnKey Hub
+    account; the confconsole line links to Keel's confconsole instead of
+    turnkeylinux.org/docs/confconsole. The drop-ins keep their file
+    names (00-turnkey-sysinfo, 08-turnkey-confconsole), which
+    Keel-Linux/keel-core#9 removes by name.
+
+  * The first boot dialogs of the mysql, pgsql, tomcat, web2py and
+    samba-fileserver overlays are titled "Keel Linux - First boot
+    configuration".
+
+  * Kept: the overlay and conf names (turnkey.d, the turnkey removelists
+    and make files), /etc/turnkey_version, the turnkey-sysinfo command
+    and the archive configuration, which are names a build or a script
+    uses rather than branding; and every copyright and attribution
+    notice. The TKLBAM Webmin module is still installed and listed under
+    System; whether an appliance ships TKLBAM at all is
+    Keel-Linux/handbook#6 (decision 0014).
+
   * 'conf/desktop' no longer runs 'chmod -x' on the inithooks hook
     80hub-services, which Keel-Linux/inithooks#29 removes (80keel-cloud,
     an optional Keel Cloud key, takes its place). Under 'bash -e' the

@@ -12,6 +12,12 @@ if [ "$1" = purge ] || [ "$1" = abort-install ]; then
     rmdir "${KEPT%/*}" 2>/dev/null || :
 fi
 
+# Coraza's audit log and its rotations go with a purge, as a package's
+# logs do.
+if [ "$1" = purge ]; then
+    rm -rf /var/log/coraza
+fi
+
 #DEBHELPER#
 
 exit 0

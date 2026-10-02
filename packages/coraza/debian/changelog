@@ -1,3 +1,28 @@
+keel-overlay-coraza (0.1.2) trixie; urgency=medium
+
+  * keel-rules.conf: an audit log, /var/log/coraza/audit.log. Nginx's
+    error log said only "Access denied" and a unique_id, never which rule
+    blocked. One JSON object a line for each blocked request and each
+    4xx or 5xx answer but 404, the matches in ModSecurity's format ([id]
+    [msg] [data] [severity]) for CrowdSec to parse later, with the
+    client, host and URI, never a header (Cookie and Authorization,
+    which Coraza cannot redact) or a body. The workers write it as
+    www-data: file 0600, directory www-data:www-data 0700, made at boot
+    by a tmpfiles.d entry. keel-overlay-coraza-logrotate.timer runs
+    logrotate hourly on /etc/keel-overlay-coraza/logrotate.conf: daily,
+    or at 100 MiB, copied and truncated. Depends on logrotate. A purge
+    deletes the logs.
+  * keel-exclusions.conf, read before the Core Rule Set: on Anubis's
+    pass-challenge path only, CRS 931100 and 932130 no longer read the
+    argument redir. Opened by IP, pass-challenge carried a redir naming
+    the IP, and 931100 (IPv4) or 932130 (IPv6, its brackets read as a
+    shell glob) scored 5 and blocked it, so no browser passed the
+    challenge by IP. The path is compared whole, URL-decoded and
+    normalised, so dot segments cannot carry the exclusion to another
+    location. Every other rule, argument and path is unchanged.
+
+ -- Marcos Mendez <mendez.foto@gmail.com>  Fri, 02 Oct 2026 04:00:00 +0000
+
 keel-overlay-coraza (0.1.1) trixie; urgency=medium
 
   * keel.conf: coraza_delay_response_headers off. With the headers held
