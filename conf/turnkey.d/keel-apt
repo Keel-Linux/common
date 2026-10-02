@@ -89,7 +89,7 @@ bad="$(grep -v ": $KEEL_PIN_PRIORITY\$" <<< "$pins" || true)"
 # --- the track the image follows (KEEL_APT_TRACK, as conf/bootstrap_apt read it)
 
 case "${KEEL_APT_TRACK:-stable}" in
-    stable) ;;
+    stable) : ;;
     testing)
         # an image built from the testing track follows it: the stanza the
         # overlay ships off is turned on, nothing else in the file changes
