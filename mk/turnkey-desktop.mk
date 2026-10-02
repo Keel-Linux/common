@@ -30,6 +30,9 @@ COMMON_REMOVELISTS += turnkey
 COMMON_REMOVELISTS_FINAL += turnkey
 
 FAB_SHARE_PATH ?= /usr/share/fab
+# This repository, as the build sees it. bin/keel-version-files writes the
+# two identity files of the image (decision 0014).
+COMMON_BIN_PATH ?= $(FAB_PATH)/common/bin
 
 # below hacks allow inheritors to define their own hooks, which will be
 # prepended. warning: first line *needs* to be empty for this to work
@@ -47,7 +50,8 @@ endef
 bootstrap/post += $(_bootstrap/post)
 
 # tag package management system with release package
-# set /etc/turnkey_version
+# set /etc/turnkey_version and /etc/keel_version (bin/keel-version-files,
+# decision 0014)
 #
 # The apt User-Agent is no longer written here, for the reason given in
 # mk/turnkey.mk: overlays/turnkey.d/apt-identity ships it (Keel-Linux/common#6).
@@ -55,7 +59,7 @@ define _root.patched/post
 
 	#
 	# tagging package management system with release package
-	# setting /etc/turnkey_version
+	# setting /etc/turnkey_version and /etc/keel_version
 	#
 	@if [ -f $(FAB_PATH)/products/core/changelog ]; then \
 		echo $(FAB_SHARE_PATH)/make-release-deb.py $(FAB_PATH)/products/core/changelog $O/root.patched; \
@@ -64,8 +68,9 @@ define _root.patched/post
 	@if [ -f ./changelog ]; then \
 		echo $(FAB_SHARE_PATH)/make-release-deb.py ./changelog $O/root.patched; \
 		$(FAB_SHARE_PATH)/make-release-deb.py ./changelog $O/root.patched; \
-		turnkey_version=$$($(FAB_SHARE_PATH)/turnkey-version.py --dist=$(CODENAME) --tag=$(VERSION_TAG) ./changelog $(FAB_ARCH)); \
-		echo $$turnkey_version > $O/root.patched/etc/turnkey_version; \
+		release_version=$$($(FAB_SHARE_PATH)/turnkey-version.py --dist=$(CODENAME) --tag=$(VERSION_TAG) ./changelog $(FAB_ARCH)); \
+		[ -x $(COMMON_BIN_PATH)/keel-version-files ] || { echo "ERROR: $(COMMON_BIN_PATH)/keel-version-files is missing or not executable: the common checkout predates the identity files of decision 0014, update it" >&2; exit 1; }; \
+		$(COMMON_BIN_PATH)/keel-version-files "$$release_version" $O/root.patched || exit 1; \
 	else \
 		echo; \
 		echo "WARNING: can't tag local release (./changelog doesn't exist)"; \

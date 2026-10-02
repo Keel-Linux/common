@@ -27,6 +27,9 @@ COMMON_REMOVELISTS += turnkey
 COMMON_REMOVELISTS_FINAL += turnkey
 
 FAB_SHARE_PATH ?= /usr/share/fab
+# This repository, as the build sees it. bin/keel-version-files writes the
+# two identity files of the image (decision 0014).
+COMMON_BIN_PATH ?= $(FAB_PATH)/common/bin
 
 APT_OVERLAY = fab-apply-overlay $(COMMON_OVERLAYS_PATH)/bootstrap_apt $O/bootstrap;
 
@@ -51,7 +54,8 @@ define _bootstrap/post
 endef
 bootstrap/post += $(_bootstrap/post)
 
-# set /etc/turnkey_version
+# set /etc/turnkey_version and /etc/keel_version (bin/keel-version-files,
+# decision 0014)
 #
 # fab's release meta package (turnkey-<app>-<version>) is no longer built:
 # keel-core is the meta package of a Keel image (handbook decision 0047),
@@ -65,11 +69,12 @@ bootstrap/post += $(_bootstrap/post)
 define _root.patched/post
 
 	#
-	# setting /etc/turnkey_version
+	# setting /etc/turnkey_version and /etc/keel_version
 	#
 	@if [ -f ./changelog ]; then \
-		turnkey_version=$$($(FAB_SHARE_PATH)/turnkey-version.py --dist=$(CODENAME) --tag=$(VERSION_TAG) ./changelog $(FAB_ARCH)); \
-		echo $$turnkey_version > $O/root.patched/etc/turnkey_version; \
+		release_version=$$($(FAB_SHARE_PATH)/turnkey-version.py --dist=$(CODENAME) --tag=$(VERSION_TAG) ./changelog $(FAB_ARCH)); \
+		[ -x $(COMMON_BIN_PATH)/keel-version-files ] || { echo "ERROR: $(COMMON_BIN_PATH)/keel-version-files is missing or not executable: the common checkout predates the identity files of decision 0014, update it" >&2; exit 1; }; \
+		$(COMMON_BIN_PATH)/keel-version-files "$$release_version" $O/root.patched || exit 1; \
 	else \
 		echo; \
 		echo "WARNING: can't tag local release (./changelog doesn't exist)"; \
