@@ -20,11 +20,11 @@ index a8b6274..f552dbb 100755
 -			".ui--span>details.inline>summary+span {\n".
 -			"margin-top: 0;\n".
 -			"}\n");
-+    print "<b>Unfortunately the Webmin Let's Encrypt module currrently clashes";
-+    print " with TurnKey's SSL conf and has been disabled</b><p>\n";
++    print "<b>Unfortunately the Webmin Let's Encrypt module currently clashes";
++    print " with this appliance's SSL conf and has been disabled</b><p>\n";
 +    print "<p>To use Let's Encrypt, please use <a href=";
-+    print "'https://www.turnkeylinux.org/docs/confconsole'>Confconsole</a>.";
-+    print " - see <a href='https://www.turnkeylinux.org/docs/confconsole/letsencrypt'>";
++    print "'https://github.com/Keel-Linux/confconsole'>Confconsole</a>.";
++    print " - see <a href='https://github.com/Keel-Linux/confconsole/blob/master/docs/Lets_encrypt.rst'>";
 +    print "Let's Encrypt plugin</a> docs.</p>";
  	}
  print "<p>\n";

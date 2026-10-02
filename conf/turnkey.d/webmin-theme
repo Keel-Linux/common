@@ -1,12 +1,20 @@
-#!/bin/sh -e
+#!/bin/bash -e
 
-set ${WEBMIN_THEME:=authentic-theme}
+# The Webmin theme, and the Keel Linux lockup it shows: the one for dark
+# backgrounds in the navy menu (logo.png), the one for light backgrounds
+# on the white login card (logo_welcome.png). Both are the handbook's
+# exports (Keel-Linux/handbook docs/brand/site/), shipped by
+# overlays/turnkey.d/webmin under their own names; tests/webmin-brand.bats
+# pins their digests.
 
-CONF_DIR=/etc/webmin
+WEBMIN_THEME=${WEBMIN_THEME:-authentic-theme}
+
+# WEBMIN_CONF_DIR is a test hook; a build leaves it unset.
+CONF_DIR=${WEBMIN_CONF_DIR:-/etc/webmin}
 LOGO_DIR=$CONF_DIR/$WEBMIN_THEME
 
-echo "theme=$WEBMIN_THEME" >> $CONF_DIR/config
-echo "preroot=$WEBMIN_THEME" >> $CONF_DIR/miniserv.conf
+echo "theme=$WEBMIN_THEME" >> "$CONF_DIR/config"
+echo "preroot=$WEBMIN_THEME" >> "$CONF_DIR/miniserv.conf"
 
-mv $LOGO_DIR/tkl-logo-white.png $LOGO_DIR/logo.png
-mv $LOGO_DIR/tkl-logo-black.png $LOGO_DIR/logo_welcome.png
+mv "$LOGO_DIR/keel-lockup-horizontal-dark.png" "$LOGO_DIR/logo.png"
+mv "$LOGO_DIR/keel-lockup-horizontal-light.png" "$LOGO_DIR/logo_welcome.png"

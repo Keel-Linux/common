@@ -45,7 +45,7 @@ def main():
 
     if not password:
         from libinithooks.dialog_wrapper import Dialog
-        d = Dialog('TurnKey GNU/Linux - First boot configuration')
+        d = Dialog('Keel Linux - First boot configuration')
         password = d.get_password(
             "%s Samba Password" % username.capitalize(),
             "Please enter new password for the Samba {0} account. Note: the Linux {0}".format(username)
