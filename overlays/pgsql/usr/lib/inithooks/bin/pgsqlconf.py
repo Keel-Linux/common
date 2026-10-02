@@ -105,7 +105,7 @@ def main():
             password = val
 
     if not password:
-        d = Dialog('TurnKey Linux - First boot configuration')
+        d = Dialog('Keel Linux - First boot configuration')
         password = d.get_password(
             "PostgreSQL Password",
             "Please enter new password for the '%s' account." % username)
