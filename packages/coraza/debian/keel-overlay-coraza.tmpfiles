@@ -2,6 +2,6 @@
 # (/etc/nginx/coraza/keel-rules.conf). The Nginx workers create the WAF
 # and write the file, as www-data, and a worker that cannot open it dies
 # with the WAF, so the directory is made at every boot when missing, not
-# only at installation; adm reads it, as it reads Nginx's logs. postrm
-# deletes it on purge.
-d /var/log/coraza 0750 www-data adm -
+# only at installation. www-data's alone: the matches it holds may quote
+# what a request carried. postrm deletes it on purge.
+d /var/log/coraza 0700 www-data www-data -

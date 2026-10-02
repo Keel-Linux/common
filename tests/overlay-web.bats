@@ -411,15 +411,45 @@ print(yaml.safe_load(open("/usr/share/keel/overlays/coraza.yaml"))["hooks"]["sta
     [ "$output" = 0 ]
 }
 
-@test "the audit log is the workers' to write and adm's to read, rotated by logrotate" {
-    [ "$(stat -c '%U:%G %a' /var/log/coraza)" = "www-data:adm 750" ]
-    [ -f /etc/logrotate.d/keel-overlay-coraza ]
-    grep -qx '/var/log/coraza/audit.log {' /etc/logrotate.d/keel-overlay-coraza
+# The workers write the file as www-data, so it cannot be root's; nobody
+# else reads it, and it carries no request headers (no Cookie, no
+# Authorization: Coraza cannot redact them, so part B is not logged)
+@test "the audit log is the workers' alone, and holds no request header" {
+    "$STATE" enabled
+    answers 403 "$PROBE&keel-audit-secret=1" \
+        --header 'Cookie: session=keel-test-cookie-secret' \
+        --header 'Authorization: Bearer keel-test-bearer-secret'
+    [ "$(stat -c '%U:%G %a' /var/log/coraza)" = "www-data:www-data 700" ]
+    [ "$(stat -c '%U %a' "$AUDIT_LOG")" = "www-data 600" ]
+    run grep -c 'keel-audit-secret' "$AUDIT_LOG"
+    [ "$output" -ge 1 ]
+    run grep -c -e 'keel-test-cookie-secret' -e 'keel-test-bearer-secret' "$AUDIT_LOG"
+    [ "$output" = 0 ]
+}
+
+# A flood of blocked requests cannot fill the disk: the file is rotated
+# daily or at 100 MiB, checked every hour by the overlay's own timer
+@test "the audit log is rotated at 100 MiB or daily, checked hourly" {
+    local conf=/etc/keel-overlay-coraza/logrotate.conf
+    grep -qx '/var/log/coraza/audit.log {' "$conf"
+    grep -qx $'\tdaily' "$conf"
+    grep -qx $'\tmaxsize 100M' "$conf"
     # Coraza holds the file open, appending: copied and truncated, never moved
-    grep -qx $'\tcopytruncate' /etc/logrotate.d/keel-overlay-coraza
-    if command -v logrotate >/dev/null; then
-        logrotate --debug /etc/logrotate.d/keel-overlay-coraza
-    fi
+    grep -qx $'\tcopytruncate' "$conf"
+    grep -qx $'\tsu www-data www-data' "$conf"
+    # only the overlay's timer rotates it, not logrotate's daily run too
+    [ ! -e /etc/logrotate.d/keel-overlay-coraza ]
+    run systemctl is-enabled keel-overlay-coraza-logrotate.timer
+    [ "$output" = enabled ]
+    run systemctl show -p TimersCalendar --value keel-overlay-coraza-logrotate.timer
+    [[ "$output" == *"*-*-* *:00:00"* ]]
+    # a file over the limit is rotated by one run of the service
+    "$STATE" enabled
+    head -c 101M /dev/zero | tr '\0' 'x' >> "$AUDIT_LOG"
+    systemctl start keel-overlay-coraza-logrotate.service
+    [ "$(stat -c %s "$AUDIT_LOG")" -lt 1048576 ]
+    ls /var/log/coraza/audit.log.1*
+    rm -f /var/log/coraza/audit.log.*
 }
 
 # The maintainer's screenshot 113: opened by IP, the page of Anubis's
@@ -437,10 +467,19 @@ print(yaml.safe_load(open("/usr/share/keel/overlays/coraza.yaml"))["hooks"]["sta
     done
 }
 
-@test "the Anubis exclusion is redir's on Anubis's paths only, and RFI rules only" {
+@test "the Anubis exclusion is redir's on pass-challenge only, and 931100 and 932130 only" {
     "$STATE" enabled
     local address
     for address in $(own_addresses); do
+        # another path of Anubis's
+        answers 403 "http://$address/.within.website/x?id=x&redir=http%3A%2F%2F10.0.3.158%2F"
+        # dot segments that Nginx resolves to another path: the exclusion
+        # compares the path once decoded and normalised, as Nginx routes it
+        answers 403 --path-as-is "http://$address/.within.website/x/cmd/anubis/api/pass-challenge/../../../../../x?redir=http%3A%2F%2F10.0.3.158%2F"
+        answers 403 --path-as-is "http://$address/.within.website/x/cmd/anubis/api/pass-challenge/%2e%2e/%2e%2e/%2e%2e/%2e%2e/%2e%2e/x?redir=http%3A%2F%2F10.0.3.158%2F"
+        answers 403 --path-as-is "http://$address/.within.website/../x?redir=http%3A%2F%2F10.0.3.158%2F"
+        # another RFI rule on redir: 931120, a URL ending in "?"
+        answers 403 "http://$address$PASS?id=x&redir=http%3A%2F%2Fevil.example%2Fx.php%3F"
         # the same argument anywhere else
         answers 403 "http://$address/?redir=http%3A%2F%2F10.0.3.158%2F"
         # another argument on Anubis's paths

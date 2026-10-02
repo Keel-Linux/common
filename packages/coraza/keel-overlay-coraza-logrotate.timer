@@ -1,0 +1,12 @@
+# keel-overlay-coraza: check Coraza's audit log every hour, so a flood of
+# blocked requests is rotated at 100 MiB long before the disk fills.
+[Unit]
+Description=Rotate Coraza's audit log every hour when due
+
+[Timer]
+OnCalendar=hourly
+AccuracySec=1m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

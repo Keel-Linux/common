@@ -212,13 +212,20 @@ and each answer 4xx or 5xx other than 404 (`RelevantOnly`). The
 `messages[].error_message` holds each rule that matched in ModSecurity's
 format (`[id "941100"] [msg "XSS Attack Detected via libinjection"]
 [data "..."] [severity "critical"]`), so CrowdSec can parse the file
-later. Parts A, B, H and Z only: the request line, its headers and the
-matches, never a body. The workers write it as `www-data`, so the
-directory is `www-data:adm 0750`, made at boot by the package's
-tmpfiles.d entry (a worker that cannot open the file dies with its WAF);
-logrotate copies and truncates it daily, since Coraza keeps it open. A
-request served normally writes nothing, even when a rule only warned
-(measured: a request by IP matches CRS 920350 and is not logged).
+later. Parts A, H and Z only: the client and the matches, each naming the
+host and the URI, never a header or a body. Part B, the request headers,
+is left out because it carries `Cookie` and `Authorization` and Coraza
+has no action to redact them. The workers write the file as `www-data`,
+so it cannot be root's: the file is 0600 and the directory
+`www-data:www-data 0700`, made at boot by the package's tmpfiles.d entry
+(a worker that cannot open the file dies with its WAF). It is rotated
+daily or at 100 MiB, whichever comes first, by
+`keel-overlay-coraza-logrotate.timer`, which runs logrotate every hour on
+`/etc/keel-overlay-coraza/logrotate.conf` alone (not in
+`/etc/logrotate.d`, whose run is daily), copying and truncating, since
+Coraza keeps the file open. A request served normally writes nothing,
+even when a rule only warned (measured: a request by IP matches CRS
+920350 and is not logged).
 
 **Keel's exclusions** are `/etc/nginx/coraza/keel-exclusions.conf`,
 read before the Core Rule Set; the operator's stay in coreruleset's files.
@@ -230,9 +237,14 @@ by IP: by IPv4 CRS 931100 ("URL Parameter using IP Address", tag
 `attack-rfi`), by IPv6 CRS 932130 ("Unix Shell Expression Found", which
 reads the brackets of `https://[2001:db8::1]/` as a shell glob). CRS
 920350, "Host header is a numeric IP", only warns, with 3. Rule 10001
-removes `ARGS:redir` from the `attack-rfi` rules and from 932130 on paths
-under `/.within.website/` only. Every other rule still reads `redir`, and
-every other argument and path keeps them all (tests/overlay-web.bats).
+removes `ARGS:redir` from 931100 and 932130 only, on that one path only.
+The path is compared whole (`@streq`) after `t:urlDecodeUni` and
+`t:normalisePath`, as Nginx routes it: Coraza's `REQUEST_FILENAME` keeps
+dot segments, so a prefix match let `/.within.website/../x.php` and
+`%2e%2e` reach another location with the rules lifted. Every other rule
+still reads `redir`, and every other argument and path keeps them all
+(tests/overlay-web.bats). Anubis does not check `redir`'s host itself
+unless `REDIRECT_DOMAINS` is set; keel-web sets it.
 
 `state recheck` guards upgrades. The overlay's dpkg trigger watches
 `/usr/share/coreruleset`, the module and `libcoraza.so.1`; when any of

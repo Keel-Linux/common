@@ -18,6 +18,7 @@ Depends:
  keel (>= 0.15.0),
  keel-overlay-nginx (>= 0.1.0),
  libnginx-mod-http-coraza (>= 0.21.0),
+ logrotate,
  procps,
  ${misc:Depends},
 Description: Keel overlay: Coraza, the WAF inside Nginx
