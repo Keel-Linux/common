@@ -4,6 +4,19 @@ Measured on 2026-09-24 against upstream 19.x (b60dd23), following the
 project decision 0003 (90 percent floor per repository, 95 percent for every
 file our changes touch).
 
+## Branch fix/container-units: 100 percent, one new file (2026-10-03)
+
+`conf/turnkey.d/container-units` is measured for the first time: 5 of 5
+lines, kcov 43 on Debian 13, from `tests/container-units.bats`. systemctl
+is the recording stub; the drop-ins are read beside copies of the packaged
+units (`tests/fixtures/ntpsec.service`, `sys-kernel-config.mount`,
+`sys-kernel-debug.mount`, from trixie's ntpsec 1.2.3 and systemd 257.13)
+by `systemd-analyze condition` and `systemd-analyze verify`, so the verdict
+on the condition and on the merged units is systemd's. The live suite
+`tests/container-units-live.bats` runs in the CI job install only, on a
+booted trixie LXC container, and contributes no percentage. Every other
+target is unchanged at 100.
+
 ## Branch fix/keel-apt-sources: 100 percent, one new file (2026-10-02)
 
 `conf/turnkey.d/keel-apt` is measured for the first time: 44 of 44 lines,
