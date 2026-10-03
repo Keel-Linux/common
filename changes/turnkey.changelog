@@ -29,6 +29,20 @@ turnkey-core-19.0 (1) turnkey; urgency=low
     (100 percent of its lines); the ROOT_PASS tests of rootpass.bats,
     samba-rootpass.bats and before-firstboot.bats now expect it ignored.
 
+  * An image is exported named after its appliance, with no 127.0.1.1
+    line in /etc/hosts. conf/turnkey.d/hostname writes the build's
+    HOSTNAME into /etc/hostname and "127.0.1.1 $HOSTNAME" into /etc/hosts,
+    and a Keel Web container created by pct carried both that "127.0.1.1
+    web" and pct's "127.0.1.1 keel-web1.pop.coop keel-web1" (2026-10-03).
+    mk/turnkey/seal-hostname, run in root.patched/post after the identity
+    files and before seal-root (the desktop makefile too), writes the app
+    field of /etc/keel_version (/etc/turnkey_version as the fallback) to
+    /etc/hostname and drops every 127.0.1.1 line, so the first boot,
+    inithooks' 09hostname and 31fqdn, which rename the files and write
+    the hosts entry, is the only writer of the machine's name.
+    tests/seal-hostname.bats (100 percent of its lines) and two cases of
+    tests/mk-identity.bats.
+
   * An image takes its packages from Debian and from the Keel repository,
     and from nothing else (handbook decisions 0039 and 0043). The first
     boot's security updates fetched from archive.turnkeylinux.org: the

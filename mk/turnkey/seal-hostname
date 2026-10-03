@@ -1,0 +1,83 @@
+#!/bin/bash
+# seal-hostname ROOTFS
+#
+# Run in root.patched/post (mk/turnkey.mk, mk/turnkey-desktop.mk) once the
+# identity files are written and before seal-root: the image is exported
+# named after its appliance, and ROOTFS/etc/hosts carries no 127.0.1.1 line.
+#
+# conf/turnkey.d/hostname writes the build's HOSTNAME into /etc/hostname
+# and "127.0.1.1 $HOSTNAME" into /etc/hosts, the Debian way of making the
+# name resolve. On a machine the name is the first boot's to give:
+# inithooks' 09hostname renames the files (lib/hostname.sh) and 31fqdn
+# writes the hosts entry (fqdn.py --hosts); pct writes its own 127.0.1.1
+# line when it creates a container. A Keel Web container had both,
+# "127.0.1.1 web" from the build and "127.0.1.1 keel-web1.pop.coop
+# keel-web1" from pct (2026-10-03). So the image ships the appliance name,
+# the app field of /etc/keel_version (decision 0014; /etc/turnkey_version
+# is the fallback), which is what the first boot renames from, and no
+# hosts line for it.
+#
+# exit 0  written
+# exit 1  no identity file, or one that names no appliance
+# exit 2  bad usage, or the tree cannot be written to
+# exit 3  the library is missing
+
+set -euo pipefail
+
+here=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)
+lib=${SEAL_HOSTNAME_LIB:-$here/../../lib/version-files.sh}
+
+if [[ $# -ne 1 ]]; then
+    echo "usage: seal-hostname ROOTFS" >&2
+    exit 2
+fi
+etc=$1/etc
+
+if [[ ! -r "$lib" ]]; then
+    echo "seal-hostname: $lib is missing; it is lib/version-files.sh of common" >&2
+    exit 3
+fi
+# shellcheck source=../../lib/version-files.sh
+. "$lib"
+
+version=""
+for file in keel_version turnkey_version; do
+    if [[ -s "$etc/$file" ]]; then
+        version=$(head -n 1 "$etc/$file")
+        break
+    fi
+done
+if [[ -z "$version" ]]; then
+    echo "seal-hostname: no identity file in $etc (keel_version or" \
+        "turnkey_version); keel-version-files writes them first" >&2
+    exit 1
+fi
+
+app_version=$(kvf_app_version "$version")
+if ! kvf_is_app_version "$app_version"; then
+    echo "seal-hostname: '$version' is not an appliance identity" >&2
+    exit 1
+fi
+# the app field: everything before the last three fields, version,
+# codename and architecture, so a hyphenated name is kept whole
+name=${app_version%-*-*-*}
+
+if [[ ! -w "$etc" ]]; then
+    echo "seal-hostname: cannot write into '$etc'" >&2
+    exit 2
+fi
+
+printf '%s\n' "$name" > "$etc/hostname"
+chmod 0644 "$etc/hostname"
+echo "$etc/hostname: $name"
+
+hosts=$etc/hosts
+pattern='^[[:space:]]*127\.0\.1\.1[[:space:]]'
+if [[ -f "$hosts" ]]; then
+    dropped=$(grep -c "$pattern" "$hosts" || true)
+    if [[ "$dropped" -gt 0 ]]; then
+        sed -i "/$pattern/d" "$hosts"
+        echo "$hosts: $dropped 127.0.1.1 line(s) dropped; the first boot" \
+            "writes the machine's"
+    fi
+fi
