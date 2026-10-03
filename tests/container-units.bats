@@ -9,13 +9,21 @@
 # trixie), so that systemd reads each pair together: the verdict on the
 # condition is systemd's own, from 'systemd-analyze condition', and the
 # merged units are handed to 'systemd-analyze verify' so that systemd, and
-# not a reader, says they parse.
+# not a reader, says they parse. For networkd the three packaged units and
+# trixie's 90-systemd.preset (systemd 257.13) go under the scratch tree's
+# usr/lib, and the real systemctl, offline with --root, applies the presets
+# of a first boot to it and tries an enable.
 
 bats_require_minimum_version 1.5.0
 
 load helpers
 
 UNITS=(ntpsec.service sys-kernel-config.mount sys-kernel-debug.mount)
+NETWORKD=(systemd-networkd.service systemd-networkd.socket systemd-networkd-wait-online.service)
+
+# The systemctl of the system, not the stub: the preset tests ask systemd
+# itself, offline, what it makes of the scratch tree.
+SYSTEMCTL=/usr/bin/systemctl
 
 setup() {
     TESTS_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
@@ -41,6 +49,70 @@ packaged() {
     run "$SCRIPT"
     [ "$status" -eq 0 ]
     [ "$(cat "$STUB_LOG")" = "systemctl disable systemd-networkd.service systemd-networkd.socket systemd-networkd-wait-online.service" ]
+}
+
+# packaged_networkd
+# The scratch image as a build leaves it for its first boot: the three
+# networkd units and trixie's 90-systemd.preset, which says enable for the
+# service and wait-online and reaches the socket through the service's
+# Also=, under usr/lib, with the script's links in etc/systemd/system.
+packaged_networkd() {
+    mkdir -p "$IMAGE/usr/lib/systemd/system" "$IMAGE/usr/lib/systemd/system-preset"
+    local unit
+    for unit in "${NETWORKD[@]}"; do
+        cp "$FIXTURES/$unit" "$IMAGE/usr/lib/systemd/system/$unit"
+    done
+    cp "$FIXTURES/90-systemd.preset" "$IMAGE/usr/lib/systemd/system-preset/"
+}
+
+@test "masks networkd, its socket and wait-online: each is a link to /dev/null" {
+    run "$SCRIPT"
+    [ "$status" -eq 0 ]
+    local unit
+    for unit in "${NETWORKD[@]}"; do
+        [ -L "$SYSTEMD_DIR/$unit" ]
+        [ "$(readlink "$SYSTEMD_DIR/$unit")" = /dev/null ]
+    done
+}
+
+@test "a first boot preset, in either mode, leaves all three masked and none enabled" {
+    packaged_networkd
+    run "$SCRIPT"
+    [ "$status" -eq 0 ]
+    local mode unit
+    for mode in enable-only full; do
+        # masked units make preset-all report a failure; the state is the verdict
+        "$SYSTEMCTL" --root="$IMAGE" preset-all --preset-mode="$mode" >/dev/null 2>&1 || true
+        for unit in "${NETWORKD[@]}"; do
+            run "$SYSTEMCTL" --root="$IMAGE" is-enabled "$unit"
+            echo "after preset-all $mode, $unit: $output"
+            [ "$output" = masked ]
+        done
+        run find "$SYSTEMD_DIR" -path '*.wants/*' -name 'systemd-networkd*'
+        [ -z "$output" ]
+    done
+}
+
+@test "an enable, as a package's maintainer script would run it, is refused" {
+    packaged_networkd
+    run "$SCRIPT"
+    [ "$status" -eq 0 ]
+    run "$SYSTEMCTL" --root="$IMAGE" enable systemd-networkd.service
+    [ "$status" -ne 0 ]
+    [[ "$output" == *masked* ]]
+    run find "$SYSTEMD_DIR" -path '*.wants/*' -name 'systemd-networkd*'
+    [ -z "$output" ]
+}
+
+@test "the script runs again on a tree it has masked, and the result is the same" {
+    run "$SCRIPT"
+    [ "$status" -eq 0 ]
+    run "$SCRIPT"
+    [ "$status" -eq 0 ]
+    local unit
+    for unit in "${NETWORKD[@]}"; do
+        [ "$(readlink "$SYSTEMD_DIR/$unit")" = /dev/null ]
+    done
 }
 
 @test "writes a keel-container drop-in for ntpsec and both kernel mounts, and nothing else" {

@@ -4,6 +4,16 @@ Measured on 2026-09-24 against upstream 19.x (b60dd23), following the
 project decision 0003 (90 percent floor per repository, 95 percent for every
 file our changes touch).
 
+## Branch fix/networkd-masked: 100 percent, one file changed (2026-10-03)
+
+`conf/turnkey.d/container-units` stays at 100: 8 of 8 lines, kcov 43 on
+Debian 13, from `tests/container-units.bats`. The masks are read back by
+the real systemctl, offline with `--root`, after systemd's preset-all in
+both modes and an enable, against copies of the packaged networkd units
+and trixie's `90-systemd.preset` (`tests/fixtures/`, systemd 257.13). The
+live suite `tests/container-units-live.bats` (CI job install) contributes
+no percentage. Every other target is unchanged at 100.
+
 ## Branch fix/container-units: 100 percent, one new file (2026-10-03)
 
 `conf/turnkey.d/container-units` is measured for the first time: 5 of 5
