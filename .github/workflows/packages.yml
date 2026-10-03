@@ -28,7 +28,10 @@
 # conf/turnkey.d/container-units to the container itself: systemd skips
 # ntpsec and the two kernel mounts on the drop-ins' condition, and starting
 # them adds nothing to systemctl --failed (the container has mounts of its
-# own failing at boot, which the suite leaves out of the verdict).
+# own failing at boot, which the suite leaves out of the verdict);
+# systemd-networkd, its socket and wait-online are masked, not enabled
+# after the presets of a first boot and an enable, and none of them is in
+# systemctl --failed.
 #
 # web: the three Web overlays installed with their dependencies on a booted
 # trixie container, then tests/overlay-web.bats: Nginx, Coraza on, off,
@@ -119,7 +122,7 @@ jobs:
         # unit states and manifests on the machine
         KEEL_OVERLAY_INSTALL_TEST=1 bats tests/overlay-install.bats
         # the units a container cannot run, under conf/turnkey.d/container-units;
-        # last, because it disables networkd on this machine
+        # last, because it masks networkd on this machine
         KEEL_OVERLAY_INSTALL_TEST=1 bats tests/container-units-live.bats
 
   web:

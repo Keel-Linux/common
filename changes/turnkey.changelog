@@ -1,5 +1,20 @@
 turnkey-core-19.0 (1) turnkey; urgency=low
 
+  * systemd-networkd, its socket and systemd-networkd-wait-online stay off
+    after an image's first boot. conf/turnkey.d/container-units disabled
+    them in the build, but an image leaves the build with an empty
+    /etc/machine-id, so its first boot applies systemd's presets, and
+    trixie's 90-systemd.preset enables networkd and wait-online and,
+    through the service's Also=, the socket: on the Keel Web image 19.0-3
+    the socket and wait-online came back enabled, the socket started
+    networkd and wait-online failed. The script now masks the three as
+    well, which no preset, package maintainer script or 'systemctl enable'
+    undoes; nothing in the image runs networkd, and an operator who wants
+    it unmasks it first. tests/container-units.bats runs systemd's own
+    preset-all, in both modes, and an enable against the masked tree;
+    tests/container-units-live.bats, in the CI job install, checks the
+    three masked and absent from 'systemctl --failed' after the presets.
+
   * An image boots in an unprivileged container with 'systemctl --failed'
     empty and no daemon failing at work it cannot do there (found on a
     Keel Web LXC container on Proxmox, 2026-10-03). The new

@@ -7,7 +7,7 @@
 # AppArmor profile lets it mount nothing), so the suite does not ask for an
 # empty list, only for no unit of this change in it and no new one.
 #
-# This suite changes the machine it runs on: it disables networkd, writes
+# This suite changes the machine it runs on: it masks networkd, writes
 # drop-ins under /etc/systemd/system and starts units. It runs only where
 # KEEL_OVERLAY_INSTALL_TEST=1 says the machine is disposable, as root, in a
 # container with systemd as PID 1, with ntpsec installed. The CI job
@@ -15,8 +15,8 @@
 # tests/overlay-install.bats. setup_file applies the script to the machine,
 # as a build does to an image, and the tests read the machine back; every
 # verdict is systemctl's, nothing reads a file the script wrote to decide a
-# state. teardown_file takes the drop-ins away and re-enables what was
-# enabled before.
+# state. teardown_file takes the drop-ins and the masks away and re-enables
+# what was enabled before.
 
 bats_require_minimum_version 1.5.0
 
@@ -65,6 +65,7 @@ teardown_file() {
     for unit in "${UNITS[@]}"; do
         rm -rf "/etc/systemd/system/$unit.d"
     done
+    systemctl unmask "${NETWORKD[@]}" >/dev/null 2>&1 || true
     i=0
     for unit in "${NETWORKD[@]}"; do
         i=$((i + 1))
@@ -80,13 +81,34 @@ teardown_file() {
     [ "$output" = installed ]
 }
 
-@test "networkd, its socket and wait-online are disabled" {
+@test "networkd, its socket and wait-online are masked" {
     local unit
     for unit in "${NETWORKD[@]}"; do
         run systemctl is-enabled "$unit"
         echo "systemctl is-enabled $unit: $output"
-        [ "$output" = disabled ]
+        [ "$output" = masked ]
     done
+}
+
+@test "the presets of a first boot and an enable leave networkd, its socket and wait-online off" {
+    # what systemd does on a first boot (the image ships an empty
+    # /etc/machine-id), in both modes, and what a maintainer script does;
+    # a masked unit makes each of them report a failure, so the verdict is
+    # the state after them, not their status
+    systemctl preset --preset-mode=enable-only "${NETWORKD[@]}" >/dev/null 2>&1 || true
+    systemctl preset "${NETWORKD[@]}" >/dev/null 2>&1 || true
+    systemctl enable "${NETWORKD[@]}" >/dev/null 2>&1 || true
+    systemctl daemon-reload
+    local unit
+    for unit in "${NETWORKD[@]}"; do
+        run systemctl is-enabled "$unit"
+        echo "systemctl is-enabled $unit: $output"
+        [ "$output" = masked ]
+    done
+    # nothing left a wants link for them behind the masks
+    run find /etc/systemd/system -path '*.wants/*' -name 'systemd-networkd*'
+    echo "wants links: ${output:-none}"
+    [ -z "$output" ]
 }
 
 @test "systemd loads the drop-in, reads its condition as unmet here, and skips each unit" {
@@ -122,6 +144,8 @@ teardown_file() {
     echo "failed at the start of the suite: ${FAILED_AT_START:-nothing}"
     systemctl reset-failed
     systemctl start "${UNITS[@]}"
+    # networkd's three may not start at all, masked; asking is not a failure
+    systemctl start "${NETWORKD[@]}" >/dev/null 2>&1 || true
     run systemctl --failed --no-legend --plain
     echo "failed after the start: ${output:-nothing}"
     [ "$status" -eq 0 ]
@@ -134,7 +158,7 @@ teardown_file() {
     done
 }
 
-@test "none of them is masked: a console can still ask for them" {
+@test "none of the drop-in units is masked: a console can still ask for them" {
     local unit
     for unit in "${UNITS[@]}"; do
         run systemctl is-enabled "$unit"

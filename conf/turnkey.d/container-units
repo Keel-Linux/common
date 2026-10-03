@@ -17,6 +17,25 @@
 # The socket is disabled too, so that nothing socket activates networkd
 # behind the disabled service.
 #
+# Disabled is not enough, so the three are masked as well. An image leaves
+# the build with an empty /etc/machine-id (buildtasks#15), so its first boot
+# is a systemd first boot, which applies the presets: trixie's
+# 90-systemd.preset says enable for systemd-networkd.service and
+# systemd-networkd-wait-online.service, and the service's Also= reaches the
+# socket. On the Keel Web image of step 10 (19.0-3) the socket and
+# wait-online came back enabled that way, the socket started networkd and
+# wait-online failed. A preset of Keel's saying disable would hold against
+# that boot, but not against 'systemctl enable', which a package's
+# maintainer script or an operator calls without reading presets; a mask
+# holds against all of them, and neither preset-all nor enable can undo it.
+# It is the right state here because nothing in the image is meant to run
+# networkd at all: no .network file, no spec or keel apply that enables it
+# (unlike the overlay units of packages/README.md, which keel apply turns
+# on, and which are therefore never masked). An operator who wants
+# networkd runs 'systemctl unmask' first, and the mask says so plainly.
+# The mask is the link systemctl mask writes, made here so that the test
+# hook SYSTEMD_DIR reaches it.
+#
 # ntpsec and the two kernel mounts. Each packaged unit already carries a
 # capability condition (CAP_SYS_TIME for ntpd, CAP_SYS_RAWIO for the
 # mounts), and in an unprivileged container it passes: the bounding set of
@@ -28,15 +47,21 @@
 # host's debugfs and configfs are not the container's to mount, so the
 # drop-in adds the condition the packaged units lack: the unit does not
 # start in a container and starts as before on a VM or a bare install.
-# Nothing is masked: 'systemctl start' from a console still answers, and a
+# None of these three is masked: 'systemctl start' from a console still answers, and a
 # container that has them pre-mounted by its runtime shows them active.
 #
 # SYSTEMD_DIR is a test hook; a build leaves it unset. tests/container-units.bats.
 
 SYSTEMD_DIR=${SYSTEMD_DIR:-/etc/systemd/system}
 
-systemctl disable systemd-networkd.service systemd-networkd.socket \
-    systemd-networkd-wait-online.service
+NETWORKD="systemd-networkd.service systemd-networkd.socket
+    systemd-networkd-wait-online.service"
+
+# shellcheck disable=SC2086 # the unit names are the words of NETWORKD
+systemctl disable $NETWORKD
+for unit in $NETWORKD; do
+    ln -sfn /dev/null "$SYSTEMD_DIR/$unit"
+done
 
 for unit in ntpsec.service sys-kernel-config.mount sys-kernel-debug.mount; do
     mkdir -p "$SYSTEMD_DIR/$unit.d"
