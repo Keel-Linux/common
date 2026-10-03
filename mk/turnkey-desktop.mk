@@ -51,7 +51,8 @@ bootstrap/post += $(_bootstrap/post)
 
 # tag package management system with release package
 # set /etc/turnkey_version and /etc/keel_version (bin/keel-version-files,
-# decision 0014)
+# decision 0014), then name the image after its appliance and drop the
+# build's 127.0.1.1 line from /etc/hosts (mk/turnkey/seal-hostname)
 #
 # The apt User-Agent is no longer written here, for the reason given in
 # mk/turnkey.mk: overlays/turnkey.d/apt-identity ships it (Keel-Linux/common#6).
@@ -71,6 +72,7 @@ define _root.patched/post
 		release_version=$$($(FAB_SHARE_PATH)/turnkey-version.py --dist=$(CODENAME) --tag=$(VERSION_TAG) ./changelog $(FAB_ARCH)); \
 		[ -x $(COMMON_BIN_PATH)/keel-version-files ] || { echo "ERROR: $(COMMON_BIN_PATH)/keel-version-files is missing or not executable: the common checkout predates the identity files of decision 0014, update it" >&2; exit 1; }; \
 		$(COMMON_BIN_PATH)/keel-version-files "$$release_version" $O/root.patched || exit 1; \
+		$(FAB_PATH)/common/mk/turnkey/seal-hostname $O/root.patched || exit 1; \
 	else \
 		echo; \
 		echo "WARNING: can't tag local release (./changelog doesn't exist)"; \

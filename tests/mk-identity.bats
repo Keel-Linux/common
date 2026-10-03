@@ -7,8 +7,9 @@
 # turnkey-version.py that prints the version string a build would derive,
 # a make-release-deb.py and a fab-chroot that only log. What is real is the
 # makefile text under test, make, bin/keel-version-files, and
-# mk/turnkey/seal-root, the last step of the same recipe, reached through
-# the FAB_PATH the recipe names it by; the scratch root ships root locked,
+# mk/turnkey/seal-hostname and mk/turnkey/seal-root, the next and the last
+# step of the same recipe, reached through the FAB_PATH the recipe names
+# them by; the scratch root ships root locked,
 # as an image must (common#31).
 
 bats_require_minimum_version 1.5.0
@@ -21,6 +22,7 @@ setup() {
     FAB="$BATS_TEST_TMPDIR/fab"
     mkdir -p "$WORK" "$OUT/root.patched/etc/apt/apt.conf.d" "$FAB/common/mk/turnkey"
     ln -s "$ROOT/mk/turnkey/seal-root" "$FAB/common/mk/turnkey/seal-root"
+    ln -s "$ROOT/mk/turnkey/seal-hostname" "$FAB/common/mk/turnkey/seal-hostname"
     printf 'root:*:20718:0:99999:7:::\n' > "$OUT/root.patched/etc/shadow"
     : > "$WORK/changelog"
     export PATH="$STUBS:$PATH"
@@ -50,6 +52,24 @@ run_post() {
     [ "$status" -eq 0 ]
     [ "$(cat "$OUT/root.patched/etc/keel/build-date")" = "$(date -u +%F)" ]
     [ -s "$OUT/root.patched/etc/keel_version" ]
+}
+
+@test "turnkey.mk names the image after its appliance and drops the build's 127.0.1.1 line" {
+    printf 'buildhost\n' > "$OUT/root.patched/etc/hostname"
+    printf '127.0.0.1 localhost\n127.0.1.1 buildhost\n::1 localhost\n' > "$OUT/root.patched/etc/hosts"
+    run_post turnkey.mk
+    [ "$status" -eq 0 ]
+    [ "$(cat "$OUT/root.patched/etc/hostname")" = core ]
+    [ "$(cat "$OUT/root.patched/etc/hosts")" = "$(printf '127.0.0.1 localhost\n::1 localhost')" ]
+}
+
+@test "turnkey-desktop.mk names the image after its appliance too" {
+    printf 'buildhost\n' > "$OUT/root.patched/etc/hostname"
+    printf '127.0.1.1 buildhost\n' > "$OUT/root.patched/etc/hosts"
+    run_post turnkey-desktop.mk
+    [ "$status" -eq 0 ]
+    [ "$(cat "$OUT/root.patched/etc/hostname")" = core ]
+    [ ! -s "$OUT/root.patched/etc/hosts" ]
 }
 
 @test "turnkey.mk writes no per-appliance apt User-Agent (common#6)" {

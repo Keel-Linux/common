@@ -26,6 +26,7 @@ targets=(
     "conf/desktop:tests/desktop.bats"
     "conf/turnkey.d/rootpass:tests/rootpass.bats"
     "mk/turnkey/seal-root:tests/seal-root.bats"
+    "mk/turnkey/seal-hostname:tests/seal-hostname.bats"
     "conf/turnkey.d/webmin-enable:tests/webmin-enable.bats"
     "conf/turnkey.d/webmin-pam:tests/webmin-pam.bats"
     "conf/turnkey.d/webmin-net:tests/webmin-net.bats"
