@@ -1,5 +1,26 @@
 turnkey-core-19.0 (1) turnkey; urgency=low
 
+  * An image boots in an unprivileged container with 'systemctl --failed'
+    empty and no daemon failing at work it cannot do there (found on a
+    Keel Web LXC container on Proxmox, 2026-10-03). The new
+    conf/turnkey.d/container-units disables systemd-networkd, its socket
+    and systemd-networkd-wait-online, which the systemd package enabled
+    though the image's network is ifupdown with dhcpcd and carries no
+    .network file, so wait-online waited for nothing and failed at its
+    timeout; nothing in common, inithooks, confconsole or keel asks for
+    networkd. It adds a drop-in, keel-container.conf, to ntpsec.service,
+    sys-kernel-config.mount and sys-kernel-debug.mount with
+    ConditionVirtualization=!container: each already carries a capability
+    condition (CAP_SYS_TIME, CAP_SYS_RAWIO) that passes inside a user
+    namespace, where the bounding set is full, while the kernel refuses
+    the clock adjustment and the debugfs and configfs mounts, so ntpd
+    logged "ntp_adjtime: Operation not permitted" every few minutes and
+    the two mounts sysinit.target pulls in failed at every boot. In a
+    container the units stay inactive; on a VM or a bare install they
+    run as before. Nothing is masked. tests/container-units.bats, against
+    systemd-analyze and the packaged units of trixie; and in a booted
+    LXC container, tests/container-units-live.bats (the CI job install).
+
   * An image says what it is: /etc/keel_version, written beside
     /etc/turnkey_version in root.patched/post by bin/keel-version-files
     (decision 0014). Both carry the same four fields, app, version,

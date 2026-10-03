@@ -23,7 +23,12 @@
 # the overlay. The job writes the policy-rc.d that exits 101 fab installs
 # under. systemd is PID 1 in the container, so the is-active assertions are
 # made as well; the image build's case, no /run/systemd/system, is the one
-# the suite reproduces itself where it needs it.
+# the suite reproduces itself where it needs it. Last, with ntpsec
+# installed, tests/container-units-live.bats applies
+# conf/turnkey.d/container-units to the container itself: systemd skips
+# ntpsec and the two kernel mounts on the drop-ins' condition, and starting
+# them adds nothing to systemctl --failed (the container has mounts of its
+# own failing at boot, which the suite leaves out of the verdict).
 #
 # web: the three Web overlays installed with their dependencies on a booted
 # trixie container, then tests/overlay-web.bats: Nginx, Coraza on, off,
@@ -109,9 +114,13 @@ jobs:
           ./dist/keel-overlay-installer_*.deb \
           ./dist/keel-overlay-wireguard_*.deb \
           ./dist/keel-overlay-etcd_*.deb \
-          ./dist/keel-overlay-crowdsec_*.deb
+          ./dist/keel-overlay-crowdsec_*.deb \
+          ntpsec
         # unit states and manifests on the machine
         KEEL_OVERLAY_INSTALL_TEST=1 bats tests/overlay-install.bats
+        # the units a container cannot run, under conf/turnkey.d/container-units;
+        # last, because it disables networkd on this machine
+        KEEL_OVERLAY_INSTALL_TEST=1 bats tests/container-units-live.bats
 
   web:
     needs: build

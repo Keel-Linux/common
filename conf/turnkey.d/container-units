@@ -1,0 +1,47 @@
+#!/bin/bash -e
+
+# The units a Keel image boots with that cannot do their work in an
+# unprivileged container. Found on a Keel Web LXC container on Proxmox,
+# 2026-10-03: 'systemctl --failed' listed systemd-networkd-wait-online,
+# sys-kernel-config.mount and sys-kernel-debug.mount, and ntpsec logged
+# "ntp_adjtime: Operation not permitted" every few minutes.
+#
+# networkd. The image's network is ifupdown with dhcpcd
+# (tkl-dhcpcd-ifupdown-glue, plans/net) and it carries no .network file, so
+# systemd-networkd has nothing to manage and its wait-online, which the
+# systemd package enables in network-online.target.wants, waits for a link
+# networkd never brings up and fails at its timeout. Nothing in common,
+# inithooks, confconsole or keel asks for networkd: inithooks' fence orders
+# itself After=network-online.target, which ifupdown's networking.service
+# reaches, and keel inspect reports network.managed_by as host or file.
+# The socket is disabled too, so that nothing socket activates networkd
+# behind the disabled service.
+#
+# ntpsec and the two kernel mounts. Each packaged unit already carries a
+# capability condition (CAP_SYS_TIME for ntpd, CAP_SYS_RAWIO for the
+# mounts), and in an unprivileged container it passes: the bounding set of
+# the container's init is full inside its user namespace. What refuses the
+# work is the kernel, which lets no user namespace but the initial one set
+# the clock or mount debugfs and configfs, so ntpd runs and fails every
+# adjustment and the mounts fail on the way to sysinit.target, which pulls
+# both in as static units. A container's clock is the host's, and the
+# host's debugfs and configfs are not the container's to mount, so the
+# drop-in adds the condition the packaged units lack: the unit does not
+# start in a container and starts as before on a VM or a bare install.
+# Nothing is masked: 'systemctl start' from a console still answers, and a
+# container that has them pre-mounted by its runtime shows them active.
+#
+# SYSTEMD_DIR is a test hook; a build leaves it unset. tests/container-units.bats.
+
+SYSTEMD_DIR=${SYSTEMD_DIR:-/etc/systemd/system}
+
+systemctl disable systemd-networkd.service systemd-networkd.socket \
+    systemd-networkd-wait-online.service
+
+for unit in ntpsec.service sys-kernel-config.mount sys-kernel-debug.mount; do
+    mkdir -p "$SYSTEMD_DIR/$unit.d"
+    cat > "$SYSTEMD_DIR/$unit.d/keel-container.conf" <<CONF
+[Unit]
+ConditionVirtualization=!container
+CONF
+done
