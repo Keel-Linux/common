@@ -1,3 +1,19 @@
+keel-overlay-etcd (0.2.0) trixie; urgency=medium
+
+  * Monit's etcd-health check asks /health on etcd's plain metrics
+    listener, http://[::1]:2381, which keel renders: the client port is
+    TLS with client certificates now (keel's etcd over the mesh,
+    handbook decision 0048), and a plain probe of it failed every cycle,
+    so Monit restarted etcd forever.
+  * The first installation marks /var/lib/etcd/default/member, in
+    /var/lib/keel-overlay-etcd/package-member, when etcd-server's own
+    postinst made it in the same transaction: a lone member of no
+    cluster, which keel removes before it starts etcd for the mesh's
+    cluster. A member that was there before is never marked, and keel
+    refuses to start etcd over one it can not prove is the package's.
+
+ -- Marcos Mendez <mendez.foto@gmail.com>  Sun, 04 Oct 2026 12:00:00 +0000
+
 keel-overlay-etcd (0.1.0) trixie; urgency=medium
 
   * First release (handbook decision 0041, first implementation, step 2).

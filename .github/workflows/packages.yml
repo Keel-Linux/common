@@ -39,7 +39,10 @@
 # policy-rc.d: the suite needs Nginx and Anubis running, as on a machine.
 # Coraza's module, its engine, the Core Rule Set and Anubis are Keel's own
 # packages of step 5, not published yet, so they are built here with gbp
-# from the commits pinned below, with golang-1.26-go from trixie-backports.
+# from the commits pinned below, with golang-1.26-go 1.26.8-1~bpo13+1 of
+# trixie-backports, taken from snapshot.debian.org as of 2026-10-01:
+# trixie-backports has since replaced it with golang-1.27-go, and the
+# pinned commits build with 1.26.
 #
 # keel, inithooks and confconsole are not published yet (Keel-Linux/apt:
 # the signing subkey is being rotated), so they are built here from the
@@ -143,10 +146,17 @@ jobs:
                libnginx-mod-http-coraza:630c68f203708d0819c70bc06427b04953f9ffdd
                anubis:e2512d3931cd82a994106513b8eece5034a7c7fe"
         KEEL_COMMIT=3143e870805c6214efe2bde1f589880fc47b0955
+        GO_SNAPSHOT=https://snapshot.debian.org/archive/debian/20261001T000000Z
+        GO_VERSION=1.26.8-1~bpo13+1
         apt-get update -qq
         apt-get install -y -qq --no-install-recommends \
           ca-certificates git git-buildpackage pristine-tar devscripts \
           equivs build-essential debhelper bats curl
+        echo "deb [check-valid-until=no] $GO_SNAPSHOT trixie-backports main" \
+          > /etc/apt/sources.list.d/go-snapshot.list
+        apt-get update -qq
+        apt-get install -y -qq --no-install-recommends \
+          "golang-1.26-go=$GO_VERSION" "golang-1.26-src=$GO_VERSION"
         git config --global --add safe.directory '*'
         mkdir -p /tmp/area /tmp/deps
         for pinned in $STEP5; do

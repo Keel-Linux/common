@@ -21,6 +21,27 @@ Every package depends on `keel (>= 0.12.0)`, the first keel that reads
 `manifest_version: 1`, so apt refuses a keel that could not read the
 manifest (docs/manifest-v1.md, "Versioning").
 
+## etcd's own first start
+
+`etcd-server`'s `postinst` starts etcd, which writes a member of a
+cluster of one to `/var/lib/etcd/default`. A node must not keep it: keel
+joins the node to the mesh's cluster (handbook decision 0048), and a
+member directory there would bring the lone cluster back. So the
+overlay's `preinst` notes whether `/var/lib/etcd/default/member` existed
+before its first installation, and its `postinst`, once it has stopped
+etcd, marks it (`/var/lib/keel-overlay-etcd/package-member`) only when it
+did not: what `etcd-server` made in the same transaction, never data
+that was there before. keel removes a marked member before it starts
+etcd for the mesh's cluster, and refuses to start etcd over an unmarked
+one it never started, for the operator to look at. When apt configures
+`etcd-server` before it unpacks the overlay, the directory exists at
+`preinst` and is not marked, so keel refuses rather than guesses.
+
+Monit's `etcd-health` check asks `/health` on etcd's plain metrics
+listener, `http://[::1]:2381`, which keel renders
+(`ETCD_LISTEN_METRICS_URLS`): the client port, 2379, wants TLS and a
+client certificate signed in the mesh.
+
 ## Building
 
 ```
