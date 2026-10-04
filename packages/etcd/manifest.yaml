@@ -10,8 +10,12 @@ processes:
     listen:
       - {port: 2379, protocol: tcp, expose: mesh}
       - {port: 2380, protocol: tcp, expose: mesh}
+      # /health and /metrics alone, plain, on the loopback: the client
+      # port wants TLS and a client certificate (keel renders
+      # ETCD_LISTEN_METRICS_URLS=http://[::1]:2381)
+      - {address: "::1", port: 2381, protocol: tcp, expose: loopback}
 checks:
-  - {name: etcd-health, process: etcd, type: http, address: mesh,
-     port: 2379, path: /health, expect: 200, on_failure: restart}
+  - {name: etcd-health, process: etcd, type: http, address: loopback,
+     port: 2381, path: /health, expect: 200, on_failure: restart}
 data:
   - {path: /var/lib/etcd, replication: native, backup: none}

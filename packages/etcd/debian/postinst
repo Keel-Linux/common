@@ -17,6 +17,8 @@ set -e
 
 UNITS="etcd.service"
 KEPT=/var/lib/keel-overlay-etcd/kept-units
+FRESH=/var/lib/keel-overlay-etcd/no-member-before
+DATA=/var/lib/etcd/default
 
 if [ "$1" = configure ] && [ -z "$2" ]; then
     for unit in $UNITS; do
@@ -35,8 +37,16 @@ if [ "$1" = configure ] && [ -z "$2" ]; then
         if [ -d /run/systemd/system ]; then
             deb-systemd-invoke stop "$unit"
         fi
+        # the member etcd-server's own start made in this transaction is
+        # a lone cluster of one that no mesh formed, and etcd would come
+        # back as it once enabled: removed, when none was there before
+        if [ -f "$FRESH" ] && [ -d "$DATA/member" ]; then
+            echo "keel-overlay-etcd: removing $DATA, the lone member" \
+                "etcd-server's own start made at its installation" >&2
+            rm -rf "$DATA"
+        fi
     done
-    rm -f "$KEPT"
+    rm -f "$KEPT" "$FRESH"
     rmdir "${KEPT%/*}" 2>/dev/null || :
 fi
 

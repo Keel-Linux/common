@@ -16,10 +16,18 @@ set -e
 
 UNITS="etcd.service"
 KEPT=/var/lib/keel-overlay-etcd/kept-units
+# etcd-server's postinst starts etcd, which makes a lone member of no
+# cluster in its data directory; postinst removes it only if it was not
+# there before this first installation (packages/README.md)
+FRESH=/var/lib/keel-overlay-etcd/no-member-before
+MEMBER=/var/lib/etcd/default/member
 
 if [ "$1" = install ] && [ -z "$2" ]; then
     mkdir -p "${KEPT%/*}"
     : > "$KEPT"
+    if [ ! -e "$MEMBER" ]; then
+        : > "$FRESH"
+    fi
     [ -d /run/systemd/system ] || UNITS=""
     for unit in $UNITS; do
         # is-enabled fails for a unit whose file is not there yet, which is

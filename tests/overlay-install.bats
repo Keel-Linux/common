@@ -241,6 +241,12 @@ assert_simple_state() {
     assert_simple_state
 }
 
+@test "the lone member etcd-server's own start made is gone" {
+    # etcd-server's postinst started etcd in the same transaction; a
+    # node keeps no cluster of one before keel joins it to the mesh's
+    [ ! -e /var/lib/etcd/default/member ]
+}
+
 @test "the preset systemd applies at first boot says disabled for each unit" {
     local unit
     for unit in "${DISABLED_UNITS[@]}"; do
