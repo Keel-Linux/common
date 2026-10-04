@@ -5,12 +5,12 @@ keel-overlay-etcd (0.2.0) trixie; urgency=medium
     TLS with client certificates now (keel's etcd over the mesh,
     handbook decision 0048), and a plain probe of it failed every cycle,
     so Monit restarted etcd forever.
-  * The first installation removes /var/lib/etcd/default when
-    etcd-server's own postinst made it in the same transaction: its
-    start leaves a lone member of no cluster, which a node must not keep
-    before keel joins it to the mesh's. A data directory that was there
-    before is never touched; keel refuses to start etcd over one it did
-    not start.
+  * The first installation marks /var/lib/etcd/default/member, in
+    /var/lib/keel-overlay-etcd/package-member, when etcd-server's own
+    postinst made it in the same transaction: a lone member of no
+    cluster, which keel removes before it starts etcd for the mesh's
+    cluster. A member that was there before is never marked, and keel
+    refuses to start etcd over one it can not prove is the package's.
 
  -- Marcos Mendez <mendez.foto@gmail.com>  Sun, 04 Oct 2026 12:00:00 +0000
 

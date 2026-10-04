@@ -241,10 +241,15 @@ assert_simple_state() {
     assert_simple_state
 }
 
-@test "the lone member etcd-server's own start made is gone" {
-    # etcd-server's postinst started etcd in the same transaction; a
-    # node keeps no cluster of one before keel joins it to the mesh's
-    [ ! -e /var/lib/etcd/default/member ]
+@test "the lone member etcd-server's own start made is marked for keel" {
+    # etcd-server's postinst started etcd in the same transaction; the
+    # overlay marks that member, which keel removes before it joins this
+    # node to the mesh's cluster, and leaves etcd stopped
+    if [ -d /var/lib/etcd/default/member ]; then
+        [ -f /var/lib/keel-overlay-etcd/package-member ]
+    fi
+    run systemctl is-active etcd.service
+    [ "$output" != active ]
 }
 
 @test "the preset systemd applies at first boot says disabled for each unit" {

@@ -11,7 +11,8 @@ set -e
 KEPT=/var/lib/keel-overlay-etcd/kept-units
 
 if [ "$1" = purge ] || [ "$1" = abort-install ]; then
-    rm -f "$KEPT" /var/lib/keel-overlay-etcd/no-member-before
+    rm -f "$KEPT" /var/lib/keel-overlay-etcd/no-member-before \
+        /var/lib/keel-overlay-etcd/package-member
     rmdir "${KEPT%/*}" 2>/dev/null || :
 fi
 

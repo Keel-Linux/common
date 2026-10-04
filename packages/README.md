@@ -29,11 +29,13 @@ joins the node to the mesh's cluster (handbook decision 0048), and a
 member directory there would bring the lone cluster back. So the
 overlay's `preinst` notes whether `/var/lib/etcd/default/member` existed
 before its first installation, and its `postinst`, once it has stopped
-etcd, removes `/var/lib/etcd/default` only when it did not: what
-`etcd-server` made in the same transaction, never data that was there
-before. When apt configures `etcd-server` before it unpacks the overlay,
-the directory exists at `preinst` and is kept; keel then refuses to start
-etcd over a member it never started, and removes it when the node joins.
+etcd, marks it (`/var/lib/keel-overlay-etcd/package-member`) only when it
+did not: what `etcd-server` made in the same transaction, never data
+that was there before. keel removes a marked member before it starts
+etcd for the mesh's cluster, and refuses to start etcd over an unmarked
+one it never started, for the operator to look at. When apt configures
+`etcd-server` before it unpacks the overlay, the directory exists at
+`preinst` and is not marked, so keel refuses rather than guesses.
 
 Monit's `etcd-health` check asks `/health` on etcd's plain metrics
 listener, `http://[::1]:2381`, which keel renders
