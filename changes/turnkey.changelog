@@ -1,5 +1,30 @@
 turnkey-core-19.0 (1) turnkey; urgency=low
 
+  * No database password is set at build time, and mysqltuner comes from
+    Debian (audit of the data service layers, 2026-10-03).
+    [ Marcos Mendez <mendez.foto@gmail.com> ]
+
+    conf/pgsql opened with "set ${PGSQL_PASS:=postgres}" and gave the
+    postgres role that value, so a layer built with nothing declared
+    shipped the superuser password 'postgres' to every appliance built on
+    it, and one whose first boot failed kept it. The password step is
+    removed and mk/turnkey/pgsql.mk no longer adds PGSQL_PASS to CONF_VARS.
+    The cluster is created fresh, so the role has no password until
+    overlays/pgsql firstboot.d/35pgsqlpass sets it from DB_PASS.
+
+    conf/mysql downloaded mysqltuner.pl, basic_passwords.txt and
+    vulnerabilities.csv from the master branch of
+    jmrenouard/MySQLTuner-perl into /usr/local/bin, unpinned and
+    unchecked. Debian trixie packages it (mysqltuner 2.6.0-1), so
+    plans/turnkey/mysql names it and the download is gone; it installs
+    /usr/bin/mysqltuner with its data in /usr/share/mysqltuner. conf/mysql
+    never read MYSQL_PASS and sets no password; mk/turnkey/mysql.mk keeps
+    CONF_VARS += MYSQL_PASS because keel-moodle's conf.d/main reads it.
+
+    tests/pgsql-conf.bats and tests/mysql-conf.bats run both scripts
+    against scratch trees, at 100 percent, and fail if either sets a
+    database password at build time or conf/mysql fetches anything.
+
   * systemd-networkd, its socket and systemd-networkd-wait-online stay off
     after an image's first boot. conf/turnkey.d/container-units disabled
     them in the build, but an image leaves the build with an empty

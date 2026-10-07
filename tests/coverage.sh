@@ -23,6 +23,8 @@ targets=(
     "conf/turnkey.d/apt-identity:tests/apt-identity.bats"
     "conf/turnkey.d/keel-apt:tests/apt-sources.bats"
     "conf/samba-rootpass:tests/samba-rootpass.bats"
+    "conf/pgsql:tests/pgsql-conf.bats"
+    "conf/mysql:tests/mysql-conf.bats"
     "conf/desktop:tests/desktop.bats"
     "conf/turnkey.d/rootpass:tests/rootpass.bats"
     "mk/turnkey/seal-root:tests/seal-root.bats"
