@@ -84,7 +84,7 @@ jobs:
       download: overlay-debs
       download-dir: dist
       run: |
-        KEEL_COMMIT=3c6e45636d9a3c9fb5e04fac3a0aecf7bfc8b58a
+        KEEL_COMMIT=befaaea21e9c983fbb8b2ad4e47f9625866ae857
         INITHOOKS_COMMIT=2543d506590a17a762a4288e2ee99b0a3c160386
         CONFCONSOLE_COMMIT=71828736ca7e99fff1d99ce5e9e9002c24dbd8b2
         apt-get update -qq
@@ -121,6 +121,7 @@ jobs:
           ./dist/keel-overlay-wireguard_*.deb \
           ./dist/keel-overlay-etcd_*.deb \
           ./dist/keel-overlay-crowdsec_*.deb \
+          ./dist/keel-overlay-vip_*.deb \
           ntpsec
         # unit states and manifests on the machine
         KEEL_OVERLAY_INSTALL_TEST=1 bats tests/overlay-install.bats

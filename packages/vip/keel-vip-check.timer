@@ -3,11 +3,5 @@
 # node that knows no VIP the service's condition skips it.
 [Unit]
 Description=keel vip: check the VIPs at boot and every minute
-
-[Timer]
-OnBootSec=30s
-OnUnitActiveSec=1min
-AccuracySec=5s
-
-[Install]
-WantedBy=timers.target
+# The check belongs to the controller: keel-vip.service wants it, and it
+# stops with it. It has no 

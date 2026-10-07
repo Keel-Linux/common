@@ -19,7 +19,7 @@
 Description=keel vip: the VIP's root helper with etcd
 Documentation=https://github.com/Keel-Linux/keel/blob/main/docs/vip.md
 After=network-online.target etcd.service wg-quick@wg0.service
-Wants=network-online.target
+Wants=network-online.target keel-vip-check.timer
 ConditionPathExists=/var/lib/keel/etcd/cluster.json
 StartLimitIntervalSec=0
 
