@@ -1,0 +1,48 @@
+# keel-overlay-vip: the VIP's controller with etcd (handbook decision
+# 0049, third round; keel's docs/vip.md). The holder renews its etcd
+# lease (TTL 20 s) every 2 s and drops the VIP from wg0 after 10 s
+# without a renewal; every member follows the claims in etcd and routes
+# the VIP to its holder; the other node of the pair claims once the
+# holder's lease expired. It changes wg0's addresses and WireGuard's
+# allowed-ips, so it holds CAP_NET_ADMIN and nothing else, and writes
+# only /var/lib/keel/vip and /etc/wireguard. ExecStopPost drops every VIP
+# this node carries, however the controller stopped, so no VIP outlives
+# the process that renews its lease.
+[Unit]
+Description=keel vip: the VIP's controller with etcd
+Documentation=https://github.com/Keel-Linux/keel/blob/main/docs/vip.md
+After=network-online.target etcd.service wg-quick@wg0.service
+Wants=network-online.target
+ConditionPathExists=/var/lib/keel/etcd/cluster.json
+
+[Service]
+ExecStart=/usr/bin/keel vip tend
+ExecStopPost=/usr/bin/keel vip tend --stopped
+Restart=always
+RestartSec=2
+CapabilityBoundingSet=CAP_NET_ADMIN
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/keel/vip /etc/wireguard
+StateDirectory=keel/vip
+StateDirectoryMode=0700
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+MemoryMax=128M
+TasksMax=64
+
+[Install]
+WantedBy=multi-user.target
