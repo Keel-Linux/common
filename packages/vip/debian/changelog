@@ -11,7 +11,7 @@ keel-overlay-vip (0.1.1) trixie; urgency=medium
     tests/overlay-install.bats installs the package on a booted trixie
     machine and asserts both are disabled and inactive.
 
- -- Keel Linux maintainers <admin@keellinux.org>  Wed, 07 Oct 2026 23:22:41 +0000
+ -- KeelLinux maintainers <admin@keellinux.org>  Wed, 07 Oct 2026 23:22:41 +0000
 
 keel-overlay-vip (0.1.0) trixie; urgency=medium
 
