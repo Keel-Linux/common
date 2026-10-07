@@ -4,6 +4,18 @@ Measured on 2026-09-24 against upstream 19.x (b60dd23), following the
 project decision 0003 (90 percent floor per repository, 95 percent for every
 file our changes touch).
 
+## Branch fix/no-build-time-db-password-and-mysqltuner: 100 percent, two new files (2026-10-07)
+
+`conf/pgsql` and `conf/mysql` are measured for the first time: 13 of 13 and
+5 of 5 lines, kcov 43 on Debian 13, from `tests/pgsql-conf.bats` (8 tests)
+and `tests/mysql-conf.bats` (9 tests). The cluster tools, `systemctl`, `su`,
+`psql`, `service` and `mysql` are recording stubs; `conf/pgsql`'s two
+directory roots and `conf/mysql`'s init script directory became overridable
+defaults for it. The suites prove that no role gets a password at build
+time, that `mk/turnkey/pgsql.mk` passes no `PGSQL_PASS`, that
+`plans/turnkey/mysql` names `mysqltuner`, and that `conf/mysql` fetches
+nothing. Every other target is unchanged at 100.
+
 ## Branch fix/networkd-masked: 100 percent, one file changed (2026-10-03)
 
 `conf/turnkey.d/container-units` stays at 100: 8 of 8 lines, kcov 43 on
