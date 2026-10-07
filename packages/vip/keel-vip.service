@@ -7,7 +7,8 @@
 # and /etc/wireguard. It starts the controller, which faces etcd and the
 # overlay, as the transient unit keel-vip-control: a dynamic user, no
 # capability at all, on an abstract unix socket of the namespace they
-# share, each end checked by SO_PEERCRED (the helper's against the
+# share, under a fresh random name the helper binds before it starts the
+# controller, each end checked by SO_PEERCRED (the helper's against the
 # unit's MainPID); it sends it the etcd client certificate's key as a
 # memfd. The holder renews its etcd lease (TTL 20 s) every 2 s and
 # carries the VIP only while the last renewal the majority confirmed is
