@@ -1,0 +1,31 @@
+Source: keel-overlay-vip
+Section: admin
+Priority: optional
+Maintainer: KeelLinux maintainers <admin@keellinux.org>
+Uploaders: Marcos Mendez <mendez.foto@gmail.com>
+Build-Depends:
+ debhelper-compat (= 13),
+Standards-Version: 4.7.2
+Rules-Requires-Root: no
+Vcs-Git: https://github.com/Keel-Linux/common.git -b 19.x [packages/vip]
+Vcs-Browser: https://github.com/Keel-Linux/common/tree/19.x/packages/vip
+
+Package: keel-overlay-vip
+Architecture: all
+Depends:
+ iproute2,
+ keel (>= 0.20.0),
+ keel-overlay-wireguard,
+ wireguard-tools,
+ ${misc:Depends},
+Description: Keel overlay: the service VIP of a replicated pair
+ The VIP overlay of Keel Linux (handbook decision 0049): the units of
+ keel's VIP on the WireGuard mesh, and the overlay manifest keel reads,
+ installed as /usr/share/keel/overlays/vip.yaml (decision 0041). The code
+ is keel's (keel vip); this package ships only the units.
+ .
+ keel-vip.service is the VIP's root helper with etcd, which starts the
+ unprivileged controller as its own transient unit; installed disabled and
+ stopped: keel spec apply enables it with the overlay. keel-vip-check.timer
+ runs keel vip check at boot and every minute in every mode; a node that
+ knows no VIP skips it.

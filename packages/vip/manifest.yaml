@@ -1,0 +1,12 @@
+manifest_version: 1
+kind: overlay
+name: vip
+title: Service VIP
+summary: The replicated pair's VIP on the mesh (0049); moved by keel vip
+requires: [wireguard]
+processes:
+  # the controller with etcd (keel vip tend): renews the holder's lease,
+  # drops the VIP 10 s after its last renewal, follows the claims and
+  # fails over; it runs only on a member of a formed etcd cluster
+  - name: keel-vip
+    unit: keel-vip.service

@@ -1,0 +1,13 @@
+keel-overlay-vip (0.1.0) trixie; urgency=medium
+
+  * First release: the units of keel's service VIP on the WireGuard mesh
+    (handbook decision 0049, third round). keel-vip.service runs keel vip
+    tend, the root helper, with CAP_NET_ADMIN alone, AF_UNIX and
+    AF_NETLINK only, writing only /var/lib/keel/vip and /etc/wireguard;
+    it starts the controller as a transient unit with a dynamic user and
+    no capability, and drops every VIP the node carries once it stops;
+    StartLimitIntervalSec=0, so a crash loop never leaves it stopped for
+    good; installed disabled.
+    keel-vip-check.timer runs keel vip check at boot and every minute.
+
+ -- Marcos Mendez <mendez.foto@gmail.com>  Wed, 07 Oct 2026 12:00:00 +0000

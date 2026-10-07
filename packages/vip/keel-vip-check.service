@@ -1,0 +1,36 @@
+# keel-overlay-vip: keel vip check (handbook decision 0049): every peer
+# asked the epoch of each VIP this node knows, a newer claim taken (an
+# old primary that comes back drops the VIP at once), the VIP dropped
+# where it is not held, and WireGuard's table and wg0.conf set again from
+# what this node holds. Run at boot and every minute by
+# keel-vip-check.timer; a node that knows no VIP has nothing to check.
+# It is a client of the members' channel only: it opens no port.
+[Unit]
+Description=keel vip: learn newer claims of the VIPs this node knows
+Documentation=https://github.com/Keel-Linux/keel/blob/main/docs/vip.md
+After=network-online.target wg-quick@wg0.service
+Wants=network-online.target
+ConditionDirectoryNotEmpty=/var/lib/keel/vip
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/keel vip check
+CapabilityBoundingSet=CAP_NET_ADMIN
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/keel/vip /etc/wireguard
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service

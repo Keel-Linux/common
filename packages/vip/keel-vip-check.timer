@@ -1,0 +1,13 @@
+# keel-overlay-vip: keel vip check at boot and every minute (handbook
+# decision 0049: "at boot and on a timer"). It runs in every mode: on a
+# node that knows no VIP the service's condition skips it.
+[Unit]
+Description=keel vip: check the VIPs at boot and every minute
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=1min
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target

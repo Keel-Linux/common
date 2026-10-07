@@ -1,0 +1,29 @@
+#!/usr/bin/make -f
+# The overlay manifest, the units and the systemd preset sit beside
+# debian/ (docs/manifest-v1.md, "Kinds, and where each file lives") and
+# are installed under the names keel and systemd look them up by. The
+# code they run is keel's (keel vip); this package ships only the units
+# (handbook decision 0049, third round, point 1).
+
+PKG = debian/keel-overlay-vip
+
+%:
+	dh $@
+
+execute_after_dh_auto_install:
+	install -D -m 0644 manifest.yaml $(PKG)/usr/share/keel/overlays/vip.yaml
+	install -D -m 0644 keel-vip.service \
+		$(PKG)/usr/lib/systemd/system/keel-vip.service
+	install -D -m 0644 keel-vip-check.service \
+		$(PKG)/usr/lib/systemd/system/keel-vip-check.service
+	install -D -m 0644 keel-vip-check.timer \
+		$(PKG)/usr/lib/systemd/system/keel-vip-check.timer
+	install -D -m 0644 keel-overlay-vip.preset \
+		$(PKG)/usr/lib/systemd/system-preset/20-keel-overlay-vip.preset
+
+# The controller is installed disabled and stopped, the state of a simple
+# installation: keel spec apply enables it with the overlay. The check's
+# timer runs in every mode.
+override_dh_installsystemd:
+	dh_installsystemd --no-enable --no-start keel-vip.service
+	dh_installsystemd keel-vip-check.timer
