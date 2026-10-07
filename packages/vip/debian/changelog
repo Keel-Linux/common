@@ -2,8 +2,7 @@ keel-overlay-vip (0.1.0) trixie; urgency=medium
 
   * First release: the units of keel's service VIP on the WireGuard mesh
     (handbook decision 0049, third round). keel-vip.service runs keel vip
-    tend, the root helper, with CAP_NET_ADMIN and CAP_DAC_OVERRIDE (to
-    reach the controller's 0600 socket) alone, AF_UNIX and
+    tend, the root helper, with CAP_NET_ADMIN alone, AF_UNIX and
     AF_NETLINK only, writing only /var/lib/keel/vip and /etc/wireguard;
     it starts the controller as a transient unit with a dynamic user and
     no capability, and drops every VIP the node carries once it stops;
