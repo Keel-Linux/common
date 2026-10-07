@@ -12,7 +12,7 @@ directory each, with its own changelog and version, released on its own
 | `installer/` | `keel-overlay-installer` | Keel's `inithooks` (>= 2.3.6+keel14), `confconsole` (>= 2.2.3+keel8), `keel` (>= 0.12.0) | none; its manifest names the first boot hooks the three ship |
 | `wireguard/` | `keel-overlay-wireguard` | trixie's `wireguard-tools` 1.0.20210914 | none; the interface is the instance spec's |
 | `etcd/` | `keel-overlay-etcd` | trixie's `etcd-server` 3.5.16, and `keel-overlay-wireguard`, which its manifest `requires` | `etcd.service` |
-| `vip/` | `keel-overlay-vip` | `keel` (>= 0.20.0), whose `keel vip` the units run, and `keel-overlay-wireguard`, which its manifest `requires` | `keel-vip.service`, the controller with etcd; and `keel-vip-check.timer`, enabled in every mode |
+| `vip/` | `keel-overlay-vip` | `keel` (>= 0.20.0), whose `keel vip` the units run, and `keel-overlay-wireguard`, which its manifest `requires` | `keel-vip.service`, the VIP's root helper with etcd, which starts its unprivileged controller as the transient `keel-vip-control`; and `keel-vip-check.timer`, enabled in every mode |
 | `crowdsec/` | `keel-overlay-crowdsec` | trixie's `crowdsec` 1.4.6-10 and `crowdsec-firewall-bouncer` 0.0.25 | `crowdsec.service`, `crowdsec-firewall-bouncer.service` |
 | `nginx/` | `keel-overlay-nginx` | trixie's `nginx` 1.26.3 and `libnginx-mod-stream` | `nginx.service`, enabled in every mode |
 | `coraza/` | `keel-overlay-coraza` | Keel's `libnginx-mod-http-coraza` 0.21.0 and `coreruleset` 4.25.1 (step 5), and `keel-overlay-nginx` | none: an Nginx module; `/usr/lib/keel/overlays/coraza/state` turns it on and off |

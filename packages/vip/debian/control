@@ -24,7 +24,8 @@ Description: Keel overlay: the service VIP of a replicated pair
  installed as /usr/share/keel/overlays/vip.yaml (decision 0041). The code
  is keel's (keel vip); this package ships only the units.
  .
- keel-vip.service is the controller with etcd, installed disabled and
+ keel-vip.service is the VIP's root helper with etcd, which starts the
+ unprivileged controller as its own transient unit; installed disabled and
  stopped: keel spec apply enables it with the overlay. keel-vip-check.timer
  runs keel vip check at boot and every minute in every mode; a node that
  knows no VIP skips it.

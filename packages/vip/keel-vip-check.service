@@ -4,6 +4,7 @@
 # where it is not held, and WireGuard's table and wg0.conf set again from
 # what this node holds. Run at boot and every minute by
 # keel-vip-check.timer; a node that knows no VIP has nothing to check.
+# It is a client of the members' channel only: it opens no port.
 [Unit]
 Description=keel vip: learn newer claims of the VIPs this node knows
 Documentation=https://github.com/Keel-Linux/keel/blob/main/docs/vip.md

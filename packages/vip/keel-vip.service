@@ -1,26 +1,33 @@
-# keel-overlay-vip: the VIP's controller with etcd (handbook decision
-# 0049, third round; keel's docs/vip.md). The holder renews its etcd
-# lease (TTL 20 s) every 2 s and drops the VIP from wg0 after 10 s
-# without a renewal; every member follows the claims in etcd and routes
-# the VIP to its holder; the other node of the pair claims once the
-# holder's lease expired. It changes wg0's addresses and WireGuard's
-# allowed-ips, so it holds CAP_NET_ADMIN and nothing else, and writes
-# only /var/lib/keel/vip and /etc/wireguard. ExecStopPost drops every VIP
-# this node carries, however the controller stopped, so no VIP outlives
-# the process that renews its lease.
+# keel-overlay-vip: the VIP's root helper with etcd (handbook decision
+# 0049, third round; keel's docs/vip.md), split as keel#75 splits an
+# invite. This unit is the root helper: it alone changes wg0's addresses
+# and WireGuard's allowed-ips, each checked against the pair record, so
+# it holds CAP_NET_ADMIN, and CAP_DAC_OVERRIDE to connect to the
+# controller's 0600 socket, which the controller's dynamic user owns;
+# nothing else. It reaches nothing but systemd and the kernel (AF_UNIX,
+# AF_NETLINK), and writes only /var/lib/keel/vip and /etc/wireguard. It starts the controller, which faces etcd and the
+# overlay, as the transient unit keel-vip-control: a dynamic user, no
+# capability at all, its socket 0600 in a 0700 runtime directory, its
+# peer checked by SO_PEERCRED against the unit's MainPID; it sends it the
+# etcd client certificate's key as a memfd. The holder renews its etcd
+# lease (TTL 20 s) every 2 s and carries the VIP only while the last
+# renewal the majority confirmed is under 10 s old. ExecStopPost drops
+# every VIP this node carries, however the helper stopped, and the unit
+# is never left stopped for good: a crash loop is retried.
 [Unit]
-Description=keel vip: the VIP's controller with etcd
+Description=keel vip: the VIP's root helper with etcd
 Documentation=https://github.com/Keel-Linux/keel/blob/main/docs/vip.md
 After=network-online.target etcd.service wg-quick@wg0.service
 Wants=network-online.target
 ConditionPathExists=/var/lib/keel/etcd/cluster.json
+StartLimitIntervalSec=0
 
 [Service]
 ExecStart=/usr/bin/keel vip tend
 ExecStopPost=/usr/bin/keel vip tend --stopped
 Restart=always
-RestartSec=2
-CapabilityBoundingSet=CAP_NET_ADMIN
+RestartSec=5
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_DAC_OVERRIDE
 NoNewPrivileges=yes
 PrivateTmp=yes
 PrivateDevices=yes
@@ -35,7 +42,7 @@ ProtectKernelLogs=yes
 ProtectControlGroups=yes
 ProtectClock=yes
 ProtectHostname=yes
-RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+RestrictAddressFamilies=AF_UNIX AF_NETLINK
 RestrictNamespaces=yes
 RestrictRealtime=yes
 LockPersonality=yes
