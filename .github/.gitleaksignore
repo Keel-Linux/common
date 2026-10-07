@@ -1,0 +1,31 @@
+# gitleaks false positives, by fingerprint. Each was read; none is a live secret.
+#
+# Chromium profile committed upstream in 2013 and removed since: the "key" fields are
+# the public keys that Chromium derives extension IDs from, and client_secret is the
+# OAuth secret of an installed-app client shipped inside a third-party extension, which
+# Google treats as non-confidential. Not Keel credentials.
+ef6242c9b6d76ac5d3327f0d04c53b3b11bc8d66:.config/chromium/Default/Extensions/alelhddbbhepgpmgidjdcjakblofbmce/3.5.8_0/javascripts/edit.js:generic-api-key:23
+ef6242c9b6d76ac5d3327f0d04c53b3b11bc8d66:.config/chromium/Default/Extensions/alelhddbbhepgpmgidjdcjakblofbmce/3.5.8_0/javascripts/edit.js:generic-api-key:2409
+ef6242c9b6d76ac5d3327f0d04c53b3b11bc8d66:.config/chromium/Default/Extensions/alelhddbbhepgpmgidjdcjakblofbmce/3.5.8_0/manifest.json:generic-api-key:37
+ef6242c9b6d76ac5d3327f0d04c53b3b11bc8d66:.config/chromium/Default/Extensions/cfhdojbkjhnklbpkdaibdccddilifddb/1.6.1_0/manifest.json:generic-api-key:25
+ef6242c9b6d76ac5d3327f0d04c53b3b11bc8d66:.config/chromium/Default/Extensions/dbepggeogbaibhgnhhndojpepiihcmeb/1.44_0/manifest.json:generic-api-key:22
+ef6242c9b6d76ac5d3327f0d04c53b3b11bc8d66:.config/chromium/Default/Extensions/mfidmkgnfgnkihnjeklbekckimkipmoe/3.3.15_0/manifest.json:generic-api-key:17
+ef6242c9b6d76ac5d3327f0d04c53b3b11bc8d66:.config/chromium/Default/Extensions/nmmhkkegccagdldgiimedpiccmgmieda/0.0.5.0_0/manifest.json:generic-api-key:15
+ef6242c9b6d76ac5d3327f0d04c53b3b11bc8d66:.config/chromium/Default/Preferences:generic-api-key:111
+ef6242c9b6d76ac5d3327f0d04c53b3b11bc8d66:.config/chromium/Default/Preferences:generic-api-key:176
+ef6242c9b6d76ac5d3327f0d04c53b3b11bc8d66:.config/chromium/Default/Preferences:generic-api-key:247
+ef6242c9b6d76ac5d3327f0d04c53b3b11bc8d66:.config/chromium/Default/Preferences:generic-api-key:308
+ef6242c9b6d76ac5d3327f0d04c53b3b11bc8d66:.config/chromium/Default/Preferences:generic-api-key:338
+ef6242c9b6d76ac5d3327f0d04c53b3b11bc8d66:.config/chromium/Default/Preferences:generic-api-key:365
+ef6242c9b6d76ac5d3327f0d04c53b3b11bc8d66:.config/chromium/Default/Preferences:generic-api-key:407
+ef6242c9b6d76ac5d3327f0d04c53b3b11bc8d66:.config/chromium/Default/Preferences:generic-api-key:460
+#
+# TurnKey's placeholder SSL certificates of 2012-2015, in turnkeylinux/common's public
+# history for a decade and removed in 2015: every appliance regenerates its key at first
+# boot (inithooks), so no system depends on these keys.
+28ca5e90c497bccb29d75f720a416b5301ba927f:overlays/turnkey.d/sslcert/etc/ssl/certs/cert.pem:private-key:1
+745f3bd5d7b20a1c8dd5b6cf985e318ebffdf6af:overlays/turnkey.d/sslcert/etc/ssl/certs/cert.pem:private-key:1
+76efecfce694271a645b557d740518c570cb0cdf:overlays/turnkey.d/sslcert/etc/ssl/certs/cert.key:private-key:1
+a0867d25f838aaec3a20fa0760b5d5e407011c9b:overlays/turnkey.d/sslcert/etc/ssl/private/cert.key:private-key:1
+c180dded81faed87422aa4d0d43c2a7a16de7807:overlays/turnkey.d/sslcert/etc/ssl/private/cert.key:private-key:1
+c180dded81faed87422aa4d0d43c2a7a16de7807:overlays/turnkey.d/sslcert/etc/ssl/private/cert.pem:private-key:22

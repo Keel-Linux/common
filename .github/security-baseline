@@ -1,0 +1,45 @@
+# Security scan baseline (keel-linux/.github, security-scan.yml): findings
+# that were read and are not a risk, one per line, the fingerprint and why.
+bandit:B318:overlays/tomcat/usr/lib/inithooks/bin/tomcat.py:8bbef3fb9320 parses /etc/tomcat*/tomcat-users.xml, a root-owned local file written by the package, not untrusted XML
+semgrep:bash.lang.best-practice.useless-cat.useless-cat:conf/apache-ssl:68bc7b89e864 style only: useless cat in a pipeline
+semgrep:javascript.browser.security.wildcard-postmessage-configuration.wildcard-postmessage-configuration:overlays/ninjux/home/user/.config/chromium/Default/Extensions/nmmhkkegccagdldgiimedpiccmgmieda/0.0.5.0_0/craw_window.js:b020b4e7c6d2 third-party Chromium extension bundled in the ninjux overlay, not Keel code; postMessage within its own window
+shellcheck:SC1090:overlays/adminer/usr/lib/inithooks/firstboot.d/35adminer-mysqlpass:c57db62f520d shell lint, not a security risk: a sourced file whose path is computed, shellcheck cannot follow it
+shellcheck:SC1090:overlays/desktop/usr/lib/inithooks/firstboot.d/32userpass:c57db62f520d shell lint, not a security risk: a sourced file whose path is computed, shellcheck cannot follow it
+shellcheck:SC1090:overlays/pgsql/usr/lib/inithooks/firstboot.d/35pgsqlpass:c57db62f520d shell lint, not a security risk: a sourced file whose path is computed, shellcheck cannot follow it
+shellcheck:SC1090:overlays/samba-fileserver/usr/lib/inithooks/firstboot.d/35samba-container:c57db62f520d shell lint, not a security risk: a sourced file whose path is computed, shellcheck cannot follow it
+shellcheck:SC1090:overlays/tomcat/usr/lib/inithooks/firstboot.d/40tomcat:c57db62f520d shell lint, not a security risk: a sourced file whose path is computed, shellcheck cannot follow it
+shellcheck:SC1090:overlays/turnkey.d/etckeeper/usr/lib/inithooks/firstboot.d/92etckeeper:c57db62f520d shell lint, not a security risk: a sourced file whose path is computed, shellcheck cannot follow it
+shellcheck:SC1090:overlays/turnkey.d/tkl-bashlib/usr/local/src/tkl-bashlib/init.sh:cac42c95ef42 shell lint, not a security risk: a sourced file whose path is computed, shellcheck cannot follow it
+shellcheck:SC1090:overlays/vcs-passwd/usr/lib/inithooks/firstboot.d/35vcs-passwd:c57db62f520d shell lint, not a security risk: a sourced file whose path is computed, shellcheck cannot follow it
+shellcheck:SC1090:overlays/web2py/usr/lib/inithooks/firstboot.d/40web2py:c57db62f520d shell lint, not a security risk: a sourced file whose path is computed, shellcheck cannot follow it
+shellcheck:SC2027:conf/nodejs-pm2-tklwebcp:2f8e01a5030c shell lint, not a security risk: nested quotes in a su -c string built from build-time variables
+shellcheck:SC2034:conf/nodejs-pm2-tklwebcp:83e3200ec0cd shell lint, not a security risk: a variable read by a sourcing script or left unused
+shellcheck:SC2034:conf/nodejs-pm2-tklwebcp:e2bf672c0bbb shell lint, not a security risk: a variable read by a sourcing script or left unused
+shellcheck:SC2034:conf/web2py:83e3200ec0cd shell lint, not a security risk: a variable read by a sourcing script or left unused
+shellcheck:SC2034:overlays/mysql/usr/local/bin/turnkey-mysql-install-perf-info-schemas:012cb66ac465 shell lint, not a security risk: a variable read by a sourcing script or left unused
+shellcheck:SC2034:overlays/turnkey.d/lsof-restart-services/usr/local/sbin/lsof-restart-services:b36a7c8aa9e8 shell lint, not a security risk: a variable read by a sourcing script or left unused
+shellcheck:SC2034:overlays/turnkey.d/tkl-bashlib/usr/local/src/tkl-bashlib/wait_until.bash:0567de50dfd8 shell lint, not a security risk: a variable read by a sourcing script or left unused
+shellcheck:SC2046:overlays/suspend-patches/etc/pm/sleep.d/45sound:d33c40a15213 shell lint, not a security risk: unquoted command substitution over values the script itself produces
+shellcheck:SC2060:overlays/samba-fileserver/usr/lib/inithooks/firstboot.d/35samba-container:b06431811a14 shell lint, not a security risk: unquoted tr ranges, a glob match is only possible with odd files in the cwd
+shellcheck:SC2060:overlays/samba-fileserver/usr/lib/inithooks/firstboot.d/35samba-sudoadmin:697d8535d183 shell lint, not a security risk: unquoted tr ranges, a glob match is only possible with odd files in the cwd
+shellcheck:SC2068:overlays/desktop/usr/local/bin/vim:c628c2f4da3d shell lint, not a security risk: unquoted array expansion of the script's own arguments
+shellcheck:SC2068:overlays/turnkey.d/tkl-bashlib/usr/local/src/tkl-bashlib/init.sh:146d1f62f7be shell lint, not a security risk: unquoted array expansion of the script's own arguments
+shellcheck:SC2091:overlays/turnkey.d/tkl-bashlib/usr/local/src/tkl-bashlib/wait_til_ready.bash:9157dbfa40ed shell lint, not a security risk: $(...) used as a condition, a correctness defect, no input reaches it
+shellcheck:SC2120:overlays/turnkey.d/tkl-bashlib/usr/local/src/tkl-bashlib/wait_til_ready.bash:ccfa91d702cc shell lint, not a security risk: a function's optional arguments are never passed
+shellcheck:SC2145:overlays/composer/usr/local/bin/turnkey-composer:6bfc624b7b3b shell lint, not a security risk: "$@" mixed into a message string, affects only log text
+shellcheck:SC2145:overlays/mysql/usr/local/bin/turnkey-mysql-install-perf-info-schemas:9fac417dfd02 shell lint, not a security risk: "$@" mixed into a message string, affects only log text
+shellcheck:SC2145:overlays/mysql/usr/local/bin/turnkey-mysql-install-perf-info-schemas:c6853f6a46c6 shell lint, not a security risk: "$@" mixed into a message string, affects only log text
+shellcheck:SC2145:overlays/mysql/usr/local/bin/turnkey-mysql-install-perf-info-schemas:fa6e746708b3 shell lint, not a security risk: "$@" mixed into a message string, affects only log text
+shellcheck:SC2145:overlays/turnkey.d/tkl-bashlib/usr/local/src/tkl-bashlib/init.sh:27c5bf270e99 shell lint, not a security risk: "$@" mixed into a message string, affects only log text
+shellcheck:SC2145:overlays/turnkey.d/tkl-bashlib/usr/local/src/tkl-bashlib/init.sh:537d546db8df shell lint, not a security risk: "$@" mixed into a message string, affects only log text
+shellcheck:SC2148:overlays/turnkey.d/tkl-bashlib/usr/local/src/tkl-bashlib/init.sh:bf2e42559f46 shell lint, not a security risk: a file meant to be sourced, with no shebang
+shellcheck:SC2154:overlays/turnkey.d/tkl-bashlib/usr/local/src/tkl-bashlib/wait_til_ready.bash:a0b0d290c5dd shell lint, not a security risk: misspelled variable, a correctness defect
+shellcheck:SC2157:overlays/mysql/usr/local/bin/turnkey-mysql-install-perf-info-schemas:f272c4cbb56f shell lint, not a security risk: always-true test, a correctness defect (cleanup never runs), not a risk
+shellcheck:SC2164:overlays/turnkey.d/tkl-bashlib/usr/local/src/tkl-bashlib/tkl_download.bash:57314f99b0bb shell lint, not a security risk: cd without a failure check in a build-time script
+shellcheck:SC2164:overlays/turnkey.d/tkl-bashlib/usr/local/src/tkl-bashlib/tkl_download.bash:b5ec174329ba shell lint, not a security risk: cd without a failure check in a build-time script
+shellcheck:SC2209:overlays/samba-fileserver/usr/lib/inithooks/firstboot.d/35samba-container:b06431811a14 shell lint, not a security risk: assigns a literal word, as intended
+shellcheck:SC2209:overlays/samba-fileserver/usr/lib/inithooks/firstboot.d/35samba-sudoadmin:f836df481e27 shell lint, not a security risk: assigns a literal word, as intended
+shellcheck:SC2254:overlays/turnkey.d/tkl-bashlib/usr/local/src/tkl-bashlib/wait_til_ready.bash:418fdf651acd shell lint, not a security risk: unquoted case pattern over a value the script controls
+shellcheck:SC2254:overlays/turnkey.d/tkl-bashlib/usr/local/src/tkl-bashlib/wait_til_ready.bash:48276e8209d8 shell lint, not a security risk: unquoted case pattern over a value the script controls
+shellcheck:SC2283:conf/turnkey.d/webmin-cats:00fa7f715d27 shell lint, not a security risk: echo of a literal '=Tools' line, as intended
+shellcheck:SC3028:conf/fileserver-storage:2ea0cdca0e17 shell lint, not a security risk: bash variable in an sh script, a correctness defect

@@ -1,3 +1,4 @@
 default-mysql-server
 python3-pymysql
 webmin-mysql
+mysqltuner
