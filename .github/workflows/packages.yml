@@ -64,7 +64,7 @@ permissions:
 
 jobs:
   build:
-    uses: keel-linux/.github/.github/workflows/lxc-trixie.yml@main
+    uses: keel-linux/.github/.github/workflows/lxc-trixie.yml@ci/node24-actions
     with:
       timeout: 20
       artifact-dir: dist
@@ -77,7 +77,7 @@ jobs:
 
   install:
     needs: build
-    uses: keel-linux/.github/.github/workflows/lxc-trixie.yml@main
+    uses: keel-linux/.github/.github/workflows/lxc-trixie.yml@ci/node24-actions
     with:
       systemd: true
       timeout: 30
@@ -130,7 +130,7 @@ jobs:
 
   web:
     needs: build
-    uses: keel-linux/.github/.github/workflows/lxc-trixie.yml@main
+    uses: keel-linux/.github/.github/workflows/lxc-trixie.yml@ci/node24-actions
     with:
       systemd: true
       backports: true

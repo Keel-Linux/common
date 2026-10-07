@@ -8,7 +8,7 @@ on:
     branches: [19.x]
 jobs:
   tests:
-    uses: keel-linux/.github/.github/workflows/test-shell.yml@main
+    uses: keel-linux/.github/.github/workflows/test-shell.yml@ci/node24-actions
     with:
       threshold: 100
       # tests/anubis-signing-key.bats: packages/anubis/spec-key reads the
