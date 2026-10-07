@@ -261,10 +261,15 @@ assert_simple_state() {
         run systemctl is-active keel-vip-check.timer
         [ "$output" = inactive ]
     fi
-    run systemctl show -p PartOf --value keel-vip-check.timer
-    [ "$output" = keel-vip.service ]
-    run systemctl show -p Wants --value keel-vip.service
-    [[ " $output " == *" keel-vip-check.timer "* ]]
+    # the effective unit files as systemctl reads them: the timer is part of
+    # the controller, and the controller wants it
+    run systemctl cat keel-vip-check.timer
+    [ "$status" -eq 0 ]
+    grep -qx 'PartOf=keel-vip.service' <<<"$output"
+    run ! grep -q '^\[Install\]' <<<"$output"
+    run systemctl cat keel-vip.service
+    [ "$status" -eq 0 ]
+    grep -qE '^Wants=.*\bkeel-vip-check\.timer\b' <<<"$output"
 }
 
 @test "the VIP preset disables the controller and its check" {
