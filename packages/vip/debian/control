@@ -14,7 +14,7 @@ Package: keel-overlay-vip
 Architecture: all
 Depends:
  iproute2,
- keel (>= 0.20.0),
+ keel (>= 0.21.0),
  keel-overlay-wireguard,
  wireguard-tools,
  ${misc:Depends},
@@ -27,5 +27,6 @@ Description: Keel overlay: the service VIP of a replicated pair
  keel-vip.service is the VIP's root helper with etcd, which starts the
  unprivileged controller as its own transient unit; installed disabled and
  stopped: keel spec apply enables it with the overlay. keel-vip-check.timer
- runs keel vip check at boot and every minute in every mode; a node that
- knows no VIP skips it.
+ runs keel vip check at boot and every minute while the controller runs.
+ An upgrade of this package or of keel try-restarts the controller where
+ it runs, which keeps the VIP on the holder.

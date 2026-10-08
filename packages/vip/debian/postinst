@@ -1,0 +1,35 @@
+#!/bin/sh
+# keel-overlay-vip: keel-vip.service restarted where it runs, never
+# stopped first and never started where it was not running, on an upgrade
+# of this package and when keel's code changes (debian/triggers: an
+# upgrade of keel). The restart keeps the VIP on the holder: the address
+# carries a lifetime the kernel ends by the release time of the last
+# renewal the majority confirmed, ExecStopPost keeps it while the unit
+# restarts, and the next controller renews the same lease (keel's
+# docs/vip.md, "Upgrading a pair without downtime"). keel-vip-check.timer
+# is PartOf keel-vip.service and restarts with it. A first installation
+# changes nothing: both units stay disabled and stopped (decision 0041).
+set -e
+
+restart() {
+    if [ -d /run/systemd/system ]; then
+        systemctl --system daemon-reload >/dev/null || true
+        # deb-systemd-invoke honours policy-rc.d, as an image build needs
+        deb-systemd-invoke try-restart keel-vip.service || true
+    fi
+}
+
+case "$1" in
+    configure)
+        if [ -n "$2" ]; then
+            restart
+        fi
+        ;;
+    triggered)
+        restart
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0
