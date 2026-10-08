@@ -12,9 +12,14 @@
 # unit's MainPID); it sends it the etcd client certificate's key as a
 # memfd. The holder renews its etcd lease (TTL 20 s) every 2 s and
 # carries the VIP only while the last renewal the majority confirmed is
-# under 10 s old. ExecStopPost drops every VIP this node carries, however
-# the helper stopped, and the unit is never left stopped for good: a
-# crash loop is retried.
+# under 10 s old, and gives the address the rest of those 10 s as its
+# lifetime, so the kernel removes it by then whatever becomes of the
+# controller. ExecStopPost drops every VIP this node carries, except
+# while the unit restarts (an upgrade's try-restart, or a crash that
+# Restart= starts again 2 s later): then the address stays for its
+# lifetime and the next controller renews the same lease, so an upgrade
+# keeps the VIP. The unit is never left stopped for good: a crash loop
+# is retried.
 [Unit]
 Description=keel vip: the VIP's root helper with etcd
 Documentation=https://github.com/Keel-Linux/keel/blob/main/docs/vip.md
@@ -27,7 +32,7 @@ StartLimitIntervalSec=0
 ExecStart=/usr/bin/keel vip tend
 ExecStopPost=/usr/bin/keel vip tend --stopped
 Restart=always
-RestartSec=5
+RestartSec=2
 CapabilityBoundingSet=CAP_NET_ADMIN
 NoNewPrivileges=yes
 PrivateTmp=yes

@@ -1,0 +1,4 @@
+# keel's code, which keel-vip.service runs: an upgrade of keel try-restarts
+# it (debian/postinst), so the helper and its controller run the new code
+# rather than old code that imports new modules as it goes
+interest-noawait /usr/lib/python3/dist-packages/keel

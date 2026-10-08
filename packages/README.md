@@ -11,8 +11,8 @@ directory each, with its own changelog and version, released on its own
 | --- | --- | --- | --- |
 | `installer/` | `keel-overlay-installer` | Keel's `inithooks` (>= 2.3.6+keel14), `confconsole` (>= 2.2.3+keel8), `keel` (>= 0.12.0) | none; its manifest names the first boot hooks the three ship |
 | `wireguard/` | `keel-overlay-wireguard` | trixie's `wireguard-tools` 1.0.20210914 | none; the interface is the instance spec's |
-| `etcd/` | `keel-overlay-etcd` | trixie's `etcd-server` 3.5.16, and `keel-overlay-wireguard`, which its manifest `requires` | `etcd.service` |
-| `vip/` | `keel-overlay-vip` | `keel` (>= 0.20.0), whose `keel vip` the units run, and `keel-overlay-wireguard`, which its manifest `requires` | `keel-vip.service`, the VIP's root helper with etcd, which starts its unprivileged controller as the transient `keel-vip-control`; and `keel-vip-check.timer`, enabled in every mode |
+| `etcd/` | `keel-overlay-etcd` | trixie's `etcd-server` 3.5.16, `keel` (>= 0.21.0), whose gate its drop-in runs, and `keel-overlay-wireguard`, which its manifest `requires` | `etcd.service`, and its drop-in `keel-overlay-etcd.conf`: one member restarts at a time |
+| `vip/` | `keel-overlay-vip` | `keel` (>= 0.21.0), whose `keel vip` the units run, and `keel-overlay-wireguard`, which its manifest `requires` | `keel-vip.service`, the VIP's root helper with etcd, which starts its unprivileged controller as the transient `keel-vip-control`; and `keel-vip-check.timer`, part of it |
 | `crowdsec/` | `keel-overlay-crowdsec` | trixie's `crowdsec` 1.4.6-10 and `crowdsec-firewall-bouncer` 0.0.25 | `crowdsec.service`, `crowdsec-firewall-bouncer.service` |
 | `nginx/` | `keel-overlay-nginx` | trixie's `nginx` 1.26.3 and `libnginx-mod-stream` | `nginx.service`, enabled in every mode |
 | `coraza/` | `keel-overlay-coraza` | Keel's `libnginx-mod-http-coraza` 0.21.0 and `coreruleset` 4.25.1 (step 5), and `keel-overlay-nginx` | none: an Nginx module; `/usr/lib/keel/overlays/coraza/state` turns it on and off |
@@ -137,6 +137,35 @@ none of the units is masked.
 `systemctl preset-all` run by hand disables the units again, even where the
 spec enabled them; `keel diff` reports that as drift and `keel apply`
 converges it.
+
+## Upgrades where the VIP is active
+
+The maintainer's requirement of 2026-10-10: upgrading packages never
+breaks the service on a machine where the VIP is active, beyond a short
+blip that keel's CI measures (keel's `docs/vip.md`, "Upgrading a pair
+without downtime").
+
+- **keel-overlay-vip** is built with `--no-stop-on-upgrade`. Its preinst
+  stops nothing, and its postinst try-restarts `keel-vip.service` where it
+  runs, and starts it nowhere it does not. 0.1.1's `--no-start` alone made
+  the preinst stop the controller and its check on every upgrade and
+  start neither again. A file trigger on keel's Python files
+  (`/usr/lib/python3/dist-packages/keel`) try-restarts it on an upgrade of
+  keel too, so the helper runs the new code. The restart keeps the VIP:
+  keel (>= 0.21.0) carries the address with a lifetime the kernel ends at
+  the release time, keeps it in ExecStopPost while the unit restarts, and
+  renews the same lease from the new controller.
+- **keel-overlay-etcd** ships a drop-in of `etcd.service`. Its ExecStop
+  runs `keel mesh etcd gate stop`, and its ExecStartPost runs `keel mesh
+  etcd gate started`. etcd-server's postinst restarts etcd on every
+  upgrade. The gate makes that restart wait until every other member is
+  healthy and none restarts, so two members upgraded at once never lose
+  the majority. A stop is never refused for good.
+- `tests/overlay-install.bats` checks four cases on a booted trixie
+  container, upgrading to a built package with a bumped version: a
+  running controller restarted, a stopped one left stopped, an upgrade of
+  keel restarting it through the trigger, and etcd restarting through its
+  gate.
 
 ## CrowdSec's identity: work for step 4 (tracker#47)
 

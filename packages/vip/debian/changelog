@@ -1,3 +1,22 @@
+keel-overlay-vip (0.2.0) trixie; urgency=medium
+
+  * An upgrade keeps the VIP (the maintainer's requirement of
+    2026-10-10). 0.1.1's dh_installsystemd --no-start made the preinst
+    stop keel-vip.service and its check on every upgrade and nothing start
+    them again: the holder dropped the VIP and the replica had no
+    controller to claim it, until a reboot. With --no-stop-on-upgrade the
+    preinst stops nothing, and the postinst try-restarts keel-vip.service
+    where it runs, never starting it where it does not.
+  * A trigger on keel's Python files try-restarts it when keel is
+    upgraded, so the helper runs the new code.
+  * Depends on keel (>= 0.21.0), whose controller keeps the address over
+    a restart: a lifetime the kernel ends by the release time, kept by
+    ExecStopPost while the unit restarts, the same lease renewed by the
+    next controller. RestartSec=2, so a crashed helper is back well within
+    the address's lifetime.
+
+ -- KeelLinux maintainers <admin@keellinux.org>  Thu, 08 Oct 2026 12:00:00 +0000
+
 keel-overlay-vip (0.1.1) trixie; urgency=medium
 
   * Every unit is off on the first installation, like the other overlays

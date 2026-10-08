@@ -1,3 +1,21 @@
+keel-overlay-etcd (0.3.0) trixie; urgency=medium
+
+  * etcd restarted one member at a time (the maintainer's requirement of
+    2026-10-10: an upgrade never breaks the service where the VIP is
+    active). etcd-server's postinst restarts etcd on every upgrade and
+    knows nothing of the other members, so apt run on two of three
+    members at once lost the majority while both restarted. A drop-in of
+    etcd.service, keel-overlay-etcd.conf, runs keel mesh etcd gate stop
+    as its ExecStop: it waits until every other voter is healthy and no
+    other member restarts, then takes the mesh's restart lock; and keel
+    mesh etcd gate started as its ExecStartPost, which releases it once
+    this member is back in the majority. A stop is never refused for
+    good (300 s, then it goes on; none at shutdown), and a node in no
+    etcd cluster passes at once.
+  * Depends on keel (>= 0.21.0), which has the gate.
+
+ -- KeelLinux maintainers <admin@keellinux.org>  Thu, 08 Oct 2026 12:00:00 +0000
+
 keel-overlay-etcd (0.2.0) trixie; urgency=medium
 
   * Monit's etcd-health check asks /health on etcd's plain metrics

@@ -49,6 +49,14 @@ teardown() {
     # a test that died while it played an image build gives systemd back
     # its marker before anything else asks whether systemd runs
     restore_systemd_marker
+    # a test that let the maintainer scripts act on units puts fab's
+    # policy-rc.d back, and stops the VIP controller's stand-in
+    restore_policy
+    if [ -e "$VIP_STAND_IN" ]; then
+        systemctl stop keel-vip.service >/dev/null 2>&1 || true
+        rm -rf "${VIP_STAND_IN%/*}"
+        systemctl daemon-reload
+    fi
     # a test that enabled a unit to play keel apply leaves it as it found it
     if [ -n "${ENABLED_BY_TEST:-}" ]; then
         systemctl disable $ENABLED_BY_TEST >/dev/null 2>&1 || true
@@ -172,6 +180,44 @@ assert_enabled_state() {
     run systemctl is-enabled "$unit"
     echo "systemctl is-enabled $unit: $output"
     [ "$output" = "$expected" ]
+}
+
+# fab's policy-rc.d, which the CI job writes and which refuses every
+# action of deb-systemd-invoke, moved aside for a test that needs the
+# maintainer scripts to act on units as on a running machine; teardown
+# puts it back
+POLICY=/usr/sbin/policy-rc.d
+POLICY_HIDDEN=/usr/sbin/policy-rc.d.keel-test
+
+allow_unit_actions() {
+    if [ -e "$POLICY" ]; then
+        mv "$POLICY" "$POLICY_HIDDEN"
+    fi
+}
+
+restore_policy() {
+    if [ -e "$POLICY_HIDDEN" ]; then
+        mv "$POLICY_HIDDEN" "$POLICY"
+    fi
+}
+
+# keel-vip.service with its ExecStart replaced by a sleep, and its
+# condition on etcd's cluster lifted: what the maintainer scripts do to
+# the unit is under test here, not the VIP, which keel's CI measures end
+# to end (keel's tests/test_vip_upgrade_netns.py). A runtime drop-in,
+# which teardown removes.
+VIP_STAND_IN=/run/systemd/system/keel-vip.service.d/keel-test.conf
+
+vip_stand_in() {
+    mkdir -p "${VIP_STAND_IN%/*}"
+    printf '%s\n' "[Unit]" "ConditionPathExists=" "[Service]" \
+        "ExecStart=" "ExecStart=/bin/sleep infinity" "ExecStopPost=" \
+        > "$VIP_STAND_IN"
+    systemctl daemon-reload
+}
+
+invocation() {
+    systemctl show --property=InvocationID --value "$1"
 }
 
 assert_active_state() {
@@ -429,6 +475,80 @@ assert_simple_state() {
     assert_enabled_state crowdsec.service enabled
     assert_active_state crowdsec.service active
     assert_enabled_state crowdsec-firewall-bouncer.service disabled
+}
+
+@test "an upgrade of keel-overlay-vip restarts a running controller, never stops it for good" {
+    systemd_running || skip "systemd does not run here"
+    vip_stand_in
+    allow_unit_actions
+    systemctl start keel-vip.service
+    local before
+    before="$(invocation keel-vip.service)"
+
+    dpkg -i "$(with_version "$(overlay_deb vip)" 0.2.0+keeltest1)"
+
+    # 0.1.1's preinst stopped it and nothing started it again: the holder
+    # dropped the VIP until a reboot. Now it is try-restarted: running,
+    # as a new invocation, its check's timer with it
+    assert_active_state keel-vip.service active
+    [ "$(invocation keel-vip.service)" != "$before" ]
+    assert_active_state keel-vip-check.timer active
+    # and back to the built package, a configuration over a newer version
+    dpkg -i "$(overlay_deb vip)"
+    assert_active_state keel-vip.service active
+}
+
+@test "an upgrade of keel-overlay-vip starts no controller that was stopped" {
+    systemd_running || skip "systemd does not run here"
+    vip_stand_in
+    allow_unit_actions
+    systemctl stop keel-vip.service
+
+    dpkg -i "$(with_version "$(overlay_deb vip)" 0.2.0+keeltest2)"
+
+    assert_active_state keel-vip.service inactive
+    assert_active_state keel-vip-check.timer inactive
+    assert_enabled_state keel-vip.service disabled
+    dpkg -i "$(overlay_deb vip)"
+}
+
+@test "an upgrade of keel restarts the VIP controller, so it runs the new code" {
+    systemd_running || skip "systemd does not run here"
+    [ -n "${KEEL_DEB:-}" ] || skip "KEEL_DEB names no keel package to upgrade to"
+    vip_stand_in
+    allow_unit_actions
+    systemctl start keel-vip.service
+    local before
+    before="$(invocation keel-vip.service)"
+
+    # keel's files under /usr/lib/python3/dist-packages/keel activate
+    # keel-overlay-vip's trigger, whose postinst try-restarts the unit
+    dpkg -i "$(with_version "$KEEL_DEB" "$(dpkg-deb -f "$KEEL_DEB" Version)+keeltest1")"
+
+    assert_active_state keel-vip.service active
+    [ "$(invocation keel-vip.service)" != "$before" ]
+    dpkg -i "$KEEL_DEB"
+}
+
+@test "etcd restarts through keel's gate, which a node in no cluster passes at once" {
+    run systemctl cat etcd.service
+    [ "$status" -eq 0 ]
+    grep -qx 'ExecStop=+/usr/bin/keel mesh etcd gate stop' <<<"$output"
+    grep -qx 'ExecStartPost=-+/usr/bin/keel mesh etcd gate started' <<<"$output"
+    grep -qx 'TimeoutStopSec=330' <<<"$output"
+    # the gate itself, as root, on this machine in no etcd cluster
+    run keel mesh etcd gate stop --wait 0
+    [ "$status" -eq 0 ]
+    run keel mesh etcd gate started --wait 0
+    [ "$status" -eq 0 ]
+    systemd_running || return 0
+    enable_unit etcd.service
+    local started
+    started="$(date +%s)"
+    systemctl restart etcd.service
+    assert_active_state etcd.service active
+    # nothing to wait for: well under the gate's own wait
+    [ $(( $(date +%s) - started )) -lt 60 ]
 }
 
 @test "keel apply can still enable the units: none of them is masked" {

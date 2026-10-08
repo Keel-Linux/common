@@ -14,7 +14,7 @@ Package: keel-overlay-etcd
 Architecture: all
 Depends:
  etcd-server (>= 3.5.16),
- keel (>= 0.12.0),
+ keel (>= 0.21.0),
  keel-overlay-wireguard,
  ${misc:Depends},
 Description: Keel overlay: etcd, the mesh registry
@@ -29,3 +29,8 @@ Description: Keel overlay: etcd, the mesh registry
  spec says so. On a running system where etcd was already enabled or
  running before this package, it is left as it was; an image build always
  ends with it disabled.
+ .
+ A drop-in of etcd.service restarts etcd one member at a time: before it
+ stops, keel mesh etcd gate waits until every other member is healthy and
+ none restarts, so an upgrade of etcd-server on several members at once
+ never loses the cluster's majority.

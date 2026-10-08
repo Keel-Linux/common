@@ -22,7 +22,13 @@ execute_after_dh_auto_install:
 		$(PKG)/usr/lib/systemd/system-preset/20-keel-overlay-vip.preset
 
 # The controller is installed disabled and stopped, the state of a simple
-# installation: keel spec apply enables it with the overlay. The check's
-# timer runs in every mode.
+# installation: keel spec apply enables it with the overlay.
+# --no-stop-on-upgrade: without it, --no-start makes the preinst stop both
+# units on every upgrade and nothing start them again, which dropped the
+# VIP on the holder and left the replica without a controller. The
+# postinst try-restarts keel-vip.service instead, on an upgrade of this
+# package and of keel (debian/triggers), which keeps the VIP (keel's
+# docs/vip.md, "Upgrading a pair without downtime").
 override_dh_installsystemd:
-	dh_installsystemd --no-enable --no-start keel-vip.service keel-vip-check.timer
+	dh_installsystemd --no-enable --no-start --no-stop-on-upgrade \
+		keel-vip.service keel-vip-check.timer

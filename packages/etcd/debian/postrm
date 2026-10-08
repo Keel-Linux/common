@@ -10,6 +10,11 @@ set -e
 
 KEPT=/var/lib/keel-overlay-etcd/kept-units
 
+# the drop-in of etcd.service gone: systemd forgets it
+if [ "$1" = remove ] && [ -d /run/systemd/system ]; then
+    systemctl --system daemon-reload >/dev/null || true
+fi
+
 if [ "$1" = purge ] || [ "$1" = abort-install ]; then
     rm -f "$KEPT" /var/lib/keel-overlay-etcd/no-member-before \
         /var/lib/keel-overlay-etcd/package-member
