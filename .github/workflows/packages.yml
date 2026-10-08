@@ -46,9 +46,9 @@
 #
 # keel, inithooks and confconsole are not published yet (Keel-Linux/apt:
 # the signing subkey is being rotated), so they are built here from the
-# commits pinned below: keel 0.21.0 (Keel-Linux/keel#87, which
-# keel-overlay-vip 0.2.0 and keel-overlay-etcd 0.3.0 depend on: pin its
-# merge commit once it is merged), inithooks
+# commits pinned below: keel 0.21.0 (the merge of Keel-Linux/keel#87,
+# which keel-overlay-vip 0.2.0 and keel-overlay-etcd 0.3.0 depend on),
+# inithooks
 # 2.3.6+keel14 and confconsole 2.2.3+keel8, the versions
 # keel-overlay-installer depends on; and keel 0.14.0 for the Web overlays,
 # whose spec side the suite reads. Their own tests are their CI's. Their
@@ -86,7 +86,7 @@ jobs:
       download: overlay-debs
       download-dir: dist
       run: |
-        KEEL_COMMIT=921d382fb24a5a3d1b05a9d8646e1fa3f044205f
+        KEEL_COMMIT=ebede2e08ac74332c36a81fde0a7575a7e1ffd60
         INITHOOKS_COMMIT=2543d506590a17a762a4288e2ee99b0a3c160386
         CONFCONSOLE_COMMIT=71828736ca7e99fff1d99ce5e9e9002c24dbd8b2
         apt-get update -qq
