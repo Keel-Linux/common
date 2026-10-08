@@ -1,0 +1,8 @@
+#!/bin/bash -e
+
+# If DEBUG=y add debug options to grub (conf/turnkey.d/journald-no-wall is
+# the other half, which a container needs too)
+
+if [[ $DEBUG = 'y' ]]; then
+    sed -i '/^GRUB_CMDLINE_LINUX=/ s|"\(.*\)"|"\1 debug ignore_loglevel"|' /etc/default/grub
+fi

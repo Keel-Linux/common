@@ -1,39 +1,30 @@
-#include <boot>
+/* The kernel, the initrd, firmware, the bootloaders and the installer are
+   not here: they are in plans/keel-boot, which only the boot layer the ISO
+   is made from installs (handbook decision 0052). A layer built from this
+   plan is a container's: it runs on the host's kernel. systemd is the
+   init, which plans/boot used to bring. */
+systemd
+#ifdef DEBIAN
+systemd-sysv
+#endif
 #include <net>
 #include <console>
 
 wget
 curl
 rsync
-zstd                    /* if installed will be used to compress initramfs */
+zstd
 
 keel-archive-keyring    /* the key of archive.keellinux.org, overlays/turnkey.d/keel-apt */
 
-// Grub packages
-// * 'grub-pc' is required for legacy BIOS boot install
-// * 'grub-efi-amd64' is required for UEFI boot install
-// These grub packages conflict with one another but neither need be installed
-// within the live rootfs/squashfs - but are required for 'grub-install'.
-// We install grub-pc & ship grub-efi-amd64 deb (and deps) in the ISO.
-// If required, grub-efi-amd64 will be installed into the target chroot.
-grub-pc
-
-tkl-installer           /* new custom TKL installer - replaces di-live */
-
-efivar                  /* installer depends - ISO UEFI boot */
-lvm2                    /* installer recommends */
-file                    /* installer recommends */
-eject                   /* installer recommends */
+lvm2                    /* webmin-lvm depends; the installer recommends */
+file
 
 confconsole
 kbd                     /* confconsole recommends */
 resolvconf              /* confconsole recommends */
 
 dbus                    /* dbus installed by default since v18.x */
-
-// jiiterentropy-rngd provides entropy from cpu jitter; req'd to seed entropy
-// in early boot (especially useful when live booting).
-jitterentropy-rngd
 
 /* tklbam, hubdns and webmin-tklbam are not installed: backup is Keel Backup
    (handbook decision 0040) and DNS registration is Keel Cloud, and neither
@@ -95,13 +86,7 @@ bsd-mailx
 postfix
 webmin-postfix
 
-qemu-guest-agent        /* QEMU/KVM guest tools - as requested in #1356 */
-
 authbind                /* add-water (confconsole lets encrypt) depends */
 dehydrated              /* add-water (confconsole lets encrypt) recommends (actually depends) */
 python3-bottle          /* add-water (confconsole lets encrypt) depends */
 python3-requests        /* confconsole lets encrypt recommends (actually depends) */
-
-//ifndef CHROOT_ONLY
-acpi-support-base
-//endif
