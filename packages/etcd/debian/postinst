@@ -54,6 +54,12 @@ if [ "$1" = configure ] && [ -z "$2" ]; then
     rmdir "${KEPT%/*}" 2>/dev/null || :
 fi
 
+# the drop-in of etcd.service (etcd restarted one member at a time) read
+# by systemd, on every configuration; it starts nothing
+if [ "$1" = configure ] && [ -d /run/systemd/system ]; then
+    systemctl --system daemon-reload >/dev/null || true
+fi
+
 #DEBHELPER#
 
 exit 0
