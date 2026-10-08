@@ -6,8 +6,8 @@
 # This suite changes the machine it runs on: it removes, installs and
 # reinstalls packages and enables and disables units. It runs only where
 # KEEL_OVERLAY_INSTALL_TEST=1 says the machine is disposable, as root, after
-# the four keel-overlay-* packages have been installed with their
-# dependencies. OVERLAY_DEBS names the directory holding the four .deb files
+# the five keel-overlay-* packages have been installed with their
+# dependencies. OVERLAY_DEBS names the directory holding the five .deb files
 # (default dist/ of the repository). The CI job "install" runs it in a
 # booted trixie LXC container, where systemd is PID 1 and the is-active
 # assertions are made as well; in a machine where systemd does not run
@@ -22,9 +22,9 @@
 
 bats_require_minimum_version 1.5.0
 
-OVERLAYS=(installer wireguard etcd crowdsec)
+OVERLAYS=(installer wireguard etcd crowdsec vip)
 # the units the simple installation of Keel Core keeps disabled and stopped
-DISABLED_UNITS=(etcd.service crowdsec.service crowdsec-firewall-bouncer.service)
+DISABLED_UNITS=(etcd.service crowdsec.service crowdsec-firewall-bouncer.service keel-vip.service)
 
 setup_file() {
     if [ "${KEEL_OVERLAY_INSTALL_TEST:-}" != 1 ]; then
@@ -192,7 +192,7 @@ assert_simple_state() {
 
 # ------------------------------------------------------------ the packages
 
-@test "the four overlay packages are installed" {
+@test "the five overlay packages are installed" {
     local name
     for name in "${OVERLAYS[@]}"; do
         run dpkg-query -W -f='${db:Status-Status}' "keel-overlay-$name"
@@ -250,6 +250,31 @@ assert_simple_state() {
     fi
     run systemctl is-active etcd.service
     [ "$output" != active ]
+}
+
+@test "the VIP check timer is not enabled and not running: it belongs to the controller" {
+    run systemctl is-enabled keel-vip-check.timer
+    echo "$output"
+    # no [Install]: systemd reports static, never enabled
+    [ "$output" = static ]
+    if systemd_running; then
+        run systemctl is-active keel-vip-check.timer
+        [ "$output" = inactive ]
+    fi
+    # the effective unit files as systemctl reads them: the timer is part of
+    # the controller, and the controller wants it
+    run systemctl cat keel-vip-check.timer
+    [ "$status" -eq 0 ]
+    grep -qx 'PartOf=keel-vip.service' <<<"$output"
+    run ! grep -q '^\[Install\]' <<<"$output"
+    run systemctl cat keel-vip.service
+    [ "$status" -eq 0 ]
+    grep -qE '^Wants=.*\bkeel-vip-check\.timer\b' <<<"$output"
+}
+
+@test "the VIP preset disables the controller and its check" {
+    grep -qx 'disable keel-vip.service' /usr/lib/systemd/system-preset/20-keel-overlay-vip.preset
+    grep -qx 'disable keel-vip-check.timer' /usr/lib/systemd/system-preset/20-keel-overlay-vip.preset
 }
 
 @test "the preset systemd applies at first boot says disabled for each unit" {

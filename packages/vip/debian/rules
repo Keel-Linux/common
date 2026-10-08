@@ -25,5 +25,4 @@ execute_after_dh_auto_install:
 # installation: keel spec apply enables it with the overlay. The check's
 # timer runs in every mode.
 override_dh_installsystemd:
-	dh_installsystemd --no-enable --no-start keel-vip.service
-	dh_installsystemd keel-vip-check.timer
+	dh_installsystemd --no-enable --no-start keel-vip.service keel-vip-check.timer

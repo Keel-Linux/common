@@ -1,3 +1,18 @@
+keel-overlay-vip (0.1.1) trixie; urgency=medium
+
+  * Every unit is off on the first installation, like the other overlays
+    (handbook decision 0041). keel-vip-check.timer was enabled by
+    dh_installsystemd, whose was-enabled defaults to true and which does not
+    read the preset, so a standalone machine ran the check every minute.
+    The timer now has no [Install]: keel-vip.service wants it and it is
+    PartOf the controller, so the check runs exactly while keel spec apply
+    keeps the VIP enabled, and stops with it. Both units are installed with
+    --no-enable --no-start and both are disabled in the preset.
+    tests/overlay-install.bats installs the package on a booted trixie
+    machine and asserts both are disabled and inactive.
+
+ -- KeelLinux maintainers <admin@keellinux.org>  Wed, 07 Oct 2026 23:22:41 +0000
+
 keel-overlay-vip (0.1.0) trixie; urgency=medium
 
   * First release: the units of keel's service VIP on the WireGuard mesh

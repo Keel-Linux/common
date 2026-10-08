@@ -1,13 +1,15 @@
 # keel-overlay-vip: keel vip check at boot and every minute (handbook
-# decision 0049: "at boot and on a timer"). It runs in every mode: on a
-# node that knows no VIP the service's condition skips it.
+# decision 0049: "at boot and on a timer"), while the VIP controller runs.
+# The check belongs to the controller: keel-vip.service wants it and this
+# timer is part of it, so it starts and stops with the controller. It has
+# no install section of its own, so nothing enables it by itself, neither
+# the package's installation nor a preset (handbook decision 0041: an
+# overlay's units are off until keel spec apply enables the overlay).
 [Unit]
 Description=keel vip: check the VIPs at boot and every minute
+PartOf=keel-vip.service
 
 [Timer]
 OnBootSec=30s
 OnUnitActiveSec=1min
 AccuracySec=5s
-
-[Install]
-WantedBy=timers.target

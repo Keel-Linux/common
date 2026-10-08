@@ -1,5 +1,8 @@
-# keel-overlay-vip: the controller is off until keel spec apply enables
-# the overlay (handbook decision 0041): Debian's presets enable every unit
-# they do not name, on a first boot and on `systemctl preset-all`. The
-# check's timer stays enabled; its service skips a node that knows no VIP.
+# keel-overlay-vip: the controller and its check are off until keel spec
+# apply enables the overlay (handbook decision 0041): Debian's presets enable
+# every unit they do not name, on a first boot and on `systemctl
+# preset-all`. The check's timer has no [Install] and runs only while
+# keel-vip.service wants it; it is named here too, so no preset can turn it
+# on by itself.
 disable keel-vip.service
+disable keel-vip-check.timer
