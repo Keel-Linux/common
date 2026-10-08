@@ -86,7 +86,7 @@ jobs:
       download: overlay-debs
       download-dir: dist
       run: |
-        KEEL_COMMIT=13597f510b1f21a86d5c213a7e7a92ccf218c176
+        KEEL_COMMIT=921d382fb24a5a3d1b05a9d8646e1fa3f044205f
         INITHOOKS_COMMIT=2543d506590a17a762a4288e2ee99b0a3c160386
         CONFCONSOLE_COMMIT=71828736ca7e99fff1d99ce5e9e9002c24dbd8b2
         apt-get update -qq
