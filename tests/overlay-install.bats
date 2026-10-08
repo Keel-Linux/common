@@ -298,6 +298,18 @@ assert_simple_state() {
     [ "$output" != active ]
 }
 
+@test "etcdctl comes with the etcd overlay, from etcd-server's source version" {
+    # keel asks etcd with etcdctl over gRPC (Keel-Linux/keel#83)
+    command -v etcdctl
+    run dpkg-query -W -f='${source:Package} ${source:Version}' etcd-client
+    [ "$status" -eq 0 ]
+    local client="$output"
+    run dpkg-query -W -f='${source:Package} ${source:Version}' etcd-server
+    [ "$status" -eq 0 ]
+    echo "etcd-client: $client; etcd-server: $output"
+    [ "$client" = "$output" ]
+}
+
 @test "the VIP check timer is not enabled and not running: it belongs to the controller" {
     run systemctl is-enabled keel-vip-check.timer
     echo "$output"

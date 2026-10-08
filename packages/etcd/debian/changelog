@@ -1,3 +1,18 @@
+keel-overlay-etcd (0.4.0) trixie; urgency=medium
+
+  * Depends on etcd-client, the same upstream version as etcd-server
+    (3.5.16; both from Debian's etcd source, so the binary versions can
+    not be tied with ${source:Version} from this package's source, and
+    both are bounded to that upstream release instead): keel asks etcd
+    with etcdctl over gRPC, the only way etcd takes a client
+    certificate's CN as its user, and turns etcd's JSON gateway off
+    (Keel-Linux/keel#83). A newer etcd upstream is a deliberate update
+    of this package.
+  * keel (>= 0.21.0) stays: an older keel runs beside etcdctl unused, and
+    the keel that asks with it (0.22.0) Breaks the overlays before this.
+
+ -- Marcos Mendez <mendez.foto@gmail.com>  Thu, 08 Oct 2026 16:00:00 +0000
+
 keel-overlay-etcd (0.3.0) trixie; urgency=medium
 
   * etcd restarted one member at a time (the maintainer's requirement of

@@ -13,14 +13,18 @@ Vcs-Browser: https://github.com/Keel-Linux/common/tree/19.x/packages/etcd
 Package: keel-overlay-etcd
 Architecture: all
 Depends:
+ etcd-client (>= 3.5.16),
+ etcd-client (<< 3.5.17~),
  etcd-server (>= 3.5.16),
+ etcd-server (<< 3.5.17~),
  keel (>= 0.21.0),
  keel-overlay-wireguard,
  ${misc:Depends},
 Description: Keel overlay: etcd, the mesh registry
  The etcd overlay of Keel Linux (handbook decisions 0025 and 0036): trixie's
- etcd-server, and the overlay manifest keel reads, installed as
- /usr/share/keel/overlays/etcd.yaml (decision 0041).
+ etcd-server, its etcdctl (etcd-client, the same upstream version), which
+ keel asks etcd with over gRPC (keel#83), and the overlay manifest keel
+ reads, installed as /usr/share/keel/overlays/etcd.yaml (decision 0041).
  .
  etcd is installed disabled and stopped, the state of a simple
  installation: the first installation of this package disables the unit
