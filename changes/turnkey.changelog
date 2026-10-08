@@ -1,5 +1,23 @@
 turnkey-core-19.0 (1) turnkey; urgency=low
 
+  * The kernel, initrd, firmware, bootloaders and installer leave the
+    shared layers for a boot layer the ISO alone uses (handbook decision
+    0052). [ Marcos Mendez <mendez.foto@gmail.com> ]
+
+    plans/turnkey/base no longer includes plans/boot and no longer lists
+    grub-pc, tkl-installer, efivar, eject, jitterentropy-rngd,
+    qemu-guest-agent and acpi-support-base; it lists systemd and
+    systemd-sysv, which plans/boot used to bring. They are all in the new
+    plans/keel-boot, with GRUB's overlay (overlays/keel-boot) and conf
+    (conf/keel-boot/grub-iface-naming and grub-debug). The journald half
+    of grub-debug, which a container needs too, is
+    conf/turnkey.d/journald-no-wall. The core 19.0-9 template carried 28
+    such packages, about 190 MB of its 904 MB.
+
+ -- Marcos Mendez <mendez.foto@gmail.com>  Thu, 08 Oct 2026 12:00:00 +0000
+
+turnkey-core-19.0 (1) turnkey; urgency=low
+
   * No database password is set at build time, and mysqltuner comes from
     Debian (audit of the data service layers, 2026-10-03).
     [ Marcos Mendez <mendez.foto@gmail.com> ]

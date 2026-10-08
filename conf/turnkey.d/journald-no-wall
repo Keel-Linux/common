@@ -1,0 +1,8 @@
+#!/bin/bash -e
+
+# Unless DEBUG=y, disable Journalctl logging to console (it was the other
+# half of conf/keel-boot/grub-debug, which only the boot layer runs)
+
+if [[ $DEBUG != 'y' ]]; then
+    sed -i "\|ForwardToWall|s|#\([a-zA-Z]*=\).*|\1no|" /etc/systemd/journald.conf
+fi

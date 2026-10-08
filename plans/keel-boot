@@ -1,0 +1,28 @@
+/* The boot layer (handbook decision 0052): what a virtual or a real machine
+   boots and installs with, and an LXC container never uses. Built by
+   "bt-layer --boot APPLIANCE" on top of the appliance layer, from the boot
+   product of buildtasks, and used by the ISO alone; the container template
+   is assembled from the layers below it. keel assemble refuses a template
+   that has any of these (keel.layers.container). */
+
+#include <boot>
+
+// Grub packages
+// * 'grub-pc' is required for legacy BIOS boot install
+// * 'grub-efi-amd64' is required for UEFI boot install
+// These grub packages conflict with one another but neither need be installed
+// within the live rootfs/squashfs - but are required for 'grub-install'.
+// We install grub-pc & ship grub-efi-amd64 deb (and deps) in the ISO.
+// If required, grub-efi-amd64 will be installed into the target chroot.
+grub-pc
+
+tkl-installer           /* new custom TKL installer - replaces di-live */
+efivar                  /* installer depends - ISO UEFI boot */
+eject                   /* installer recommends */
+
+// jitterentropy-rngd provides entropy from cpu jitter; req'd to seed entropy
+// in early boot (especially useful when live booting).
+jitterentropy-rngd
+
+qemu-guest-agent        /* QEMU/KVM guest tools - as requested in #1356 */
+acpi-support-base       /* ACPI power button and lid events */
