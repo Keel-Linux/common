@@ -8,7 +8,8 @@ keel-overlay-etcd (0.4.0) trixie; urgency=medium
     certificate's CN as its user, and turns etcd's JSON gateway off
     (Keel-Linux/keel#83). A newer etcd upstream is a deliberate update
     of this package.
-  * Depends on keel (>= 0.22.0), which asks etcd with etcdctl.
+  * keel (>= 0.21.0) stays: an older keel runs beside etcdctl unused, and
+    the keel that asks with it (0.22.0) Breaks the overlays before this.
 
  -- Marcos Mendez <mendez.foto@gmail.com>  Thu, 08 Oct 2026 16:00:00 +0000
 
