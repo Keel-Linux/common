@@ -1,11 +1,13 @@
 #!/usr/bin/make -f
-# The overlay manifest sits beside debian/ (docs/manifest-v1.md, "Kinds,
-# and where each file lives") and is installed under the name keel looks
-# it up by.
+# The overlay manifest and etckeeper-ignore sit beside debian/
+# (docs/manifest-v1.md, "Kinds, and where each file lives") and are
+# installed under the names keel and the postinst look them up by.
+
+PKG = debian/keel-overlay-installer
 
 %:
 	dh $@
 
 execute_after_dh_auto_install:
-	install -D -m 0644 manifest.yaml \
-		debian/keel-overlay-installer/usr/share/keel/overlays/installer.yaml
+	install -D -m 0644 manifest.yaml $(PKG)/usr/share/keel/overlays/installer.yaml
+	install -D -m 0755 etckeeper-ignore $(PKG)/usr/lib/keel/overlays/installer/etckeeper-ignore

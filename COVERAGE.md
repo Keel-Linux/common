@@ -4,6 +4,16 @@ Measured on 2026-09-24 against upstream 19.x (b60dd23), following the
 project decision 0003 (90 percent floor per repository, 95 percent for every
 file our changes touch).
 
+## Branch fix/etckeeper-private-keys: 100 percent, one new file (2026-10-09)
+
+`packages/installer/etckeeper-ignore` is measured for the first time: 37
+of 37 lines, kcov 43 on Debian 13, from `tests/etckeeper-ignore.bats` (18
+tests). The scratch /etc is a real git repository, with the global and
+system git configuration set aside; git itself says what is ignored and
+tracked. The live tests in `tests/overlay-install.bats` (CI job install)
+run the postinst with the real etckeeper and contribute no percentage.
+Every other target is unchanged at 100.
+
 ## Branch fix/no-build-time-db-password-and-mysqltuner: 100 percent, two new files (2026-10-07)
 
 `conf/pgsql` and `conf/mysql` are measured for the first time: 13 of 13 and

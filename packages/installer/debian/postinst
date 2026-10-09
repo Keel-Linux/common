@@ -1,0 +1,19 @@
+#!/bin/sh
+# keel-overlay-installer: keep private keys and secrets out of etckeeper's
+# /etc/.git (Keel-Linux/common#49). At each configure, the first
+# installation and every upgrade or reinstall, etckeeper-ignore writes its
+# list into /etc/.gitignore and, where /etc/.git exists, removes the
+# tracked keys from the index in one commit, without a change to the
+# history (packages/README.md, "Private keys and etckeeper"). A failure
+# does not fail the installation: the operator is told how to run it again.
+set -e
+
+if [ "$1" = configure ]; then
+    if ! /usr/lib/keel/overlays/installer/etckeeper-ignore; then
+        echo "keel-overlay-installer: warning: private keys can still be tracked in /etc/.git; run /usr/lib/keel/overlays/installer/etckeeper-ignore as root when the cause is corrected" >&2
+    fi
+fi
+
+#DEBHELPER#
+
+exit 0

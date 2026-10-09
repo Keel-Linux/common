@@ -15,6 +15,8 @@
 #
 # Every verdict is the one systemctl, dpkg, apt and keel give on the
 # machine; nothing reads back a file the packages wrote to decide a state.
+# The etckeeper tests read /etc/.gitignore only to see that the list is
+# there; their verdict is git's and etckeeper's.
 #
 # Refutations are written "run ! cmd", never a bare "! cmd": bash does not
 # apply errexit to a negated command, so a bare one asserts nothing unless
@@ -25,6 +27,8 @@ bats_require_minimum_version 1.5.0
 OVERLAYS=(installer wireguard etcd crowdsec vip)
 # the units the simple installation of Keel Core keeps disabled and stopped
 DISABLED_UNITS=(etcd.service crowdsec.service crowdsec-firewall-bouncer.service keel-vip.service)
+# the key the etckeeper tests write; teardown removes it
+TEST_KEY=/etc/wireguard/keel-test.key
 
 setup_file() {
     if [ "${KEEL_OVERLAY_INSTALL_TEST:-}" != 1 ]; then
@@ -46,6 +50,8 @@ setup() {
 }
 
 teardown() {
+    # the key of the etckeeper tests is not left on the machine
+    rm -f "$TEST_KEY"
     # a test that died while it played an image build gives systemd back
     # its marker before anything else asks whether systemd runs
     restore_systemd_marker
@@ -570,4 +576,62 @@ assert_simple_state() {
         [ "$output" != masked ]
         [ ! -L "/etc/systemd/system/$unit" ]
     done
+}
+
+# ------------------------------------------- private keys and etckeeper
+
+# A key the installer overlay keeps out of /etc/.git (Keel-Linux/common#49),
+# with etckeeper's own repository of this machine: the job installs
+# etckeeper, whose postinst makes /etc/.git and commits /etc.
+
+@test "etckeeper's /etc/.gitignore carries the installer overlay's list" {
+    [ -d /etc/.git ]
+    grep -q '^# begin section managed by etckeeper' /etc/.gitignore
+    grep -q '^# begin keel-overlay-installer' /etc/.gitignore
+    git -C /etc check-ignore -q wireguard/wg0.key
+    git -C /etc check-ignore -q mysql/keel-tls/server.key
+    git -C /etc check-ignore -q etcd/keel/member.key
+}
+
+@test "a reinstall of keel-overlay-installer takes a key etckeeper tracked out of the index, and keeps the history" {
+    [ -d /etc/.git ]
+    mkdir -p "${TEST_KEY%/*}"
+    install -m 0600 /dev/null "$TEST_KEY"
+    echo "not a real key" > "$TEST_KEY"
+    # a machine from before the fix: the key went into the history
+    git -C /etc add -f "${TEST_KEY#/etc/}"
+    etckeeper commit "test: a key tracked before Keel-Linux/common#49" >/dev/null
+    local old
+    old="$(git -C /etc rev-parse HEAD)"
+
+    run dpkg -i "$(overlay_deb installer)"
+    echo "$output"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"${TEST_KEY#/etc/}"* ]]
+
+    run git -C /etc ls-files --error-unmatch "${TEST_KEY#/etc/}"
+    [ "$status" -ne 0 ]
+    [ -f "$TEST_KEY" ]
+    git -C /etc cat-file -e "$old:${TEST_KEY#/etc/}"
+    git -C /etc merge-base --is-ancestor "$old" HEAD
+    # etckeeper's next commit does not take it back
+    if etckeeper unclean; then
+        etckeeper commit "test: after the reinstall" >/dev/null
+    fi
+    run git -C /etc ls-files --error-unmatch "${TEST_KEY#/etc/}"
+    [ "$status" -ne 0 ]
+}
+
+@test "etckeeper's uninit and init keep the list, and its first commit takes no key" {
+    [ -d /etc/.git ]
+    mkdir -p "${TEST_KEY%/*}"
+    install -m 0600 /dev/null "$TEST_KEY"
+    # what overlays/turnkey.d/etckeeper's first boot hook does
+    etckeeper uninit -f >/dev/null
+    etckeeper init >/dev/null
+    etckeeper commit "initial commit" >/dev/null
+
+    grep -q '^# begin keel-overlay-installer' /etc/.gitignore
+    run git -C /etc ls-files --error-unmatch "${TEST_KEY#/etc/}"
+    [ "$status" -ne 0 ]
 }

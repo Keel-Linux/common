@@ -1,0 +1,83 @@
+#!/bin/bash
+# /usr/lib/keel/overlays/installer/etckeeper-ignore
+#
+# Keeps private keys and secrets out of etckeeper's /etc/.git
+# (Keel-Linux/common#49). etckeeper commits all of /etc after each apt run
+# and once a day, so a key that keel, an overlay or a package writes under
+# /etc goes into the history: wireguard/wg0.key and
+# mysql/keel-tls/server.key were seen there on real nodes.
+#
+# 1. Writes the list below into /etc/.gitignore, between its own two marker
+#    lines, after a removal of the list an earlier run wrote. etckeeper
+#    keeps every line outside its "managed by etckeeper" section through
+#    init, update-ignore and uninit, so the list stays after a first boot
+#    makes the repository again.
+# 2. Where /etc/.git exists, removes from the index the files the list
+#    matches that are tracked, and commits that removal with the new
+#    .gitignore, and with no other change. The files stay on disk. The
+#    history is not rewritten: the old commits still hold the keys, so
+#    each key that was tracked must be rotated.
+#
+# keel-overlay-installer's postinst runs it at each configure. Exit codes:
+# 0 done, 1 the removal or the commit failed (nothing is committed then).
+#
+# KEEL_ETC_DIR exists for tests/etckeeper-ignore.bats; on a machine it is
+# /etc.
+set -euo pipefail
+
+ETC="${KEEL_ETC_DIR:-/etc}"
+IGNORE="$ETC/.gitignore"
+BEGIN="# begin keel-overlay-installer: private keys and secrets, never committed (Keel-Linux/common#49)"
+END="# end keel-overlay-installer"
+MESSAGE="keel-overlay-installer: private keys and secrets removed from the index (Keel-Linux/common#49)"
+
+# Relative to /etc. Keys keel writes: the WireGuard key beside the
+# interface's configuration, the database's TLS key, the etcd keys of the
+# mesh, the secrets of the instance spec. Keys the overlays and Debian
+# write: Anubis's signing key, CrowdSec's credentials, the TLS keys of
+# turnkey-ssl and ssl-cert, the SSH host keys. Each statement is kept on
+# one line, so that kcov counts every line it runs.
+PATTERNS=("/wireguard/*.key" "/mysql/keel-tls/*.key" "/etcd/keel/*.key" "/keel/secrets/" "/ssl/private/" "/ssh/ssh_host_*_key" "/crowdsec/local_api_credentials.yaml" "/crowdsec/online_api_credentials.yaml" "/crowdsec/bouncers/*.yaml.local" "/anubis/keel.key" "/anubis/keel.key.*")
+
+write_list() {
+    local staged
+    staged="$(mktemp "$ETC/.gitignore.keel.XXXXXX")"
+    trap 'rm -f -- "$staged"' EXIT
+    chmod 0644 "$staged"
+    if [ -f "$IGNORE" ]; then
+        awk -v end="$END" 'index($0, "# begin keel-overlay-installer") == 1 { skip = 1; next } skip && $0 == end { skip = 0; next } !skip' "$IGNORE" > "$staged"
+        chmod --reference="$IGNORE" "$staged"
+    fi
+    { echo "$BEGIN"; printf '%s\n' "${PATTERNS[@]}"; echo "$END"; } >> "$staged"
+    mv -f -- "$staged" "$IGNORE"
+    trap - EXIT
+}
+
+untrack() {
+    local excludes=() pattern tracked
+    for pattern in "${PATTERNS[@]}"; do
+        excludes+=(-x "$pattern")
+    done
+    tracked="$(git -C "$ETC" -c core.quotePath=false ls-files --cached --ignored "${excludes[@]}")"
+    if [ -z "$tracked" ]; then
+        return 0
+    fi
+    if ! printf '%s\n' "$tracked" | GIT_LITERAL_PATHSPECS=1 git -C "$ETC" rm --cached --quiet --pathspec-from-file=- || ! git -C "$ETC" add -- .gitignore; then
+        echo "etckeeper-ignore: could not remove the private files from the index of $ETC/.git; nothing was committed" >&2
+        return 1
+    fi
+    export GIT_AUTHOR_NAME="${GIT_AUTHOR_NAME:-keel-overlay-installer}" GIT_AUTHOR_EMAIL="${GIT_AUTHOR_EMAIL:-root@localhost}"
+    export GIT_COMMITTER_NAME="${GIT_COMMITTER_NAME:-$GIT_AUTHOR_NAME}" GIT_COMMITTER_EMAIL="${GIT_COMMITTER_EMAIL:-$GIT_AUTHOR_EMAIL}"
+    if ! git -C "$ETC" commit --quiet -m "$MESSAGE"; then
+        echo "etckeeper-ignore: could not commit in $ETC/.git" >&2
+        return 1
+    fi
+    echo "etckeeper-ignore: these files are no longer tracked in $ETC/.git:"
+    echo "  ${tracked//$'\n'/$'\n'  }"
+    echo "etckeeper-ignore: the history of $ETC/.git still holds them: rotate each key and secret listed (Keel-Linux/common#49)"
+}
+
+write_list
+if [ -d "$ETC/.git" ]; then
+    untrack
+fi
