@@ -26,3 +26,8 @@ Description: Keel overlay: the installer
  .
  The manifest names the first boot hooks the three packages ship. The
  overlay declares no process: it is enabled in every installation mode.
+ .
+ It also keeps private keys and secrets out of etckeeper's /etc/.git:
+ the postinst writes a list of their paths into /etc/.gitignore and
+ removes the keys that are already tracked from the index, without a
+ change to the history.

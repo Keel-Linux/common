@@ -9,7 +9,7 @@ directory each, with its own changelog and version, released on its own
 
 | Directory | Package | Rests on | Units it owns |
 | --- | --- | --- | --- |
-| `installer/` | `keel-overlay-installer` | Keel's `inithooks` (>= 2.3.6+keel14), `confconsole` (>= 2.2.3+keel8), `keel` (>= 0.12.0) | none; its manifest names the first boot hooks the three ship |
+| `installer/` | `keel-overlay-installer` | Keel's `inithooks` (>= 2.3.6+keel14), `confconsole` (>= 2.2.3+keel8), `keel` (>= 0.12.0) | none; its manifest names the first boot hooks the three ship. Its postinst keeps private keys out of etckeeper's `/etc/.git` (below) |
 | `wireguard/` | `keel-overlay-wireguard` | trixie's `wireguard-tools` 1.0.20210914 | none; the interface is the instance spec's |
 | `etcd/` | `keel-overlay-etcd` | trixie's `etcd-server` 3.5.16 and its `etcd-client` (etcdctl, which keel asks etcd with over gRPC, keel#83), both bounded to that upstream release, `keel` (>= 0.21.0), whose gate its drop-in runs (keel 0.22.0 asks etcd with the etcdctl this brings), and `keel-overlay-wireguard`, which its manifest `requires` | `etcd.service`, and its drop-in `keel-overlay-etcd.conf`: one member restarts at a time |
 | `vip/` | `keel-overlay-vip` | `keel` (>= 0.21.0), whose `keel vip` the units run, and `keel-overlay-wireguard`, which its manifest `requires` | `keel-vip.service`, the VIP's root helper with etcd, which starts its unprivileged controller as the transient `keel-vip-control`; and `keel-vip-check.timer`, part of it |
@@ -42,6 +42,49 @@ Monit's `etcd-health` check asks `/health` on etcd's plain metrics
 listener, `http://[::1]:2381`, which keel renders
 (`ETCD_LISTEN_METRICS_URLS`): the client port, 2379, wants TLS and a
 client certificate signed in the mesh.
+
+## Private keys and etckeeper
+
+etckeeper commits all of `/etc` after each apt run and once a day. Keys
+that keel, the overlays and Debian write under `/etc` went into
+`/etc/.git` with it: `wireguard/wg0.key` and `mysql/keel-tls/server.key`
+were seen there on real nodes (Keel-Linux/common#49). A key that is
+rotated later stays in the history.
+
+`keel-overlay-installer`, which every Keel appliance has through
+`keel-core`, ships `/usr/lib/keel/overlays/installer/etckeeper-ignore`,
+and its postinst runs it at each configure:
+
+1. It writes this list into `/etc/.gitignore`, between its own marker
+   lines, outside the section etckeeper manages. etckeeper's `init`,
+   `update-ignore` and `uninit` keep every line outside that section, so
+   the list stays when the first boot hook `92etckeeper` makes the
+   repository again.
+
+   | Path under `/etc` | Written by |
+   | --- | --- |
+   | `wireguard/*.key` | keel, the node's WireGuard key (`keel network wireguard key`) |
+   | `mysql/keel-tls/*.key` | keel, the database's TLS key |
+   | `etcd/keel/*.key` | keel, the etcd keys of the mesh |
+   | `keel/secrets/` | the secrets of the instance spec |
+   | `ssl/private/` | turnkey-ssl and ssl-cert |
+   | `ssh/ssh_host_*_key` | openssh-server, the host keys (the `.pub` files stay tracked) |
+   | `crowdsec/local_api_credentials.yaml`, `crowdsec/online_api_credentials.yaml`, `crowdsec/bouncers/*.yaml.local` | CrowdSec's packages and keel |
+   | `anubis/keel.key`, `anubis/keel.key.*` | `keel-overlay-anubis-key.service` |
+
+2. Where `/etc/.git` exists, it removes the tracked files of the list from
+   the index (`git rm --cached`) and commits that removal with the new
+   `.gitignore`, and with no other change. The files stay on disk. The
+   history is not rewritten, so each key that was tracked must be rotated:
+   the postinst lists the files. keel has no command that rotates a key
+   yet; keel makes each key once, and a renewal of a certificate keeps
+   the key.
+
+A failure (for example, a lock on the index) does not fail the
+installation: the postinst says so, and the script can be run again as
+root. `tests/etckeeper-ignore.bats` tests the script on a scratch
+repository; `tests/overlay-install.bats` tests it with the real
+etckeeper on a booted trixie container.
 
 ## Building
 

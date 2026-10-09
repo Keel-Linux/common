@@ -1,3 +1,31 @@
+keel-overlay-installer (0.2.0) trixie; urgency=medium
+
+  * etckeeper does not commit private keys and secrets into /etc/.git
+    (Keel-Linux/common#49). Seen on real nodes with keel 0.23.3:
+    wireguard/wg0.key at the keel installation and
+    mysql/keel-tls/server.key at a reinstallation.
+  * The postinst runs /usr/lib/keel/overlays/installer/etckeeper-ignore at
+    each configure. It writes this list into /etc/.gitignore, outside the
+    section etckeeper manages, so etckeeper's init, update-ignore and
+    uninit keep it: wireguard/*.key, mysql/keel-tls/*.key,
+    etcd/keel/*.key, keel/secrets/, ssl/private/, ssh/ssh_host_*_key,
+    crowdsec/local_api_credentials.yaml,
+    crowdsec/online_api_credentials.yaml, crowdsec/bouncers/*.yaml.local,
+    anubis/keel.key and anubis/keel.key.*.
+  * Where /etc/.git exists, it removes the tracked files of the list from
+    the index (git rm --cached) and commits that removal with the new
+    .gitignore, and with no other change. The files stay on disk. The
+    history is not rewritten.
+  * Rotate every key that was tracked: the old commits of /etc/.git still
+    hold it, and so does each copy or backup of /etc/.git. The postinst
+    lists the files it removed from the index. keel 0.23.3 has no command
+    that rotates a key: keel makes each key once, and a renewal of a
+    certificate (etcd, the database's TLS) keeps the same key. Rotate the
+    SSH host keys, the TLS keys of ssl/private, CrowdSec's credentials and
+    Anubis's signing key with the tools of their own packages.
+
+ -- KeelLinux maintainers <admin@keellinux.org>  Fri, 09 Oct 2026 12:00:00 +0000
+
 keel-overlay-installer (0.1.0) trixie; urgency=medium
 
   * First release (handbook decision 0041, first implementation, step 2).
