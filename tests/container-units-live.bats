@@ -1,6 +1,7 @@
 #!/usr/bin/env bats
 # conf/turnkey.d/container-units applied to a booted unprivileged container:
-# systemd skips ntpsec and the two kernel mounts on their condition, and
+# systemd skips ntpsec, the two kernel mounts and systemd-modules-load on
+# their condition, and
 # starting them adds nothing to 'systemctl --failed', where the packaged
 # units alone fail (the mounts) or run and fail every clock adjustment
 # (ntpd). The CI container has failures of its own at boot (its runner's
@@ -20,7 +21,7 @@
 
 bats_require_minimum_version 1.5.0
 
-UNITS=(ntpsec.service sys-kernel-config.mount sys-kernel-debug.mount)
+UNITS=(ntpsec.service sys-kernel-config.mount sys-kernel-debug.mount systemd-modules-load.service)
 NETWORKD=(systemd-networkd.service systemd-networkd.socket systemd-networkd-wait-online.service)
 
 setup_file() {
@@ -54,6 +55,13 @@ setup_file() {
     # setup_file that got this far has anything to put back
     export LIVE_ARMED=1
 
+    # the state of a lean-core image: a module list in /etc/modules-load.d
+    # (kmod ships modules.conf), so the packaged triggering condition of
+    # systemd-modules-load holds and only the drop-in can stop the unit
+    mkdir -p /etc/modules-load.d
+    printf '# keel test: container-units-live.bats\ndummy\n' \
+        > /etc/modules-load.d/keel-live-test.conf
+
     # the script, as a build runs it, on this machine
     "$(dirname "$BATS_TEST_FILENAME")/../conf/turnkey.d/container-units"
     systemctl daemon-reload
@@ -65,6 +73,7 @@ teardown_file() {
     for unit in "${UNITS[@]}"; do
         rm -rf "/etc/systemd/system/$unit.d"
     done
+    rm -f /etc/modules-load.d/keel-live-test.conf
     systemctl unmask "${NETWORKD[@]}" >/dev/null 2>&1 || true
     i=0
     for unit in "${NETWORKD[@]}"; do
@@ -165,4 +174,19 @@ teardown_file() {
         echo "systemctl is-enabled $unit: $output"
         [ "$output" != masked ]
     done
+}
+
+@test "systemd-modules-load is skipped in a container with a module list, not failed" {
+    local unit=systemd-modules-load.service
+    run systemctl show -p DropInPaths --value "$unit"
+    [[ "$output" == *"/etc/systemd/system/$unit.d/keel-container.conf"* ]]
+    systemctl reset-failed "$unit"
+    run systemctl restart "$unit"
+    echo "systemctl restart $unit: $output"
+    [ "$status" -eq 0 ]
+    run systemctl show -p ConditionResult --value "$unit"
+    [ "$output" = no ]
+    run systemctl is-failed "$unit"
+    echo "systemctl is-failed $unit: $output"
+    [ "$output" != failed ]
 }

@@ -1,5 +1,24 @@
 turnkey-core-19.0 (1) turnkey; urgency=low
 
+  * A container does not run systemd-modules-load (step 12 boot test,
+    2026-10-10). [ Marcos Mendez <mendez.foto@gmail.com> ]
+
+    Every lean-core image booted degraded: systemd-modules-load.service
+    failed with "Failed to initialize libkmod context: Operation not
+    supported". The container core has no kernel and no /lib/modules
+    (handbook decision 0052), but kmod ships
+    /etc/modules-load.d/modules.conf, so the packaged unit starts, and its
+    CAP_SYS_MODULE condition passes in the user namespace.
+    conf/turnkey.d/container-units now also writes the keel-container.conf
+    drop-in (ConditionVirtualization=!container) for
+    systemd-modules-load.service. In a container the unit stays inactive
+    with the condition unmet. On a VM or bare metal, which the ISO boot
+    layer (plans/keel-boot) boots, it loads modules as before.
+
+ -- Marcos Mendez <mendez.foto@gmail.com>  Sat, 10 Oct 2026 12:00:00 +0000
+
+turnkey-core-19.0 (1) turnkey; urgency=low
+
   * The kernel, initrd, firmware, bootloaders and installer leave the
     shared layers for a boot layer the ISO alone uses (handbook decision
     0052). [ Marcos Mendez <mendez.foto@gmail.com> ]
