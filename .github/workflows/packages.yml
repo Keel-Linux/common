@@ -28,7 +28,8 @@
 # keel-overlay-installer keeps private keys out of it (common#49). Last, with ntpsec
 # installed, tests/container-units-live.bats applies
 # conf/turnkey.d/container-units to the container itself: systemd skips
-# ntpsec and the two kernel mounts on the drop-ins' condition, and starting
+# ntpsec, the two kernel mounts and systemd-modules-load (with a module
+# list in /etc/modules-load.d, as kmod ships it) on the drop-ins' condition, and starting
 # them adds nothing to systemctl --failed (the container has mounts of its
 # own failing at boot, which the suite leaves out of the verdict);
 # systemd-networkd, its socket and wait-online are masked, not enabled
