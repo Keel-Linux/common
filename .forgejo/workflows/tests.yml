@@ -1,0 +1,22 @@
+# Forgejo copy of .github/workflows/tests.yml (decision 0056): the same
+# jobs, with a runs-on line on each call of a reusable workflow,
+# because Forgejo runs a called workflow on the runner of the caller.
+# Coverage gate: 100 percent, the number tests/coverage.sh measures on this
+# branch (COVERAGE.md, "measured baseline"). Only ever raised (decision 0006).
+# The check is "tests / coverage".
+name: tests
+on:
+  pull_request:
+  push:
+    branches: [19.x]
+jobs:
+  tests:
+    runs-on: keel-host
+    uses: keel-linux/.github/.github/workflows/test-shell.yml@main
+    with:
+      threshold: 100
+      # tests/anubis-signing-key.bats: packages/anubis/spec-key reads the
+      # instance spec with PyYAML, as keel does. tests/locale.bats: dialog,
+      # to see the boxes it draws under C and under C.UTF-8. tests/plans-boot.bats:
+      # cpp, to resolve the plans as fab-plan-resolve does
+      apt-packages: python3-yaml dialog cpp
