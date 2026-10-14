@@ -24,8 +24,10 @@ keyrings="$root/usr/share/keyrings"
 dpkg_root=()
 [ -z "$root" ] || dpkg_root=(--root="$root")
 
-# 0.1.0 shipped the key with a signing subkey that 0.1.1 ships revoked
-KEYRING_MIN=0.1.1
+# 0.1.0 shipped the key with a signing subkey that 0.1.1 ships revoked, and
+# 0.3.0 is the first version with a keyring for each signing role, the
+# security keyring included (handbook decision 0055)
+KEYRING_MIN=0.3.0
 # the one priority the Keel pin may have, overlays/turnkey.d/keel-apt's
 KEEL_PIN_PRIORITY=990
 
@@ -65,6 +67,24 @@ read -r state version <<< "$(pkg_state keel-archive-keyring)"
     || fatal "keel-archive-keyring is not installed, so nothing owns '$keyrings/keel-archive-keyring.gpg'"
 dpkg --compare-versions "$version" ge "$KEYRING_MIN" \
     || fatal "keel-archive-keyring $version is older than $KEYRING_MIN"
+
+# --- the Keel security suite (handbook decision 0055): security.sources,
+# which cron-apt installs from every day, names the security keyring and no
+# other. The bootstrap wrote the armored copy; from here on it is the
+# package's binary keyring.
+
+security="$sources/security.sources"
+[ -f "$keyrings/keel-security-keyring.gpg" ] \
+    || fatal "'$keyrings/keel-security-keyring.gpg' is missing - keel-archive-keyring $KEYRING_MIN or later installs it"
+[ -f "$security" ] \
+    || fatal "'$security' is missing - it is written by conf/bootstrap_apt"
+sed -i 's|^Signed-By: /usr/share/keyrings/keel-security-keyring\.asc$|Signed-By: /usr/share/keyrings/keel-security-keyring.gpg|' "$security"
+# (one stanza a record: URIs the Keel archive, Suites trixie-security, not
+# disabled, Signed-By the security keyring alone)
+keel_security='BEGIN { RS = "" } /(^|\n)URIs:[ \t]*https:\/\/archive\.keellinux\.org\/?[ \t]*(\n|$)/ && /(^|\n)Suites:[ \t]*trixie-security[ \t]*(\n|$)/ && !/(^|\n)Enabled:[ \t]*no[ \t]*(\n|$)/ && /(^|\n)Signed-By:[ \t]*\/usr\/share\/keyrings\/keel-security-keyring\.gpg[ \t]*(\n|$)/ { found = 1 } END { exit !found }'
+awk "$keel_security" "$security" \
+    || fatal "'$security' has no enabled https://archive.keellinux.org trixie-security stanza with Signed-By $keyrings/keel-security-keyring.gpg"
+rm -f "$keyrings/keel-security-keyring.asc"
 
 # --- the Keel pin is 990 wherever it is (tracker#23): above 1000 it
 # downgrades every package newer than the archive's, and a recipe overlay
