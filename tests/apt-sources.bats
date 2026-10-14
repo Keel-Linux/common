@@ -73,6 +73,7 @@ render() {
     local debian_components=(main non-free-firmware)
     local DEBIAN_KEYRING=/usr/share/keyrings/debian-archive-keyring.pgp
     local KEEL_KEYRING=/usr/share/keyrings/keel-archive-keyring.asc
+    local KEEL_SECURITY_KEYRING=/usr/share/keyrings/keel-security-keyring.asc
     local keel_testing_enabled="${KEEL_TESTING_ENABLED:-no}"
     eval "cat <<EOF
 $body
@@ -201,13 +202,18 @@ fetch_hosts() {
 @test "each archive is trusted with its own keyring" {
     # apt does not report Signed-By, so the stanzas are read: URIs and
     # Signed-By of each, enabled or not
+    # The Keel security suite has a keyring of its own (decision 0055): the
+    # bootstrap's armored copy here, the package's keyring after
+    # conf/turnkey.d/keel-apt, tested below.
     ship_sources
-    run awk '/^URIs:/ { u = $2 } /^Signed-By:/ { print u, $2 }' "$SOURCES"/*.sources
+    run awk '/^URIs:/ { u = $2 } /^Suites:/ { s = $2 } /^Signed-By:/ { print u, s, $2 }' "$SOURCES"/*.sources
     [ "$status" -eq 0 ]
-    [ "$(wc -l <<< "$output")" -eq 5 ]
-    local site keyring
-    while read -r site keyring; do
-        case "$site" in
+    [ "$(wc -l <<< "$output")" -eq 6 ]
+    local site suite keyring
+    while read -r site suite keyring; do
+        case "$site $suite" in
+            *archive.keellinux.org*" trixie-security")
+                [ "$keyring" = /usr/share/keyrings/keel-security-keyring.asc ] ;;
             *archive.keellinux.org*)
                 [ "$keyring" = /usr/share/keyrings/keel-archive-keyring.gpg ] ;;
             *debian.org*)
@@ -248,12 +254,26 @@ fetch_hosts() {
 
 # ------------------------------------------------ the security-only upgrade
 
-@test "security.sources alone, as the upgrade reads it, is Debian security only" {
+@test "security.sources alone, as the upgrade reads it, is Debian security and Keel security" {
     ship_sources
-    run fetch_hosts -o Dir::Etc::sourcelist="$SOURCES/security.sources" \
+    run fetch_uris -o Dir::Etc::sourcelist="$SOURCES/security.sources" \
         -o Dir::Etc::sourceparts=/dev/null
     [ "$status" -eq 0 ]
-    [ "$output" = security.debian.org ]
+    [ "$(sed -E 's|^([a-z]+://[^/]+/.*dists/[^/]+)/.*|\1|' <<< "$output" | sort -u)" = "$(printf 'http://security.debian.org/debian-security/dists/trixie-security\nhttps://archive.keellinux.org/dists/trixie-security')" ]
+}
+
+@test "the Keel stanza of security.sources is trixie-security, signed by the security key alone" {
+    run render security.sources
+    [ "$status" -eq 0 ]
+    keel="$(awk 'BEGIN { RS = "" } /archive\.keellinux\.org/' <<< "$output")"
+    [ "$(awk '/^Suites:/ { print $2 }' <<< "$keel")" = trixie-security ]
+    [ "$(awk '/^Enabled:/ { print $2 }' <<< "$keel")" = yes ]
+    [ "$(awk '/^Signed-By:/ { print $2 }' <<< "$keel")" = /usr/share/keyrings/keel-security-keyring.asc ]
+    # the key that file names is the one mk/turnkey.mk copies in from keys/
+    grep -q 'keys/keel-security-keyring.asc \$O/bootstrap/usr/share/keyrings/keel-security-keyring.asc' "$REPO/mk/turnkey.mk"
+    gpg --batch --quiet --show-keys --with-colons "$REPO/keys/keel-security-keyring.asc" \
+        | grep -q '^fpr:::::::::D97E853FBDBB24492002067BA92969F1BF3B71C6:'
+    [ "$(gpg --batch --quiet --show-keys --with-colons "$REPO/keys/keel-security-keyring.asc" | grep -c '^pub:')" -eq 1 ]
 }
 
 @test "cron-apt's install actions read the security.sources the bootstrap writes" {
@@ -405,7 +425,8 @@ conf_tree() {
     stub_dpkg
     ship_sources
     : > "$APTROOT/usr/share/keyrings/keel-archive-keyring.gpg"
-    installed_pkg keel-archive-keyring 0.1.1
+    : > "$APTROOT/usr/share/keyrings/keel-security-keyring.gpg"
+    installed_pkg keel-archive-keyring 0.3.0
 }
 
 run_conf() {
@@ -466,14 +487,59 @@ run_conf() {
     [[ "$output" == *keel-archive-keyring* ]]
 }
 
-@test "the conf script refuses a keyring package older than 0.1.1" {
-    # 0.1.0 carries the signing subkey that 0.1.1 ships revoked
+@test "the conf script refuses a keyring package older than 0.3.0" {
+    # 0.1.0 carries the signing subkey that 0.1.1 ships revoked, and 0.3.0
+    # is the first with the security keyring
     conf_tree
-    sed -i 's/^keel-archive-keyring installed .*/keel-archive-keyring installed 0.1.0/' "$PKGS"
+    for old in 0.1.0 0.2.0; do
+        sed -i "s/^keel-archive-keyring installed .*/keel-archive-keyring installed $old/" "$PKGS"
+        run_conf
+        [ "$status" -eq 1 ]
+        [[ "$output" == *"keel-archive-keyring $old is older than 0.3.0"* ]]
+    done
+}
+
+@test "the conf script points the Keel security stanza at the package's keyring and drops the bootstrap's copy" {
+    conf_tree
+    echo "armored copy" > "$APTROOT/usr/share/keyrings/keel-security-keyring.asc"
+    local before
+    before="$(grep -v '^Signed-By: /usr/share/keyrings/keel-security' "$SOURCES/security.sources")"
+    run_conf
+    [ "$status" -eq 0 ]
+    [ "$(grep -v '^Signed-By: /usr/share/keyrings/keel-security' "$SOURCES/security.sources")" = "$before" ]
+    grep -qx 'Signed-By: /usr/share/keyrings/keel-security-keyring.gpg' "$SOURCES/security.sources"
+    run ! grep -q 'keel-security-keyring\.asc' "$SOURCES/security.sources"
+    [ ! -e "$APTROOT/usr/share/keyrings/keel-security-keyring.asc" ]
+}
+
+@test "the conf script refuses an image without the security keyring" {
+    conf_tree
+    rm "$APTROOT/usr/share/keyrings/keel-security-keyring.gpg"
     run_conf
     [ "$status" -eq 1 ]
-    [[ "$output" == *"0.1.0"* ]]
-    [[ "$output" == *"0.1.1"* ]]
+    [[ "$output" == *"keel-security-keyring.gpg' is missing"* ]]
+}
+
+@test "the conf script refuses an image without security.sources" {
+    conf_tree
+    rm "$SOURCES/security.sources"
+    run_conf
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"security.sources' is missing"* ]]
+}
+
+@test "the conf script refuses a security.sources without the Keel security stanza, or with it disabled" {
+    conf_tree
+    awk 'BEGIN { RS = ""; ORS = "\n\n" } !/archive\.keellinux\.org/' "$SOURCES/security.sources" > "$SOURCES/s.new"
+    mv "$SOURCES/s.new" "$SOURCES/security.sources"
+    run_conf
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"no enabled https://archive.keellinux.org trixie-security stanza"* ]]
+    conf_tree
+    sed -i '/^Suites: trixie-security$/,/^$/ s/^Enabled: yes$/Enabled: no/' "$SOURCES/security.sources"
+    sed -i '/^URIs: https:\/\/archive/,/^$/ s/^Enabled: yes$/Enabled: no/' "$SOURCES/security.sources"
+    run_conf
+    [ "$status" -eq 1 ]
 }
 
 @test "the conf script refuses a keyring file no package installed" {

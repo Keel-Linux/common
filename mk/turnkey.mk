@@ -50,6 +50,9 @@ define _bootstrap/post
 	# half published at the archive root; the package installs the same key)
 	mkdir -p $O/bootstrap/usr/share/keyrings;
 	cp $(COMMON_CONF_PATH)/../keys/keel-archive-keyring.asc $O/bootstrap/usr/share/keyrings/keel-archive-keyring.asc;
+	# the security key, which the Keel stanza of bootstrap_apt's
+	# security.sources names (handbook decision 0055)
+	cp $(COMMON_CONF_PATH)/../keys/keel-security-keyring.asc $O/bootstrap/usr/share/keyrings/keel-security-keyring.asc;
 	fab-chroot $O/bootstrap --script $(COMMON_CONF_PATH)/bootstrap_apt;
 endef
 bootstrap/post += $(_bootstrap/post)

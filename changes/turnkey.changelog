@@ -1,5 +1,21 @@
 turnkey-core-19.0 (1) turnkey; urgency=low
 
+  * security.sources has a second stanza, the Keel trixie-security suite
+    (handbook decision 0055). [ Marcos Mendez <mendez.foto@gmail.com> ]
+
+    cron-apt installs only from security.sources every day, so a fix to
+    a Keel package now arrives the same way a Debian fix arrives. The
+    stanza names /usr/share/keyrings/keel-security-keyring.gpg, the
+    security key alone. In the bootstrap it names the armored copy that
+    mk/turnkey.mk copies from keys/keel-security-keyring.asc, and
+    conf/turnkey.d/keel-apt changes it to the keyring of the package.
+    conf/turnkey.d/keel-apt now needs keel-archive-keyring 0.3.0 or
+    later, the first version with the security keyring.
+
+ -- Marcos Mendez <mendez.foto@gmail.com>  Wed, 14 Oct 2026 18:00:00 +0000
+
+turnkey-core-19.0 (1) turnkey; urgency=low
+
   * The kernel, initrd, firmware, bootloaders and installer leave the
     shared layers for a boot layer the ISO alone uses (handbook decision
     0052). [ Marcos Mendez <mendez.foto@gmail.com> ]

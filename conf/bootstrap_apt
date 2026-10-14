@@ -175,8 +175,17 @@ Components: ${debian_components[*]}
 Enabled: yes
 Signed-By: $DEBIAN_KEYRING
 EOF
-# Debian security: the one source the first boot's security updates
-# (inithooks 95secupdates) and cron-apt's install action read, by this name
+# Security: the one source the first boot's security updates (inithooks
+# 95secupdates) and cron-apt's install action read, by this name. It has
+# Debian's security suite and Keel's (handbook decision 0055), so a fix to
+# a Keel package arrives the same way a Debian fix arrives. The Keel suite is
+# signed by the security key alone. Here it names the armored copy that
+# mk/turnkey.mk copied into the bootstrap from common's keys/.
+# conf/turnkey.d/keel-apt changes it to the keyring that the
+# keel-archive-keyring package installs.
+KEEL_SECURITY_KEYRING=/usr/share/keyrings/keel-security-keyring.asc
+[[ -f "$KEEL_SECURITY_KEYRING" ]] \
+    || fatal "'$KEEL_SECURITY_KEYRING' is missing - mk/turnkey.mk copies it into the bootstrap from common's keys/"
 cat > $SOURCES_LIST/security.sources <<EOF
 Types: deb
 URIs: $SEC_MIRROR
@@ -184,6 +193,13 @@ Suites: $sec_repo
 Components: ${debian_components[*]}
 Enabled: yes
 Signed-By: $DEBIAN_KEYRING
+
+Types: deb
+URIs: https://archive.keellinux.org
+Suites: $CODENAME-security
+Components: main
+Enabled: yes
+Signed-By: $KEEL_SECURITY_KEYRING
 EOF
 # Debian backports
 cat > $SOURCES_LIST/debian-backports.sources <<EOF
