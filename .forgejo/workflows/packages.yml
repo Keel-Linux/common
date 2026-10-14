@@ -1,0 +1,216 @@
+# Forgejo copy of .github/workflows/packages.yml (decision 0056): the same
+# jobs, with a runs-on line on each call of a reusable workflow,
+# because Forgejo runs a called workflow on the runner of the caller.
+# The overlay packages of packages/ (handbook decision 0041, first
+# implementation, steps 2 and 6). The checks are "build / trixie",
+# "install / trixie" and "web / trixie".
+#
+# Every job runs in a Debian trixie system container, an unprivileged LXC
+# container with its own systemd on the self-hosted runner keel-lxc-1,
+# through the reusable workflow lxc-trixie.yml of Keel-Linux/.github. Keel
+# runs no application containers in CI. A pull request from a fork never
+# reaches the self-hosted runner, so it gets no build, lint or install
+# result here.
+#
+# build: each package built, source and binary, with dpkg-buildpackage, and
+# both linted with lintian, any error or warning failing (packages/build).
+# Nothing is signed or published; the files are kept as the artifact
+# overlay-debs. That covers the three Keel Web overlays of step 6 (nginx,
+# coraza, anubis) as well.
+#
+# install: the four Core packages installed with their real dependencies in
+# a booted trixie container, then tests/overlay-install.bats: keel manifest
+# validate on the machine, and the units of etcd and CrowdSec after a first
+# installation, a purge, a remove and reinstall, a transition from a unit
+# already enabled, and real version upgrades of the Debian packages and of
+# the overlay. The job writes the policy-rc.d that exits 101 fab installs
+# under. systemd is PID 1 in the container, so the is-active assertions are
+# made as well; the image build's case, no /run/systemd/system, is the one
+# the suite reproduces itself where it needs it. etckeeper is installed
+# with them, so its postinst makes /etc/.git, and the suite checks that
+# keel-overlay-installer keeps private keys out of it (common#49). Last, with ntpsec
+# installed, tests/container-units-live.bats applies
+# conf/turnkey.d/container-units to the container itself: systemd skips
+# ntpsec and the two kernel mounts on the drop-ins' condition, and starting
+# them adds nothing to systemctl --failed (the container has mounts of its
+# own failing at boot, which the suite leaves out of the verdict);
+# systemd-networkd, its socket and wait-online are masked, not enabled
+# after the presets of a first boot and an enable, and none of them is in
+# systemctl --failed.
+#
+# web: the three Web overlays installed with their dependencies on a booted
+# trixie container, then tests/overlay-web.bats: Nginx, Coraza on, off,
+# rolled back and rechecked on a rule set upgrade, Anubis and its key. No
+# policy-rc.d: the suite needs Nginx and Anubis running, as on a machine.
+# Coraza's module, its engine, the Core Rule Set and Anubis are Keel's own
+# packages of step 5, not published yet, so they are built here with gbp
+# from the commits pinned below, with golang-1.26-go 1.26.8-1~bpo13+1 of
+# trixie-backports, taken from snapshot.debian.org as of 2026-10-01:
+# trixie-backports has since replaced it with golang-1.27-go, and the
+# pinned commits build with 1.26.
+#
+# keel, inithooks and confconsole are not published yet (Keel-Linux/apt:
+# the signing subkey is being rotated), so they are built here from the
+# commits pinned below: keel 0.21.0 (the merge of Keel-Linux/keel#87,
+# which keel-overlay-vip 0.2.0 and keel-overlay-etcd 0.3.0 depend on),
+# inithooks
+# 2.3.6+keel14 and confconsole 2.2.3+keel8, the versions
+# keel-overlay-installer depends on; and keel 0.14.0 for the Web overlays,
+# whose spec side the suite reads. Their own tests are their CI's. Their
+# TurnKey dependencies (turnkey-ssl, turnkey-netinfo, turnkey-conffile) come
+# from the TurnKey trixie archive, with the key common already ships.
+name: packages
+
+on:
+  pull_request:
+  push:
+    branches: [19.x]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: keel-lxc
+    uses: keel-linux/.github/.github/workflows/lxc-trixie.yml@main
+    with:
+      timeout: 20
+      artifact-dir: dist
+      artifact-name: overlay-debs
+      run: |
+        apt-get update -qq
+        apt-get install -y -qq --no-install-recommends \
+          ca-certificates git build-essential debhelper lintian
+        packages/build
+
+  install:
+    needs: build
+    runs-on: keel-lxc
+    uses: keel-linux/.github/.github/workflows/lxc-trixie.yml@main
+    with:
+      systemd: true
+      timeout: 30
+      download: overlay-debs
+      download-dir: dist
+      run: |
+        KEEL_COMMIT=ebede2e08ac74332c36a81fde0a7575a7e1ffd60
+        INITHOOKS_COMMIT=2543d506590a17a762a4288e2ee99b0a3c160386
+        CONFCONSOLE_COMMIT=71828736ca7e99fff1d99ce5e9e9002c24dbd8b2
+        apt-get update -qq
+        apt-get install -y -qq --no-install-recommends \
+          ca-certificates git gnupg bats build-essential debhelper
+        # keel, inithooks and confconsole at the pinned commits
+        mkdir -p /tmp/deps
+        for pinned in keel:"$KEEL_COMMIT" inithooks:"$INITHOOKS_COMMIT" \
+                      confconsole:"$CONFCONSOLE_COMMIT"; do
+          repo="${pinned%%:*}"
+          commit="${pinned#*:}"
+          src="/tmp/src/$repo"
+          git init -q "$src"
+          git -C "$src" fetch -q --depth 1 \
+            "https://github.com/Keel-Linux/$repo.git" "$commit"
+          git -C "$src" checkout -q FETCH_HEAD
+          apt-get build-dep -y -qq --no-install-recommends "$src"
+          (cd "$src" && DEB_BUILD_OPTIONS=nocheck dpkg-buildpackage -us -uc -b)
+          mv /tmp/src/*.deb /tmp/deps/
+        done
+        ls -l /tmp/deps
+        # the four Core overlay packages with their dependencies, under the
+        # policy-rc.d fab installs under
+        printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d
+        chmod 0755 /usr/sbin/policy-rc.d
+        gpg --dearmor \
+          < tests/fixtures/tkl-trixie-main.asc \
+          > /usr/share/keyrings/tkl-trixie-main.gpg
+        echo "deb [signed-by=/usr/share/keyrings/tkl-trixie-main.gpg] https://archive.turnkeylinux.org/debian trixie main" \
+          > /etc/apt/sources.list.d/turnkey.list
+        apt-get update -qq
+        apt-get install -y -q --no-install-recommends /tmp/deps/*.deb \
+          ./dist/keel-overlay-installer_*.deb \
+          ./dist/keel-overlay-wireguard_*.deb \
+          ./dist/keel-overlay-etcd_*.deb \
+          ./dist/keel-overlay-crowdsec_*.deb \
+          ./dist/keel-overlay-vip_*.deb \
+          etckeeper ntpsec
+        # unit states and manifests on the machine
+        KEEL_OVERLAY_INSTALL_TEST=1 KEEL_DEB="$(ls /tmp/deps/keel_*.deb)" \
+          bats tests/overlay-install.bats
+        # the units a container cannot run, under conf/turnkey.d/container-units;
+        # last, because it masks networkd on this machine
+        KEEL_OVERLAY_INSTALL_TEST=1 bats tests/container-units-live.bats
+
+  web:
+    needs: build
+    runs-on: keel-lxc
+    uses: keel-linux/.github/.github/workflows/lxc-trixie.yml@main
+    with:
+      systemd: true
+      backports: true
+      timeout: 60
+      download: overlay-debs
+      download-dir: dist
+      run: |
+        # step 5's packages at their keel/trixie heads of 2026-10-01, and
+        # keel 0.15.0, the merge of Keel-Linux/keel#63, which reads
+        # hooks.state
+        STEP5="libcoraza:2dd7785896df6bdad2faf9a13368081f9560187d
+               coreruleset:7411b7a9b8b901fbea7c45078391ce3e7ec5e4f3
+               libnginx-mod-http-coraza:630c68f203708d0819c70bc06427b04953f9ffdd
+               anubis:e2512d3931cd82a994106513b8eece5034a7c7fe"
+        KEEL_COMMIT=3143e870805c6214efe2bde1f589880fc47b0955
+        GO_SNAPSHOT=https://snapshot.debian.org/archive/debian/20261001T000000Z
+        GO_VERSION=1.26.8-1~bpo13+1
+        apt-get update -qq
+        apt-get install -y -qq --no-install-recommends \
+          ca-certificates git git-buildpackage pristine-tar devscripts \
+          equivs build-essential debhelper bats curl
+        echo "deb [check-valid-until=no] $GO_SNAPSHOT trixie-backports main" \
+          > /etc/apt/sources.list.d/go-snapshot.list
+        apt-get update -qq
+        apt-get install -y -qq --no-install-recommends \
+          "golang-1.26-go=$GO_VERSION" "golang-1.26-src=$GO_VERSION"
+        git config --global --add safe.directory '*'
+        mkdir -p /tmp/area /tmp/deps
+        for pinned in $STEP5; do
+          repo="${pinned%%:*}"
+          commit="${pinned#*:}"
+          src="/tmp/src/$repo"
+          git clone -q --branch keel/trixie \
+            "https://github.com/Keel-Linux/$repo.git" "$src"
+          git -C "$src" checkout -q "$commit"
+          # the branches each gbp.conf names: anubis keeps "upstream" and
+          # no pristine-tar, the others "upstream/latest" and pristine-tar
+          for branch in upstream/latest upstream pristine-tar; do
+            if git -C "$src" rev-parse -q --verify "origin/$branch" >/dev/null; then
+              git -C "$src" branch -q "$branch" "origin/$branch"
+            fi
+          done
+          (cd "$src" && gbp setup-gitattributes)
+          (cd /tmp && mk-build-deps --install --remove \
+            --tool 'apt-get -y -qq --no-install-recommends' \
+            "$src/debian/control")
+          (cd "$src" && DEB_BUILD_OPTIONS=nocheck gbp buildpackage \
+            --git-ignore-branch --git-export-dir=/tmp/area \
+            --git-builder='dpkg-buildpackage -us -uc -b')
+          if [ "$repo" = libcoraza ]; then
+            apt-get install -y -qq --no-install-recommends \
+              /tmp/area/libcoraza1_*.deb /tmp/area/libcoraza-dev_*.deb
+          fi
+        done
+        src=/tmp/src/keel
+        git init -q "$src"
+        git -C "$src" fetch -q --depth 1 \
+          https://github.com/Keel-Linux/keel.git "$KEEL_COMMIT"
+        git -C "$src" checkout -q FETCH_HEAD
+        apt-get build-dep -y -qq --no-install-recommends "$src"
+        (cd "$src" && DEB_BUILD_OPTIONS=nocheck dpkg-buildpackage -us -uc -b)
+        mv /tmp/src/keel_*.deb /tmp/deps/
+        # the suite reinstalls the module and the rule set from dist/
+        cp /tmp/area/libnginx-mod-http-coraza_*.deb /tmp/area/coreruleset_*.deb dist/
+        apt-get install -y -q --no-install-recommends /tmp/deps/keel_*.deb \
+          /tmp/area/libcoraza1_*.deb /tmp/area/anubis_*.deb \
+          ./dist/libnginx-mod-http-coraza_*.deb ./dist/coreruleset_*.deb \
+          ./dist/keel-overlay-nginx_*.deb ./dist/keel-overlay-coraza_*.deb \
+          ./dist/keel-overlay-anubis_*.deb
+        KEEL_OVERLAY_INSTALL_TEST=1 OVERLAY_DEBS=/src/dist \
+          bats tests/overlay-web.bats
