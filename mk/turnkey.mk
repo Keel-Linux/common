@@ -53,6 +53,9 @@ define _bootstrap/post
 	# the security key, which the Keel stanza of bootstrap_apt's
 	# security.sources names (handbook decision 0055)
 	cp $(COMMON_CONF_PATH)/../keys/keel-security-keyring.asc $O/bootstrap/usr/share/keyrings/keel-security-keyring.asc;
+	# the testing key, which the trixie-testing stanza of bootstrap_apt's
+	# keel.sources names (handbook decision 0055)
+	cp $(COMMON_CONF_PATH)/../keys/keel-testing-keyring.asc $O/bootstrap/usr/share/keyrings/keel-testing-keyring.asc;
 	fab-chroot $O/bootstrap --script $(COMMON_CONF_PATH)/bootstrap_apt;
 endef
 bootstrap/post += $(_bootstrap/post)

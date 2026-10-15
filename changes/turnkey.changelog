@@ -1,5 +1,21 @@
 turnkey-core-19.0 (1) turnkey; urgency=low
 
+  * The trixie-testing stanza of keel.sources names the testing keyring,
+    /usr/share/keyrings/keel-testing-keyring.gpg (handbook decision
+    0055). [ Marcos Mendez <mendez.foto@gmail.com> ]
+
+    The archive signs trixie-testing with the testing key, and with the
+    main key until every reader has the testing keyring. In the bootstrap
+    the stanza names the armored copy that mk/turnkey.mk copies from
+    keys/keel-testing-keyring.asc. conf/turnkey.d/keel-apt changes it to
+    the keyring of the package, stops when the keyring is missing, and
+    stops an image of the testing track whose stanza names another
+    keyring.
+
+ -- Marcos Mendez <mendez.foto@gmail.com>  Thu, 15 Oct 2026 23:45:00 +0000
+
+turnkey-core-19.0 (1) turnkey; urgency=low
+
   * 35pgsqlpass of the pgsql overlay asks nothing when nobody can answer
     the console (keel#155, item 6). [ Marcos Mendez <mendez.foto@gmail.com> ]
 

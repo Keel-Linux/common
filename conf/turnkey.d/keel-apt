@@ -86,6 +86,16 @@ awk "$keel_security" "$security" \
     || fatal "'$security' has no enabled https://archive.keellinux.org trixie-security stanza with Signed-By $keyrings/keel-security-keyring.gpg"
 rm -f "$keyrings/keel-security-keyring.asc"
 
+# --- the Keel testing track (handbook decision 0055): the trixie-testing
+# stanza of keel.sources names the testing keyring. The overlay ships it so;
+# a recipe overlay that names another keyring stops an image of the testing
+# track below.
+
+[ -f "$keyrings/keel-testing-keyring.gpg" ] \
+    || fatal "'$keyrings/keel-testing-keyring.gpg' is missing - keel-archive-keyring $KEYRING_MIN or later installs it"
+sed -i 's|^Signed-By: /usr/share/keyrings/keel-testing-keyring\.asc$|Signed-By: /usr/share/keyrings/keel-testing-keyring.gpg|' "$sources/keel.sources"
+rm -f "$keyrings/keel-testing-keyring.asc"
+
 # --- the Keel pin is 990 wherever it is (tracker#23): above 1000 it
 # downgrades every package newer than the archive's, and a recipe overlay
 # at preferences.d/keel wins over common's
@@ -115,7 +125,9 @@ case "${KEEL_APT_TRACK:-stable}" in
         # overlay ships off is turned on, nothing else in the file changes
         sed -i '/^Suites: trixie-testing$/,/^$/ s/^Enabled: no$/Enabled: yes/' "$sources/keel.sources"
         grep -qx 'Enabled: yes' <(sed -n '/^Suites: trixie-testing$/,/^$/p' "$sources/keel.sources") \
-            || fatal "KEEL_APT_TRACK=testing, but '$sources/keel.sources' has no trixie-testing stanza to enable" ;;
+            || fatal "KEEL_APT_TRACK=testing, but '$sources/keel.sources' has no trixie-testing stanza to enable"
+        grep -qx 'Signed-By: /usr/share/keyrings/keel-testing-keyring.gpg' <(sed -n '/^Suites: trixie-testing$/,/^$/p' "$sources/keel.sources") \
+            || fatal "KEEL_APT_TRACK=testing, but the trixie-testing stanza must name /usr/share/keyrings/keel-testing-keyring.gpg in '$sources/keel.sources'" ;;
     *) fatal "KEEL_APT_TRACK must be 'stable' or 'testing', got '$KEEL_APT_TRACK'" ;;
 esac
 # the armored copy conf/bootstrap_apt named is the bootstrap's; the package's

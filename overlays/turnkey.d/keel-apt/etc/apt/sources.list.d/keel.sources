@@ -2,8 +2,10 @@
 # Debian's packages come from Debian: debian.sources and security.sources.
 #
 # trixie is the stable track, the one an installation follows by default.
-# trixie-testing is the testing track, off unless the operator turns it on.
-# Both are signed by the key keel-archive-keyring installs.
+# It is signed by the main key. trixie-testing is the testing track, off
+# unless the operator turns it on. It is signed by the testing key
+# (handbook decision 0055). keel-archive-keyring 0.3.0 and later installs
+# both keyrings.
 Types: deb
 URIs: https://archive.keellinux.org
 Suites: trixie
@@ -16,4 +18,4 @@ URIs: https://archive.keellinux.org
 Suites: trixie-testing
 Components: main
 Enabled: no
-Signed-By: /usr/share/keyrings/keel-archive-keyring.gpg
+Signed-By: /usr/share/keyrings/keel-testing-keyring.gpg

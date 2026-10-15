@@ -74,6 +74,7 @@ render() {
     local DEBIAN_KEYRING=/usr/share/keyrings/debian-archive-keyring.pgp
     local KEEL_KEYRING=/usr/share/keyrings/keel-archive-keyring.asc
     local KEEL_SECURITY_KEYRING=/usr/share/keyrings/keel-security-keyring.asc
+    local KEEL_TESTING_KEYRING=/usr/share/keyrings/keel-testing-keyring.asc
     local keel_testing_enabled="${KEEL_TESTING_ENABLED:-no}"
     eval "cat <<EOF
 $body
@@ -136,9 +137,14 @@ fetch_hosts() {
     [ "$(awk '/^URIs:/ { print $2 }' <<< "$output" | sort -u)" = https://archive.keellinux.org ]
     [ "$(awk '/^Suites:/ { print $2 }' <<< "$output" | tr '\n' ' ')" = "trixie trixie-testing " ]
     [ "$(awk '/^Enabled:/ { print $2 }' <<< "$output" | tr '\n' ' ')" = "yes no " ]
-    [ "$(awk '/^Signed-By:/ { print $2 }' <<< "$output" | sort -u)" = /usr/share/keyrings/keel-archive-keyring.asc ]
-    # the key that file names is the one mk/turnkey.mk copies in from keys/
+    # each track has the keyring of its role (decision 0055)
+    [ "$(awk '/^Signed-By:/ { print $2 }' <<< "$output" | tr '\n' ' ')" = "/usr/share/keyrings/keel-archive-keyring.asc /usr/share/keyrings/keel-testing-keyring.asc " ]
+    # the keys those files name are the ones mk/turnkey.mk copies in from keys/
     grep -q 'keys/keel-archive-keyring.asc \$O/bootstrap/usr/share/keyrings/keel-archive-keyring.asc' "$REPO/mk/turnkey.mk"
+    grep -q 'keys/keel-testing-keyring.asc \$O/bootstrap/usr/share/keyrings/keel-testing-keyring.asc' "$REPO/mk/turnkey.mk"
+    gpg --batch --quiet --show-keys --with-colons "$REPO/keys/keel-testing-keyring.asc" \
+        | grep -q '^fpr:::::::::9B3CFC527FAD0EA5298D84ED05B5A6FE7E3BA58A:'
+    [ "$(gpg --batch --quiet --show-keys --with-colons "$REPO/keys/keel-testing-keyring.asc" | grep -c '^pub:')" -eq 1 ]
     gpg --batch --quiet --show-keys --with-colons "$REPO/keys/keel-archive-keyring.asc" \
         | grep -q '^fpr:::::::::AD0964BE3F09DED469A3B6B2148E951314703180:'
     grep -q '^CONF_VARS += KEEL_APT_TRACK$' "$REPO/mk/turnkey.mk"
@@ -214,6 +220,8 @@ fetch_hosts() {
         case "$site $suite" in
             *archive.keellinux.org*" trixie-security")
                 [ "$keyring" = /usr/share/keyrings/keel-security-keyring.asc ] ;;
+            *archive.keellinux.org*" trixie-testing")
+                [ "$keyring" = /usr/share/keyrings/keel-testing-keyring.gpg ] ;;
             *archive.keellinux.org*)
                 [ "$keyring" = /usr/share/keyrings/keel-archive-keyring.gpg ] ;;
             *debian.org*)
@@ -426,6 +434,7 @@ conf_tree() {
     ship_sources
     : > "$APTROOT/usr/share/keyrings/keel-archive-keyring.gpg"
     : > "$APTROOT/usr/share/keyrings/keel-security-keyring.gpg"
+    : > "$APTROOT/usr/share/keyrings/keel-testing-keyring.gpg"
     installed_pkg keel-archive-keyring 0.3.0
 }
 
@@ -739,4 +748,40 @@ run_conf() {
         /etc/apt/sources.list.d/keel-pool.sources /etc/apt/preferences.d/keel-pool; do
         grep -qxF "~$path" "$list"
     done
+}
+
+# ------------------------------------- the testing track, its own keyring
+
+@test "the testing track of the shipped keel.sources names the testing keyring alone" {
+    ship_sources
+    testing="$(awk 'BEGIN { RS = "" } /(^|\n)Suites: trixie-testing(\n|$)/' "$SOURCES/keel.sources")"
+    [ "$(awk '/^Signed-By:/ { print $2 }' <<< "$testing")" = /usr/share/keyrings/keel-testing-keyring.gpg ]
+    [ "$(awk '/^Enabled:/ { print $2 }' <<< "$testing")" = no ]
+    stable="$(awk 'BEGIN { RS = "" } /(^|\n)Suites: trixie(\n|$)/' "$SOURCES/keel.sources")"
+    [ "$(awk '/^Signed-By:/ { print $2 }' <<< "$stable")" = /usr/share/keyrings/keel-archive-keyring.gpg ]
+}
+
+@test "the conf script refuses an image without the testing keyring" {
+    conf_tree
+    rm "$APTROOT/usr/share/keyrings/keel-testing-keyring.gpg"
+    run_conf
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"keel-testing-keyring.gpg' is missing"* ]]
+}
+
+@test "the conf script drops the bootstrap's copy of the testing key" {
+    conf_tree
+    echo "armored copy" > "$APTROOT/usr/share/keyrings/keel-testing-keyring.asc"
+    run_conf
+    [ "$status" -eq 0 ]
+    [ ! -e "$APTROOT/usr/share/keyrings/keel-testing-keyring.asc" ]
+    [ -f "$APTROOT/usr/share/keyrings/keel-testing-keyring.gpg" ]
+}
+
+@test "KEEL_APT_TRACK=testing refuses a testing stanza that names another keyring" {
+    conf_tree
+    sed -i '/^Suites: trixie-testing$/,/^$/ s|^Signed-By: .*|Signed-By: /usr/share/keyrings/keel-archive-keyring.gpg|' "$SOURCES/keel.sources"
+    KEEL_APT_TRACK=testing run_conf
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"trixie-testing stanza must name /usr/share/keyrings/keel-testing-keyring.gpg"* ]]
 }

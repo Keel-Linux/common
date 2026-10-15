@@ -219,8 +219,12 @@ EOF
 # this file with the one an installed machine keeps. KEEL_APT_TRACK says which
 # track the build installs from (handbook decision 0043): stable, the default,
 # reads trixie alone; testing also enables trixie-testing, where a package
-# lands first, for an image of the testing channel.
+# lands first, for an image of the testing channel. The testing track has
+# the keyring of its own role (handbook decision 0055): the armored copy
+# that mk/turnkey.mk copied into the bootstrap, which conf/turnkey.d/keel-apt
+# replaces with the package's keyring.
 KEEL_KEYRING=/usr/share/keyrings/keel-archive-keyring.asc
+KEEL_TESTING_KEYRING=/usr/share/keyrings/keel-testing-keyring.asc
 case "${KEEL_APT_TRACK:-stable}" in
     stable) keel_testing_enabled=no ;;
     testing) keel_testing_enabled=yes ;;
@@ -228,6 +232,8 @@ case "${KEEL_APT_TRACK:-stable}" in
 esac
 [[ -f "$KEEL_KEYRING" ]] \
     || fatal "'$KEEL_KEYRING' is missing - mk/turnkey.mk copies it into the bootstrap from common's keys/"
+[[ -f "$KEEL_TESTING_KEYRING" ]] \
+    || fatal "'$KEEL_TESTING_KEYRING' is missing - mk/turnkey.mk copies it into the bootstrap from common's keys/"
 cat > $SOURCES_LIST/keel.sources <<EOF
 Types: deb
 URIs: https://archive.keellinux.org
@@ -241,7 +247,7 @@ URIs: https://archive.keellinux.org
 Suites: $CODENAME-testing
 Components: main
 Enabled: $keel_testing_enabled
-Signed-By: $KEEL_KEYRING
+Signed-By: $KEEL_TESTING_KEYRING
 EOF
 
 if [[ -n "$PHP_VERSION" ]]; then
