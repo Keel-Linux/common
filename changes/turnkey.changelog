@@ -1,5 +1,21 @@
 turnkey-core-19.0 (1) turnkey; urgency=low
 
+  * 35pgsqlpass of the pgsql overlay asks nothing when nobody can answer
+    the console (keel#155, item 6). [ Marcos Mendez <mendez.foto@gmail.com> ]
+
+    With no DB_PASS, pgsqlconf.py drew its password screen on a console
+    that nobody reads, and the first boot of a PostgreSQL container
+    stopped there for ever. 98finalize then did not set
+    RUN_FIRSTBOOT=false, and each reboot ran the first boot hooks again:
+    new SSH host keys and a changed root password state. Now the hook
+    uses console_unattended of inithooks, as 30rootpass does: it writes
+    one line, the postgres account keeps no password, and keel-init asks
+    it later. DB_PASS still sets the password with no screen.
+
+ -- Marcos Mendez <mendez.foto@gmail.com>  Thu, 15 Oct 2026 22:30:00 +0000
+
+turnkey-core-19.0 (1) turnkey; urgency=low
+
   * security.sources has a second stanza, the Keel trixie-security suite
     (handbook decision 0055). [ Marcos Mendez <mendez.foto@gmail.com> ]
 

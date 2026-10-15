@@ -1,7 +1,28 @@
 #!/bin/bash -e
-# set pgsql postgres password
+# Set the password of the postgres account.
+#
+# DB_PASS preseeded (or rendered from secrets.db_password by 00declarative)
+# sets it with no screen. Otherwise pgsqlconf.py asks. When nobody can
+# answer the console (lib/console.sh of inithooks), nothing is asked: the
+# account keeps no password, which allows local peer authentication only,
+# and keel-init asks it later.
+#
+# A screen that nobody can answer held the first boot for ever (keel#155,
+# item 6). Then 98finalize did not set RUN_FIRSTBOOT=false, and each
+# reboot ran the first boot hooks again: new SSH host keys, and a changed
+# root password state.
 
-. /etc/default/inithooks
+INITHOOKS_DEFAULT="${INITHOOKS_DEFAULT:-/etc/default/inithooks}"
+# shellcheck source=/dev/null
+. "$INITHOOKS_DEFAULT"
+# shellcheck source=/dev/null
+. "$INITHOOKS_PATH/lib/console.sh"
 
-[ -e $INITHOOKS_CONF ] && . $INITHOOKS_CONF
-$INITHOOKS_PATH/bin/pgsqlconf.py --user=postgres --pass="$DB_PASS"
+# shellcheck source=/dev/null
+[ -e "$INITHOOKS_CONF" ] && . "$INITHOOKS_CONF"
+
+if [ -z "$DB_PASS" ] && console_unattended; then
+    console_skipped 35pgsqlpass "the postgres account keeps no password (local peer authentication only); keel-init asks it"
+    exit 0
+fi
+"$INITHOOKS_PATH/bin/pgsqlconf.py" --user=postgres --pass="$DB_PASS"
