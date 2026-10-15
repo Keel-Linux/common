@@ -24,6 +24,7 @@ targets=(
     "conf/turnkey.d/keel-apt:tests/apt-sources.bats"
     "conf/samba-rootpass:tests/samba-rootpass.bats"
     "conf/pgsql:tests/pgsql-conf.bats"
+    "overlays/pgsql/usr/lib/inithooks/firstboot.d/35pgsqlpass:tests/pgsqlpass.bats"
     "conf/mysql:tests/mysql-conf.bats"
     "conf/desktop:tests/desktop.bats"
     "conf/turnkey.d/rootpass:tests/rootpass.bats"
