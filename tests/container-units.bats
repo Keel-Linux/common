@@ -6,7 +6,7 @@
 # systemctl is the stub of tests/stubs, which records its arguments in
 # STUB_LOG. The drop-ins go to a scratch systemd tree, beside copies of the
 # packaged units from tests/fixtures (systemd 257.13, ntpsec 1.2.3 of
-# trixie), so that systemd reads each pair together: the verdict on the
+# trixie; systemd-modules-load.service of systemd 257.13), so that systemd reads each pair together: the verdict on the
 # condition is systemd's own, from 'systemd-analyze condition', and the
 # merged units are handed to 'systemd-analyze verify' so that systemd, and
 # not a reader, says they parse. For networkd the three packaged units and
@@ -18,7 +18,7 @@ bats_require_minimum_version 1.5.0
 
 load helpers
 
-UNITS=(ntpsec.service sys-kernel-config.mount sys-kernel-debug.mount)
+UNITS=(ntpsec.service sys-kernel-config.mount sys-kernel-debug.mount systemd-modules-load.service)
 NETWORKD=(systemd-networkd.service systemd-networkd.socket systemd-networkd-wait-online.service)
 
 # The systemctl of the system, not the stub: the preset tests ask systemd
@@ -115,7 +115,7 @@ packaged_networkd() {
     done
 }
 
-@test "writes a keel-container drop-in for ntpsec and both kernel mounts, and nothing else" {
+@test "writes a keel-container drop-in for ntpsec, both kernel mounts and systemd-modules-load, and nothing else" {
     run "$SCRIPT"
     [ "$status" -eq 0 ]
     local unit
@@ -162,4 +162,39 @@ packaged_networkd() {
         [ "$status" -eq 0 ]
         [[ "$output" == *ConditionCapability=*ConditionVirtualization=!container ]]
     done
+}
+
+@test "systemd-modules-load gets the drop-in, beside its packaged conditions" {
+    # A container has no kernel and no /lib/modules (handbook decision 0052),
+    # but kmod ships /etc/modules-load.d/modules.conf, which satisfies a
+    # triggering condition of the packaged unit, and CAP_SYS_MODULE passes in
+    # the container's user namespace. Without the drop-in the unit runs and
+    # fails: "Failed to initialize libkmod context: Operation not supported".
+    run "$SCRIPT"
+    [ "$status" -eq 0 ]
+    local unit=systemd-modules-load.service
+    [ -f "$(dropin "$unit")" ]
+    packaged "$unit" >/dev/null
+    grep -q '^ConditionCapability=CAP_SYS_MODULE$' "$SYSTEMD_DIR/$unit"
+    grep -q '^ConditionDirectoryNotEmpty=|/etc/modules-load.d$' "$SYSTEMD_DIR/$unit"
+    run conditions_of "$SYSTEMD_DIR/$unit" "$(dropin "$unit")"
+    [[ "$output" == *ConditionVirtualization=!container ]]
+}
+
+@test "the drop-in names a container only, so a VM or the ISO boot layer still loads modules" {
+    run "$SCRIPT"
+    [ "$status" -eq 0 ]
+    local dropin_file
+    dropin_file="$(dropin systemd-modules-load.service)"
+    # the one condition, nothing else that would stop a VM or a bare install
+    [ "$(grep -c '^Condition' "$dropin_file")" -eq 1 ]
+    run systemd-analyze condition 'ConditionVirtualization=!container'
+    if systemd-detect-virt --container >/dev/null; then
+        [ "$status" -ne 0 ]
+    else
+        [ "$status" -eq 0 ]
+    fi
+    # nothing in the boot layer masks it or removes the drop-in
+    run grep -rn 'modules-load' "$TESTS_DIR/../conf/keel-boot" "$TESTS_DIR/../plans/keel-boot"
+    [ "$status" -ne 0 ]
 }

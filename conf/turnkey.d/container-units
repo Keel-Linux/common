@@ -47,7 +47,18 @@
 # host's debugfs and configfs are not the container's to mount, so the
 # drop-in adds the condition the packaged units lack: the unit does not
 # start in a container and starts as before on a VM or a bare install.
-# None of these three is masked: 'systemctl start' from a console still answers, and a
+# systemd-modules-load. Found on the step 12 lean-core images, 2026-10-10:
+# every image booted degraded with "Failed to initialize libkmod context:
+# Operation not supported". The container core has no kernel and no
+# /lib/modules (handbook decision 0052), but kmod ships
+# /etc/modules-load.d/modules.conf, which satisfies a triggering condition
+# of the packaged unit, and its CAP_SYS_MODULE condition passes in the user
+# namespace for the reason above. A container cannot load modules: the host
+# loads them. The same drop-in stops the unit in a container. The ISO boot
+# layer (plans/keel-boot) boots a kernel on a VM or bare metal, where the
+# condition holds and the unit loads modules as before.
+#
+# None of these four is masked: 'systemctl start' from a console still answers, and a
 # container that has them pre-mounted by its runtime shows them active.
 #
 # SYSTEMD_DIR is a test hook; a build leaves it unset. tests/container-units.bats.
@@ -63,7 +74,8 @@ for unit in $NETWORKD; do
     ln -sfn /dev/null "$SYSTEMD_DIR/$unit"
 done
 
-for unit in ntpsec.service sys-kernel-config.mount sys-kernel-debug.mount; do
+for unit in ntpsec.service sys-kernel-config.mount sys-kernel-debug.mount \
+    systemd-modules-load.service; do
     mkdir -p "$SYSTEMD_DIR/$unit.d"
     cat > "$SYSTEMD_DIR/$unit.d/keel-container.conf" <<CONF
 [Unit]
