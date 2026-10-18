@@ -20,6 +20,7 @@ execute_after_dh_auto_install:
 	install -D -m 0644 manifest.yaml $(PKG)/usr/share/keel/overlays/anubis.yaml
 	install -D -m 0644 keel.env $(PKG)/etc/anubis/keel.env
 	install -D -m 0644 keel-anubis.conf $(PKG)/etc/nginx/snippets/keel-anubis.conf
+	install -D -m 0644 keel-anubis-map.conf $(PKG)/etc/nginx/conf.d/keel-anubis.conf
 	install -D -m 0644 keel-overlay-anubis-key.service \
 		$(UNITS)/keel-overlay-anubis-key.service
 	install -D -m 0644 keel-overlay-anubis.conf \

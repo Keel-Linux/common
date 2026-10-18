@@ -1,3 +1,17 @@
+keel-overlay-anubis (0.1.1) trixie; urgency=medium
+
+  * A WebSocket passes the Anubis front (Keel-Linux/common#58).
+    /etc/nginx/snippets/keel-anubis.conf now sets the Upgrade and
+    Connection headers of the request, through the map in the new file
+    /etc/nginx/conf.d/keel-anubis.conf ($keel_anubis_connection: "upgrade"
+    for an upgrade, "close" for any other request). Nginx dropped both
+    headers before, so Anubis never handed the upgrade to the app and
+    /websocket answered 400, for example the bus of Odoo. Anubis checks
+    the cookie before it hands over a request, so a client with no pass
+    still gets the challenge.
+
+ -- Marcos Mendez <mendez.foto@gmail.com>  Sun, 18 Oct 2026 14:00:00 +0000
+
 keel-overlay-anubis (0.1.0) trixie; urgency=medium
 
   * First release (handbook decision 0041, first implementation, step 6).

@@ -822,6 +822,51 @@ EOF
     [[ "$output" == *anubis* ]]
 }
 
+@test "a WebSocket upgrade reaches the app behind Anubis, a browser with no cookie is still challenged" {
+    systemctl enable --now "$ANUBIS"
+    cat > "$TEST_SITE" <<'EOF'
+server {
+    listen [::1]:8081;
+    location / {
+        include /etc/nginx/snippets/keel-anubis.conf;
+    }
+}
+server {
+    listen unix:/run/nginx/keel-app.sock;
+    location / {
+        add_header X-Seen-Upgrade "$http_upgrade" always;
+        add_header X-Seen-Connection "$http_connection" always;
+        return 200 "behind anubis\n";
+    }
+}
+EOF
+    nginx -t
+    systemctl reload nginx.service
+    answers 200 "http://[::1]:8081/" --user-agent curl/8.14.1
+
+    # the headers a client sends to open a WebSocket reach the app
+    run curl --globoff --silent --max-time 5 --user-agent curl/8.14.1 \
+        --dump-header - --output /dev/null \
+        --header "Upgrade: websocket" --header "Connection: Upgrade" \
+        "http://[::1]:8081/websocket"
+    echo "$output"
+    [[ "${output,,}" == *"x-seen-upgrade: websocket"* ]]
+    [[ "${output,,}" == *"x-seen-connection: upgrade"* ]]
+
+    # a request that is no upgrade carries none
+    run curl --globoff --silent --max-time 5 --user-agent curl/8.14.1 \
+        --dump-header - --output /dev/null "http://[::1]:8081/"
+    [[ "${output,,}" != *"x-seen-upgrade: websocket"* ]]
+
+    # Anubis keeps its work: a browser with no cookie gets the challenge
+    run curl --globoff --silent --max-time 5 \
+        --user-agent "Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0" \
+        --header "Upgrade: websocket" --header "Connection: Upgrade" \
+        "http://[::1]:8081/websocket"
+    [[ "$output" != *"behind anubis"* ]]
+    [[ "$output" == *anubis* ]]
+}
+
 @test "the key file the spec names is the key, and none is made" {
     install -D -m 0600 /dev/null "$PRIMARY_KEY"
     head -c 32 /dev/urandom | od -A n -v -t x1 | tr -d ' \n' > "$PRIMARY_KEY"
