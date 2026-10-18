@@ -73,7 +73,7 @@ teardown() {
     if [ -f "$BATS_TEST_TMPDIR/no-spec" ]; then
         rm -f "$SPEC"
     fi
-    rm -f "$TEST_SITE" "$KEY.from-primary" "$PRIMARY_KEY"
+    rm -f "$TEST_SITE" "$KEY.from-primary" "$PRIMARY_KEY" "$BODY_CONF"
     if [ "$(dpkg-query -W -f='${Version}' coreruleset)" != \
             "$(dpkg-deb -f "$(deb_of coreruleset)" Version)" ]; then
         dpkg -i "$(deb_of coreruleset)"
@@ -561,6 +561,101 @@ LOCAL=web.localhost
         # every other rule still reads redir
         answers 403 -H "Host: $LOCAL" "http://$address$PASS?id=x&redir=https%3A%2F%2F$LOCAL%2F%3Cscript%3Ealert(1)%3C%2Fscript%3E"
     done
+}
+
+# Keel-Linux/common#59 and Keel-Linux/keel-web#15. Coraza selected no body
+# processor from the content type, and the Core Rule Set read every other
+# body as one urlencoded argument. A JSON text became the name of one
+# argument. A binary body of 1 MB made a worker use 800 MB and 30 s of CPU,
+# and a body of 3 MB stopped a container of 2 GB. Now JSON and XML have
+# their processors, a body that no processor reads is not read at all, and
+# a form, JSON or XML body of more than 256 KiB is refused with 413. A file
+# in a multipart body is no argument, and the limit does not count it.
+BODY_CONF=/etc/nginx/conf.d/zz-keel-body-test.conf
+
+# BYTES of the character CHAR, with no newline
+filler() {
+    head -c "$1" /dev/zero | tr '\0' "$2"
+}
+
+# the status of a POST of FILE with the content type TYPE
+posted() {
+    local type="$1" file="$2"
+    code --request POST --header "Content-Type: $type" --header 'Expect:' \
+        --data-binary "@$file" "$HEALTH"
+}
+
+body_test_on() {
+    echo 'client_max_body_size 64m;' > "$BODY_CONF"
+    "$STATE" enabled
+}
+
+@test "Coraza reads a JSON body with the JSON body processor, and XML with the XML one" {
+    cp "$RULES" "$BATS_TEST_TMPDIR/rules"
+    {
+        echo 'SecRule REQBODY_PROCESSOR "@streq JSON" "id:899001,phase:2,deny,status:418"'
+        echo 'SecRule REQBODY_PROCESSOR "@streq XML" "id:899002,phase:2,deny,status:421"'
+    } >> "$RULES"
+    body_test_on
+    echo '{"probe":"x"}' > "$BATS_TEST_TMPDIR/json"
+    echo '<probe>x</probe>' > "$BATS_TEST_TMPDIR/xml"
+    answers 418 --request POST --header 'Content-Type: application/json' \
+        --data-binary "@$BATS_TEST_TMPDIR/json" "$HEALTH"
+    answers 418 --request POST --header 'Content-Type: application/cloudevents+json; charset=utf-8' \
+        --data-binary "@$BATS_TEST_TMPDIR/json" "$HEALTH"
+    answers 421 --request POST --header 'Content-Type: text/xml' \
+        --data-binary "@$BATS_TEST_TMPDIR/xml" "$HEALTH"
+    answers 421 --request POST --header 'Content-Type: application/soap+xml' \
+        --data-binary "@$BATS_TEST_TMPDIR/xml" "$HEALTH"
+    # a form body is neither
+    answers 204 --request POST --data probe=x "$HEALTH"
+}
+
+@test "a body of another type is not read: 3 MiB gets its answer at once, not after minutes" {
+    body_test_on
+    # The Core Rule Set does not allow these types (rule 920420), so the
+    # answer is 403. Before the fix the same request had no answer within
+    # the 5 s of code(): the status was 000.
+    head -c 3145728 /dev/urandom > "$BATS_TEST_TMPDIR/blob"
+    [ "$(posted application/octet-stream "$BATS_TEST_TMPDIR/blob")" = 403 ]
+    [ "$(posted image/jpeg "$BATS_TEST_TMPDIR/blob")" = 403 ]
+    filler 3145728 a > "$BATS_TEST_TMPDIR/text"
+    [ "$(posted text/plain "$BATS_TEST_TMPDIR/text")" = 403 ]
+}
+
+@test "a form, JSON or XML body of more than 256 KiB is refused with 413 by Coraza" {
+    body_test_on
+    local before after
+    before="$(grep -c 'Coraza: Access denied with code 413' /var/log/nginx/error.log || true)"
+    { printf 'a='; filler 393216 a; } > "$BATS_TEST_TMPDIR/form"
+    { printf '{"a":"'; filler 393216 a; printf '"}'; } > "$BATS_TEST_TMPDIR/json"
+    { printf '<a>'; filler 393216 a; printf '</a>'; } > "$BATS_TEST_TMPDIR/xml"
+    [ "$(posted application/x-www-form-urlencoded "$BATS_TEST_TMPDIR/form")" = 413 ]
+    [ "$(posted application/json "$BATS_TEST_TMPDIR/json")" = 413 ]
+    [ "$(posted application/xml "$BATS_TEST_TMPDIR/xml")" = 413 ]
+    after="$(grep -c 'Coraza: Access denied with code 413' /var/log/nginx/error.log || true)"
+    [ "$after" -eq "$((before + 3))" ]
+}
+
+@test "a form or JSON body of less than 256 KiB is read and passes" {
+    body_test_on
+    { printf 'a='; filler 131072 a; } > "$BATS_TEST_TMPDIR/form"
+    { printf '{"a":"'; filler 131072 a; printf '"}'; } > "$BATS_TEST_TMPDIR/json"
+    [ "$(posted application/x-www-form-urlencoded "$BATS_TEST_TMPDIR/form")" = 204 ]
+    [ "$(posted application/json "$BATS_TEST_TMPDIR/json")" = 204 ]
+}
+
+@test "a multipart body with a file of 32 MiB passes, as the limit does not count the file" {
+    body_test_on
+    head -c 33554432 /dev/urandom > "$BATS_TEST_TMPDIR/file"
+    answers 204 --request POST --header 'Expect:' --form-string "name=a.jpg" \
+        --form "file=@$BATS_TEST_TMPDIR/file;type=image/jpeg" "$HEALTH"
+}
+
+@test "the rules still read a multipart field: a script in it is blocked" {
+    body_test_on
+    answers 403 --request POST \
+        --form-string 'name=<script>alert(1)</script>' "$HEALTH"
 }
 
 @test "state disabled unloads the module and the probe passes again" {
