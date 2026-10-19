@@ -1,0 +1,19 @@
+# keel-overlay-anubis: the policy of anubis@keel.service (handbook decision
+# 0062, the Nextcloud appliance: a sync client carries no browser and no
+# cookie, and must pass the challenge it cannot solve).
+#
+# Anubis reads one policy file (POLICY_FNAME in /etc/anubis/keel.env),
+# evaluates the bots list in the order it stands in, and the first rule
+# that matches wins. So the drop-in directory of an appliance comes first:
+# a file of /etc/anubis/keel.d/ may allow what the rest of the policy would
+# challenge or deny, and nothing below can take that back. The glob is
+# fatal at startup when it matches no file, and the package ships
+# keel-placeholder.yaml so the directory is never empty.
+#
+# After the drop-ins stands upstream's default policy, the file the anubis
+# package installs (/etc/anubis/botPolicies.yaml), unchanged: what version
+# 1 of this package ran alone. Anubis expands the imports of an imported
+# file, so the (data) snippets of the default policy keep working.
+bots:
+  - import: /etc/anubis/keel.d/*.yaml
+  - import: /etc/anubis/botPolicies.yaml
