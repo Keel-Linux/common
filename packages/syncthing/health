@@ -1,0 +1,57 @@
+#!/usr/bin/python3
+"""keel-overlay-syncthing health: the check the overlay manifest names.
+
+Reads the API key out of the configuration that keel renders and asks
+http://127.0.0.1:8384/rest/system/ping. Prints "pong" and exits 0 when
+Syncthing answers. Exits 1 on every other case, a missing configuration
+included: keel renders the configuration before it enables the overlay.
+"""
+
+import os
+import sys
+import urllib.request
+import xml.etree.ElementTree as ET
+
+CONFIG = os.environ.get(
+    "KEEL_SYNCTHING_CONFIG", "/var/lib/syncthing/config.xml")
+URL = os.environ.get(
+    "KEEL_SYNCTHING_URL", "http://127.0.0.1:8384/rest/system/ping")
+
+
+def main():
+    try:
+        root = ET.parse(CONFIG).getroot()
+    except (OSError, ET.ParseError) as error:
+        print(f"health: cannot read {CONFIG}: {error}")
+        return 1
+    # Syncthing writes the configuration with the schema namespace
+    # (http://syncthing.net/schema/config/2) once it rewrote the file,
+    # and with no namespace when `syncthing generate` created it, so the
+    # match is by local name.
+    apikey = None
+    for element in root:
+        if element.tag.rsplit("}", 1)[-1] != "gui":
+            continue
+        for sub in element:
+            if sub.tag.rsplit("}", 1)[-1] == "apikey":
+                apikey = sub.text
+                break
+        break
+    if not apikey:
+        print("health: the configuration has no API key")
+        return 1
+    request = urllib.request.Request(URL, headers={"X-API-Key": apikey})
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            if response.status == 200:
+                print("health: pong")
+                return 0
+            print(f"health: {URL} answered {response.status}")
+            return 1
+    except OSError as error:
+        print(f"health: {URL}: {error}")
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

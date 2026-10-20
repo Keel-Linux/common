@@ -2,7 +2,7 @@
 # (decision 0056). The full CI is .forgejo/workflows on git.pop.coop, and
 # .forgejo/workflows/packages.yml has the notes on each job.
 #
-# Jobs on Forgejo only (no GitHub-hosted version): install, web.
+# Jobs on Forgejo only (no GitHub-hosted version): install, syncthing, web.
 name: packages
 
 on:
