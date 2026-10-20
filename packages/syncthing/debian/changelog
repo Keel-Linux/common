@@ -1,0 +1,15 @@
+keel-overlay-syncthing (0.1.0) trixie; urgency=medium
+
+  * Initial release: the Syncthing overlay of handbook decision 0050, the
+    file replication of the application state of a database pair. Ships
+    the unit that runs the binary package as the syncthing user, with
+    CAP_CHOWN, CAP_FOWNER and CAP_DAC_OVERRIDE as ambient capabilities,
+    so a received file keeps the owner of the application's directory
+    (copyOwnershipFromParent) without root, and ProtectSystem=strict with
+    ReadWritePaths= on the home. keel adds the replicated paths with a
+    drop-in. The manifest declares the listen port 22000 on the mesh and
+    the health check that asks the REST API on the loopback. The service
+    is installed disabled and stopped, the state of a simple installation
+    (decision 0041).
+
+ -- KeelLinux maintainers <admin@keellinux.org>  Tue, 20 Oct 2026 14:00:00 +0000

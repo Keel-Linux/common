@@ -1,0 +1,4 @@
+# the binary this unit runs: the syncthing package ships no maintainer
+# script (only the binary), so without this an upgrade of the binary would
+# leave the old process running until a manual restart
+interest-noawait /usr/bin/syncthing

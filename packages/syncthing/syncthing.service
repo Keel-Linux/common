@@ -1,0 +1,33 @@
+[Unit]
+Description=Syncthing, the file replication of application state (0050)
+Documentation=man:syncthing(1)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=syncthing
+Group=syncthing
+ExecStart=/usr/bin/syncthing serve --no-browser --no-upgrade --home=/var/lib/syncthing
+Restart=on-failure
+RestartSec=5
+
+# 0050, amendment item 6: a received file keeps the owner of the
+# application's directory (copyOwnershipFromParent) without root
+AmbientCapabilities=CAP_CHOWN CAP_FOWNER CAP_DAC_OVERRIDE
+CapabilityBoundingSet=CAP_CHOWN CAP_FOWNER CAP_DAC_OVERRIDE
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+ReadWritePaths=/var/lib/syncthing
+# keel writes /etc/systemd/system/syncthing.service.d/replicate.conf with
+# ReadWritePaths= for the application's replicated paths
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,32 @@
+#!/bin/sh
+# keel-overlay-syncthing: create the syncthing user and its home on the
+# first installation, and restart the service on an upgrade where it runs,
+# so a unit change lands without a manual restart.
+set -e
+
+USER=syncthing
+HOME_DIR=/var/lib/syncthing
+
+if [ "$1" = configure ] && [ -z "$2" ]; then
+    if ! getent passwd "$USER" >/dev/null; then
+        adduser --system --group --home "$HOME_DIR" --no-create-home \
+            --shell /usr/sbin/nologin "$USER"
+    fi
+    # the home holds the key, the configuration and the index database
+    if [ ! -d "$HOME_DIR" ]; then
+        install -d -m 0750 -o "$USER" -g "$USER" "$HOME_DIR"
+    fi
+fi
+
+if [ "$1" = configure ] || [ "$1" = triggered ]; then
+    if [ -d /run/systemd/system ] && [ -n "$2" ]; then
+        # an upgrade, of this package or of the binary (debian/triggers):
+        # land the new files without a manual restart
+        systemctl --system daemon-reload >/dev/null || true
+        deb-systemd-invoke try-restart syncthing.service || true
+    fi
+fi
+
+#DEBHELPER#
+
+exit 0

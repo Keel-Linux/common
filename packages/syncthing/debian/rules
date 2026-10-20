@@ -1,0 +1,29 @@
+#!/usr/bin/make -f
+# The overlay manifest, the unit, the preset and the health helper sit
+# beside debian/ (docs/manifest-v1.md, "Kinds, and where each file lives")
+# and are installed under the names keel and systemd look them up by.
+
+PKG = debian/keel-overlay-syncthing
+
+%:
+	dh $@
+
+execute_after_dh_auto_install:
+	install -D -m 0644 manifest.yaml \
+		$(PKG)/usr/share/keel/overlays/syncthing.yaml
+	install -D -m 0644 syncthing.service \
+		$(PKG)/usr/lib/systemd/system/syncthing.service
+	install -D -m 0644 keel-overlay-syncthing.preset \
+		$(PKG)/usr/lib/systemd/system-preset/20-keel-overlay-syncthing.preset
+	install -D -m 0755 health \
+		$(PKG)/usr/lib/keel-overlay-syncthing/health
+
+# Installed disabled and stopped, the state of a simple installation:
+# keel spec apply enables the service with the overlay (decision 0041).
+# The unit is this package's own, so nothing enabled it before the first
+# installation and there is no transition state to keep. An upgrade
+# try-restarts the service where it runs, so a unit change lands without
+# a manual restart; postinst also creates the syncthing user.
+override_dh_installsystemd:
+	dh_installsystemd --no-enable --no-start --no-stop-on-upgrade \
+		syncthing.service
