@@ -1,4 +1,4 @@
-turnkey-common (19.0) trixie; urgency=medium
+turnkey-core-19.0 (5) turnkey; urgency=low
 
   * conf/turnkey.d/monit and roothome are idempotent: ln -sfn for the
     monit system link and mkdir -p for /etc/skel/.ssh, so a build over
