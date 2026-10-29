@@ -1,3 +1,21 @@
+turnkey-core-19.0 (2) turnkey; urgency=low
+
+  * Images ship Python bytecode, compiled at build time with timestamp
+    invalidation and source mtimes clamped to SOURCE_DATE_EPOCH, as Debian,
+    Arch and Fedora do. [ Marcos Mendez <mendez.foto@gmail.com> ]
+
+    The image shipped no .pyc anywhere: conf/turnkey.d/zzz-clean-pycs runs
+    py3clean, and the first import compiled its modules again (keel --help
+    632ms on the first call, 184ms after). The compiler now runs after the
+    product deb, which may add Python files, and before seal-root, which
+    stays last. Timestamp mode matches the distributions and avoids a hash
+    of every import; clamping the .py and .pyc mtimes to SOURCE_DATE_EPOCH
+    keeps the result byte-identical across builds. 1089 files, +18.0 MiB,
+    the first keel call drops to 191ms and the confconsole imports on the
+    first boot from 320ms to 68ms.
+
+ -- Marcos Mendez <mendez.foto@gmail.com>  Wed, 21 Oct 2026 00:00:00 +0000
+
 turnkey-core-19.0 (1) turnkey; urgency=low
 
   * A container does not run systemd-modules-load (step 12 boot test,
