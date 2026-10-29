@@ -1,3 +1,16 @@
+turnkey-core-19.0 (4) turnkey; urgency=low
+
+  * The boot layer waits for no GRUB menu: three seconds of menu on
+    every boot are not a choice anybody makes. [ Marcos Mendez
+    <mendez.foto@gmail.com> ]
+
+    grub-timeout sets GRUB_TIMEOUT=0. It is in the boot layer
+    (conf/keel-boot), so a Core layer test does not measure it; the boot
+    layer's own boot is the measurement. Hold Shift at power on to see
+    the menu.
+
+ -- Marcos Mendez <mendez.foto@gmail.com>  Tue, 27 Oct 2026 00:00:00 +0000
+
 turnkey-core-19.0 (1) turnkey; urgency=low
 
   * A container does not run systemd-modules-load (step 12 boot test,
