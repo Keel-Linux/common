@@ -2,7 +2,7 @@
 
 Change: `common/conf/keel-boot/initramfs-compress` sets `COMPRESS=lz4`
 and runs `update-initramfs -u -k all`. Decision 0071. Test:
-`tests/plans-boot.bats` (7 tests, all pass), which checks the boot
+`tests/plans-boot.bats` (9 tests, all pass), which checks the boot
 layer's conf and overlay but not the boot time.
 
 Platform: the boot layer is the ISO's layer on top of the appliance
