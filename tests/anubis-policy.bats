@@ -63,9 +63,9 @@ PY
 )
     # 'a^' cannot match: a literal "a" and then start-of-string.
     [ "$regex" = 'a^' ]
-    ! [[ "Nextcloud-android/3.30.0" =~ $regex ]]
-    ! [[ "Mozilla/5.0" =~ $regex ]]
-    ! [[ "" =~ $regex ]]
+    [[ ! "Nextcloud-android/3.30.0" =~ $regex ]]
+    [[ ! "Mozilla/5.0" =~ $regex ]]
+    [[ ! "" =~ $regex ]]
 }
 
 @test "keel.env points anubis at the keel policy" {
