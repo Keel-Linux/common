@@ -1,5 +1,11 @@
 #!/bin/bash -e
 
-# The menu is a recovery tool, not a choice: three seconds on every boot
-# is not worth it. Hold Shift at power on to see it.
-sed -i 's/^GRUB_TIMEOUT=.*/GRUB_TIMEOUT=0/' /etc/default/grub
+# The menu is hidden, not removed. On the Proxmox noVNC console, a serial
+# console or EFI, a held Shift at power on is not reliable. Esc opens the
+# menu, and the one second wait is the cost.
+sed -i 's/^GRUB_TIMEOUT=.*/GRUB_TIMEOUT=1/' /etc/default/grub
+if grep -q '^GRUB_TIMEOUT_STYLE=' /etc/default/grub; then
+    sed -i 's/^GRUB_TIMEOUT_STYLE=.*/GRUB_TIMEOUT_STYLE=hidden/' /etc/default/grub
+else
+    echo 'GRUB_TIMEOUT_STYLE=hidden' >> /etc/default/grub
+fi
