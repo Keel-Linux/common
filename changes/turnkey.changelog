@@ -1,3 +1,44 @@
+turnkey-common (19.0) trixie; urgency=medium
+
+  * conf/turnkey.d/monit and roothome are idempotent: ln -sfn for the
+    monit system link and mkdir -p for /etc/skel/.ssh, so a build over
+    an existing root does not fail.
+
+ -- Keel Linux maintainers <admin@keellinux.org>  Wed, 28 Oct 2026 00:00:00 +0000
+
+turnkey-core-19.0 (2) turnkey; urgency=low
+
+  * The boot layer waits for no GRUB menu and uses an lz4 initrd: three
+    seconds of menu on every boot are not a choice anybody makes, and lz4
+    decompresses several times faster than zstd. [ Marcos Mendez
+    <mendez.foto@gmail.com> ]
+
+    grub-timeout sets GRUB_TIMEOUT=0 and initramfs-compress sets
+    COMPRESS=lz4 before rebuilding the initrd. Both are in the boot layer
+    (conf/keel-boot), so a Core layer test does not measure them; the
+    boot layer's own boot is the measurement. MODULES=dep and
+    mitigations=off are not taken.
+
+ -- Marcos Mendez <mendez.foto@gmail.com>  Tue, 27 Oct 2026 00:00:00 +0000
+
+turnkey-core-19.0 (1) turnkey; urgency=low
+
+  * Images ship Python bytecode, compiled at build time with timestamp
+    invalidation and source mtimes clamped to SOURCE_DATE_EPOCH, as Debian,
+    Arch and Fedora do. [ Marcos Mendez <mendez.foto@gmail.com> ]
+
+    The image shipped no .pyc anywhere: conf/turnkey.d/zzz-clean-pycs runs
+    py3clean, and the first import compiled its modules again (keel --help
+    632ms on the first call, 184ms after). The compiler now runs after the
+    product deb, which may add Python files, and before seal-root, which
+    stays last. Timestamp mode matches the distributions and avoids a hash
+    of every import; clamping the .py and .pyc mtimes to SOURCE_DATE_EPOCH
+    keeps the result byte-identical across builds. 1089 files, +18.0 MiB,
+    the first keel call drops to 191ms and the confconsole imports on the
+    first boot from 320ms to 68ms.
+
+ -- Marcos Mendez <mendez.foto@gmail.com>  Wed, 21 Oct 2026 00:00:00 +0000
+
 turnkey-core-19.0 (1) turnkey; urgency=low
 
   * The trixie-testing stanza of keel.sources names the testing keyring,

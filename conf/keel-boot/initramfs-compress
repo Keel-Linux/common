@@ -1,0 +1,6 @@
+#!/bin/bash -e
+
+# lz4 decompresses several times faster than zstd; the initrd is a little
+# larger, which the boot time more than pays back.
+sed -i 's/^COMPRESS=.*/COMPRESS=lz4/' /etc/initramfs-tools/initramfs.conf
+update-initramfs -u -k all
