@@ -6,8 +6,9 @@
 # at the startup of Anubis.
 #
 # Nothing here runs Anubis: the files are YAML, and the assertions are about
-# their order and their shape. The boot test of an appliance with the
-# anubis overlay on is where the policy loads for real.
+# their order and their shape. tests/overlay-web.bats starts Anubis with
+# the policy, and the boot test of an appliance with the anubis overlay on
+# loads it on a machine.
 
 bats_require_minimum_version 1.5.0
 
@@ -16,14 +17,15 @@ setup() {
     PKG="$TESTS_DIR/../packages/anubis"
 }
 
-# policy YAML: the bots list of a file, as python reads it
+# bots YAML: the rules of a policy file (a map with a bots list) or of an
+# imported file (a plain list), as python reads them
 bots() {
     python3 - "$1" <<'PY'
 import sys, yaml
 
 with open(sys.argv[1]) as handle:
     doc = yaml.safe_load(handle)
-for bot in doc.get("bots", []):
+for bot in doc["bots"] if isinstance(doc, dict) else doc:
     if "import" in bot:
         print("import", bot["import"])
     else:
@@ -37,10 +39,36 @@ PY
     [ "${list[0]}" = "import /etc/anubis/keel.d/*.yaml" ]
 }
 
-@test "the policy imports upstream's default policy after the drop-ins" {
+@test "the policy imports upstream's default rules after the drop-ins" {
     mapfile -t list < <(bots "$PKG/keel-policy.yaml")
 
-    [ "${list[1]}" = "import /etc/anubis/botPolicies.yaml" ]
+    # Anubis reads an imported file as a list of rules, so the policy file
+    # botPolicies.yaml cannot be imported; this is its list of rules.
+    [ "${list[1]}" = "import (data)/meta/default-config.yaml" ]
+}
+
+@test "the policy keeps the thresholds and status codes of upstream's default" {
+    python3 - "$PKG/keel-policy.yaml" <<'PY'
+import sys, yaml
+
+with open(sys.argv[1]) as handle:
+    doc = yaml.safe_load(handle)
+names = [t["name"] for t in doc["thresholds"]]
+assert names == ["minimal-suspicion", "mild-suspicion", "moderate-suspicion",
+                 "mild-proof-of-work", "extreme-suspicion"], names
+assert doc["status_codes"] == {"CHALLENGE": 200, "DENY": 200}
+assert doc["store"]["backend"] == "memory"
+assert doc["dnsbl"] is False
+PY
+}
+
+@test "the placeholder is a list of rules, not a policy" {
+    python3 - "$PKG/keel.d/keel-placeholder.yaml" <<'PY'
+import sys, yaml
+
+with open(sys.argv[1]) as handle:
+    assert isinstance(yaml.safe_load(handle), list)
+PY
 }
 
 @test "the policy holds nothing but the two imports" {
@@ -58,7 +86,7 @@ import sys, yaml
 
 with open(sys.argv[1]) as handle:
     doc = yaml.safe_load(handle)
-print(doc["bots"][0]["user_agent_regex"])
+print(doc[0]["user_agent_regex"])
 PY
 )
     # 'a^' cannot match: a literal "a" and then start-of-string.

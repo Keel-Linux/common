@@ -10,10 +10,70 @@
 # fatal at startup when it matches no file, and the package ships
 # keel-placeholder.yaml so the directory is never empty.
 #
-# After the drop-ins stands upstream's default policy, the file the anubis
-# package installs (/etc/anubis/botPolicies.yaml), unchanged: what version
-# 1 of this package ran alone. Anubis expands the imports of an imported
-# file, so the (data) snippets of the default policy keep working.
+# Anubis reads an imported file as a list of rules, not as a policy, so
+# this file cannot import upstream's /etc/anubis/botPolicies.yaml. After
+# the drop-ins it imports (data)/meta/default-config.yaml, the list of
+# rules that upstream's default policy holds, from the Anubis binary. The
+# sections below the bots list are those of upstream's default policy of
+# anubis 1.27.0, without their comments: what version 1 of this package
+# ran. tests/overlay-web.bats starts Anubis with this file.
 bots:
   - import: /etc/anubis/keel.d/*.yaml
-  - import: /etc/anubis/botPolicies.yaml
+  - import: (data)/meta/default-config.yaml
+
+dnsbl: false
+
+honeypot:
+  enabled: true
+  implementation: naive
+
+openGraph:
+  enabled: false
+  considerHost: false
+  ttl: 24h
+
+status_codes:
+  CHALLENGE: 200
+  DENY: 200
+
+store:
+  backend: memory
+  parameters: {}
+
+thresholds:
+  - name: minimal-suspicion
+    expression: weight <= 0
+    action: ALLOW
+  - name: mild-suspicion
+    expression:
+      all:
+        - weight > 0
+        - weight < 10
+    action: CHALLENGE
+    challenge:
+      algorithm: metarefresh
+      difficulty: 1
+  - name: moderate-suspicion
+    expression:
+      all:
+        - weight >= 10
+        - weight < 20
+    action: CHALLENGE
+    challenge:
+      algorithm: fast
+      difficulty: 2
+  - name: mild-proof-of-work
+    expression:
+      all:
+        - weight >= 20
+        - weight < 30
+    action: CHALLENGE
+    challenge:
+      algorithm: fast
+      difficulty: 4
+  - name: extreme-suspicion
+    expression: weight >= 30
+    action: CHALLENGE
+    challenge:
+      algorithm: fast
+      difficulty: 6

@@ -1,10 +1,11 @@
 # keel-overlay-anubis: the placeholder of the drop-in directory
 # /etc/anubis/keel.d/ (handbook decision 0062). A glob in the policy that
 # matches no file is fatal at the startup of Anubis, and a machine whose
-# appliance ships no drop-in must still start. The regular expression
-# matches nothing (a literal "a" and then start-of-string), so the rule
-# decides nothing; it only makes the glob match a file.
-bots:
-  - name: keel-placeholder
-    user_agent_regex: 'a^'
-    action: ALLOW
+# appliance ships no drop-in must still start. Anubis reads an imported
+# file as a list of rules, so a drop-in is a list, with no "bots:" key.
+# The regular expression matches nothing (a literal "a" and then
+# start-of-string), so the rule decides nothing; it only makes the glob
+# match a file.
+- name: keel-placeholder
+  user_agent_regex: 'a^'
+  action: ALLOW
