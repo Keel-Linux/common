@@ -1,3 +1,24 @@
+keel-overlay-anubis (0.1.2) trixie; urgency=medium
+
+  * The policy of anubis@keel.service is /etc/anubis/keel-policy.yaml now,
+    not upstream's default policy alone: the drop-in directory
+    /etc/anubis/keel.d/*.yaml is imported first, and the default rules
+    after it (handbook decision 0062, the Nextcloud appliance: a sync
+    client carries no browser and no cookie). Anubis evaluates the bots
+    list in order and the first rule that matches wins, so a drop-in of an
+    appliance may allow what the default policy would challenge or deny.
+    Anubis reads an imported file as a list of rules, not as a policy, so
+    the default rules come from (data)/meta/default-config.yaml, and the
+    other sections of upstream's default policy of 1.27.0 (thresholds,
+    status codes, store, honeypot, Open Graph) are copied into the file.
+  * The package ships /etc/anubis/keel.d/keel-placeholder.yaml: a glob that
+    matches no file is fatal at the startup of Anubis, and a machine whose
+    appliance ships no drop-in must still start. A drop-in is a list of
+    rules, with no "bots:" key. The placeholder's regular expression
+    matches nothing; it only makes the glob match a file.
+
+ -- Marcos Mendez <mendez.foto@gmail.com>  Mon, 19 Oct 2026 12:00:00 +0000
+
 keel-overlay-anubis (0.1.1) trixie; urgency=medium
 
   * A WebSocket passes the Anubis front (Keel-Linux/common#58).
