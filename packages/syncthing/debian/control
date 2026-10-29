@@ -1,0 +1,37 @@
+Source: keel-overlay-syncthing
+Section: admin
+Priority: optional
+Maintainer: KeelLinux maintainers <admin@keellinux.org>
+Uploaders: Marcos Mendez <mendez.foto@gmail.com>
+Build-Depends:
+ debhelper-compat (= 13),
+Standards-Version: 4.7.2
+Rules-Requires-Root: no
+Vcs-Git: https://github.com/Keel-Linux/common.git -b 19.x [packages/syncthing]
+Vcs-Browser: https://github.com/Keel-Linux/common/tree/19.x/packages/syncthing
+
+Package: keel-overlay-syncthing
+Architecture: all
+Depends:
+ adduser,
+ keel (>= 0.12.0),
+ python3,
+ keel-overlay-wireguard,
+ syncthing (>= 2.1.6+keel1),
+ syncthing (<< 2.1.7~),
+ ${misc:Depends},
+Description: Keel overlay: Syncthing, the file replication of a pair
+ The Syncthing overlay of Keel Linux (handbook decision 0050): the unit
+ that runs the binary package as the syncthing user, and the overlay
+ manifest keel reads, installed as
+ /usr/share/keel/overlays/syncthing.yaml (decision 0041).
+ .
+ The service is installed disabled and stopped, the state of a simple
+ installation: keel spec apply enables it with the overlay. keel renders
+ the configuration from the application manifests and the role, and adds
+ the replicated paths to the unit with a drop-in.
+ .
+ The unit holds CAP_CHOWN, CAP_FOWNER and CAP_DAC_OVERRIDE as ambient
+ capabilities, so a received file keeps the owner of the application's
+ directory (copyOwnershipFromParent) without root, and ProtectSystem=
+ strict with write access to the home only.

@@ -1,0 +1,26 @@
+manifest_version: 1
+kind: overlay
+name: syncthing
+title: Syncthing
+summary: File replication of application state on a database pair (0050)
+requires: [wireguard]
+processes:
+  - name: syncthing
+    unit: syncthing.service
+    listen:
+      # the peer protocol, on the overlay only (0050, amendment item 4)
+      - {port: 22000, protocol: tcp, expose: mesh}
+      - {port: 22000, protocol: udp, expose: mesh}
+      # the GUI and the REST API, IPv4 loopback only, behind the API key
+      # that keel renders into the configuration (0050, amendment item 4)
+      - {address: "127.0.0.1", port: 8384, protocol: tcp, expose: loopback}
+checks:
+  # the health helper reads the API key out of the rendered configuration
+  # and asks /rest/system/ping on the loopback
+  - {name: syncthing-health, process: syncthing, type: command,
+     command: [/usr/lib/keel-overlay-syncthing/health],
+     on_failure: restart}
+data:
+  # the home holds the key, the configuration and the index database:
+  # nothing there is data of an application
+  - {path: /var/lib/syncthing, replication: none, backup: none}

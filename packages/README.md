@@ -17,6 +17,7 @@ directory each, with its own changelog and version, released on its own
 | `nginx/` | `keel-overlay-nginx` | trixie's `nginx` 1.26.3 and `libnginx-mod-stream` | `nginx.service`, enabled in every mode |
 | `coraza/` | `keel-overlay-coraza` | Keel's `libnginx-mod-http-coraza` 0.21.0 and `coreruleset` 4.25.1 (step 5), and `keel-overlay-nginx` | none: an Nginx module; `/usr/lib/keel/overlays/coraza/state` turns it on and off |
 | `anubis/` | `keel-overlay-anubis` | Keel's `anubis` 1.27.0 (step 5), and `keel-overlay-nginx` | `anubis@keel.service` |
+| `syncthing/` | `keel-overlay-syncthing` | Keel's `syncthing` 2.1.6+keel1, the binary alone (0050), and `keel-overlay-wireguard`, which its manifest `requires` | `syncthing.service` |
 
 Every package depends on `keel (>= 0.12.0)`, the first keel that reads
 `manifest_version: 1`, so apt refuses a keel that could not read the
@@ -209,6 +210,51 @@ without downtime").
   running controller restarted, a stopped one left stopped, an upgrade of
   keel restarting it through the trigger, and etcd restarting through its
   gate.
+
+## Syncthing, the file replication of a pair (0050)
+
+The `syncthing` package of the Keel repository ships only the binary
+(decision 0050, section 4). This overlay ships everything that runs it:
+the system user, the unit, the preset, the health helper and the
+manifest. keel renders the configuration from the application manifests
+and the role (the amendment of 2026-10-20, item 4): discovery, relays
+and NAT traversal off, the peer at the overlay address of the pair
+member, the GUI and the REST API on the loopback behind an API key,
+the watcher delay of 1 s, and simple versioning on each receive-only
+folder. The overlay ships no configuration of its own.
+
+The unit runs as the `syncthing` user, home `/var/lib/syncthing`, which
+postinst creates on the first installation and postrm deletes on purge.
+The home holds the key, the configuration and the index database; the
+data of the applications stays in their own directories. The unit holds
+`CAP_CHOWN`, `CAP_FOWNER` and `CAP_DAC_OVERRIDE` as ambient
+capabilities, so a received file keeps the owner of the application's
+directory (`copyOwnershipFromParent`) without root, and
+`ProtectSystem=strict` with `ReadWritePaths=` on the home. keel adds
+the replicated paths with a drop-in of the unit,
+`/etc/systemd/system/syncthing.service.d/replicate.conf`.
+
+The health check of the manifest is a `command` check: the helper reads
+the API key out of the rendered configuration and asks
+`/rest/system/ping` on the loopback. A missing configuration fails the
+check, because keel renders the configuration before it enables the
+overlay.
+
+The `syncthing` package ships no maintainer script, so an upgrade of
+the binary would leave the old process running. A dpkg trigger of this
+package on `/usr/bin/syncthing` try-restarts the service instead, and
+an upgrade of this package does the same (the pattern of
+`keel-overlay-vip`).
+
+The service is installed disabled and stopped, the state of a simple
+installation, and the manifest `requires: [wireguard]`: the peer speaks
+on the overlay. `tests/overlay-syncthing.bats` checks the manifest, the
+state, the user and a run of the service on a booted trixie container,
+and `tests/syncthing-health.bats` unit tests the health helper. That
+the ambient capabilities keep the application's owner on a received
+file is proven on unprivileged LXC containers of two sites, as the
+"done when" of 0050 asks; the result is in the pull request of this
+package.
 
 ## CrowdSec's identity: work for step 4 (tracker#47)
 
@@ -478,6 +524,18 @@ from-primary marker is, listening on `[::1]` only, Nginx proxying
 through it, and a purge stopping and disabling it and deleting the key. `tests/coraza-state.bats` and
 `tests/anubis-signing-key.bats` unit test the two scripts with stubs, and
 `tests/coverage.sh` measures them.
+
+`tests/overlay-syncthing.bats` runs on a disposable trixie machine booted
+with systemd, with `keel-overlay-syncthing` and its dependencies
+installed (`KEEL_OVERLAY_INSTALL_TEST=1`), the CI job `syncthing` of
+`.forgejo/workflows/packages.yml` in a booted trixie LXC system
+container on keel-lxc-1. It checks the manifest on the machine, the
+disabled and stopped state after the installation, the preset, the
+`syncthing` user and its home, the capabilities and the sandbox of the
+unit, and a run of the service: it runs as the `syncthing` user, makes
+its configuration on the first start, and answers the health helper on
+the loopback. `tests/syncthing-health.bats` unit tests the health
+helper with a stub of the REST API.
 
 `tests/overlay-install.bats` runs on a disposable trixie machine with the
 four Core packages installed (it refuses to run unless

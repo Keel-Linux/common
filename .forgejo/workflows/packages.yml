@@ -3,7 +3,7 @@
 # because Forgejo runs a called workflow on the runner of the caller.
 # The overlay packages of packages/ (handbook decision 0041, first
 # implementation, steps 2 and 6). The checks are "build / trixie",
-# "install / trixie" and "web / trixie".
+# "install / trixie", "syncthing / trixie" and "web / trixie".
 #
 # Every job runs in a Debian trixie system container, an unprivileged LXC
 # container with its own systemd on the self-hosted runner keel-lxc-1,
@@ -138,6 +138,57 @@ jobs:
         # the units a container cannot run, under conf/turnkey.d/container-units;
         # last, because it masks networkd on this machine
         KEEL_OVERLAY_INSTALL_TEST=1 bats tests/container-units-live.bats
+
+  syncthing:
+    needs: build
+    runs-on: keel-lxc
+    uses: keel-linux/.github/.github/workflows/lxc-trixie.yml@main
+    with:
+      systemd: true
+      backports: true
+      timeout: 30
+      download: overlay-debs
+      download-dir: dist
+      run: |
+        # keel at the pinned commit, as in the install job, and the
+        # syncthing binary package built from its pinned commit, as the
+        # web job builds the step 5 packages: the apt archive has not
+        # published it yet. The package builds offline from vendor/; its
+        # rules file wants the build host Go at /usr/local/go1.26, so the
+        # snapshot golang-1.26 stands in for it, at the same version the
+        # web job pins
+        KEEL_COMMIT=ebede2e08ac74332c36a81fde0a7575a7e1ffd60
+        SYNCTHING_COMMIT=835631bc95eae009a3e676471adad161e7accced
+        GO_SNAPSHOT=https://snapshot.debian.org/archive/debian/20261001T000000Z
+        GO_VERSION=1.26.8-1~bpo13+1
+        apt-get update -qq
+        apt-get install -y -qq --no-install-recommends \
+          ca-certificates git curl gnupg bats
+        echo "deb [check-valid-until=no] $GO_SNAPSHOT trixie-backports main" \
+          > /etc/apt/sources.list.d/go-snapshot.list
+        apt-get update -qq
+        apt-get install -y -qq --no-install-recommends \
+          "golang-1.26-go=$GO_VERSION" "golang-1.26-src=$GO_VERSION"
+        mkdir -p /usr/local/go1.26
+        ln -s /usr/lib/go-1.26/bin /usr/local/go1.26/bin
+        mkdir -p /tmp/deps
+        src=/tmp/src/keel
+        git init -q "$src"
+        git -C "$src" fetch -q --depth 1 \
+          "https://github.com/Keel-Linux/keel.git" "$KEEL_COMMIT"
+        git -C "$src" checkout -q FETCH_HEAD
+        apt-get build-dep -y -qq --no-install-recommends "$src"
+        (cd "$src" && DEB_BUILD_OPTIONS=nocheck dpkg-buildpackage -us -uc -b)
+        mv /tmp/src/*.deb /tmp/deps/
+        src=/tmp/src/syncthing
+        git clone -q "https://github.com/Keel-Linux/syncthing.git" "$src"
+        git -C "$src" checkout -q "$SYNCTHING_COMMIT"
+        (cd "$src" && DEB_BUILD_OPTIONS=nocheck dpkg-buildpackage -us -uc -b)
+        mv /tmp/src/syncthing_*.deb /tmp/deps/
+        apt-get install -y -q --no-install-recommends /tmp/deps/*.deb \
+          ./dist/keel-overlay-wireguard_*.deb \
+          ./dist/keel-overlay-syncthing_*.deb
+        KEEL_OVERLAY_INSTALL_TEST=1 bats tests/overlay-syncthing.bats
 
   web:
     needs: build

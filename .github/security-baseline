@@ -1,6 +1,9 @@
 # Security scan baseline (keel-linux/.github, security-scan.yml): findings
 # that were read and are not a risk, one per line, the fingerprint and why.
 bandit:B318:overlays/tomcat/usr/lib/inithooks/bin/tomcat.py:8bbef3fb9320 parses /etc/tomcat*/tomcat-users.xml, a root-owned local file written by the package, not untrusted XML
+bandit:B314:packages/syncthing/health:a6c47ce1cb74 parses /var/lib/syncthing/config.xml, a root-owned local file keel renders, not untrusted XML
+bandit:B310:packages/syncthing/health:781d199689af the URL is the loopback REST API by default and an operator-set override otherwise; only the answer status decides the exit code
+semgrep:python.lang.security.use-defused-xml-parse.use-defused-xml-parse:packages/syncthing/health:a6c47ce1cb74 same finding as the bandit B314 row above: a root-owned local file keel renders, not untrusted XML
 semgrep:bash.lang.best-practice.useless-cat.useless-cat:conf/apache-ssl:68bc7b89e864 style only: useless cat in a pipeline
 semgrep:javascript.browser.security.wildcard-postmessage-configuration.wildcard-postmessage-configuration:overlays/ninjux/home/user/.config/chromium/Default/Extensions/nmmhkkegccagdldgiimedpiccmgmieda/0.0.5.0_0/craw_window.js:b020b4e7c6d2 third-party Chromium extension bundled in the ninjux overlay, not Keel code; postMessage within its own window
 shellcheck:SC1090:overlays/adminer/usr/lib/inithooks/firstboot.d/35adminer-mysqlpass:c57db62f520d shell lint, not a security risk: a sourced file whose path is computed, shellcheck cannot follow it

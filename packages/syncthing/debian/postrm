@@ -1,0 +1,23 @@
+#!/bin/sh
+# keel-overlay-syncthing: this script exists so that dpkg keeps the package
+# in the config-files state after a remove. Without one, and with no
+# conffile, a remove forgets the package entirely, and the next installation
+# would be configured as a first one again.
+# On purge, delete the user and its home. The home holds only the key, the
+# configuration and the index database: the data of the applications lives
+# in their own directories.
+set -e
+
+if [ "$1" = purge ]; then
+    if getent passwd syncthing >/dev/null; then
+        deluser --system syncthing >/dev/null || true
+    fi
+    if getent group syncthing >/dev/null; then
+        delgroup --system syncthing >/dev/null || true
+    fi
+    rm -rf /var/lib/syncthing
+fi
+
+#DEBHELPER#
+
+exit 0
