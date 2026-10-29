@@ -89,3 +89,16 @@ stub_sed() {
     [ "$(wc -l < "$BATS_TEST_TMPDIR/calls")" -eq 1 ]
     grep -q 'debug ignore_loglevel.* /etc/default/grub$' "$BATS_TEST_TMPDIR/calls"
 }
+
+@test "grub-timeout hides the menu, with and without GRUB_TIMEOUT_STYLE" {
+    printf 'GRUB_TIMEOUT=5\nGRUB_TIMEOUT_STYLE=menu\n' \
+        > "$BATS_TEST_TMPDIR/grub-with"
+    printf 'GRUB_TIMEOUT=5\n' > "$BATS_TEST_TMPDIR/grub-without"
+    for conf in with without; do
+        GRUB_CONF="$BATS_TEST_TMPDIR/grub-$conf" \
+            run "$TESTS_DIR/../conf/keel-boot/grub-timeout"
+        [ "$status" -eq 0 ]
+        grep -qx 'GRUB_TIMEOUT=1' "$BATS_TEST_TMPDIR/grub-$conf"
+        grep -qx 'GRUB_TIMEOUT_STYLE=hidden' "$BATS_TEST_TMPDIR/grub-$conf"
+    done
+}
