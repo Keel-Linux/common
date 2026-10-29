@@ -4,7 +4,7 @@ turnkey-core-19.0 (3) turnkey; urgency=low
     faster than zstd. [ Marcos Mendez <mendez.foto@gmail.com> ]
 
     initramfs-compress sets COMPRESS=lz4 before it rebuilds the initrd.
-    plans/keel-boot installs lz4, and the script fails when the initrd is
+    plans/keel-boot installs lz4 and file, and the script fails when the initrd is
     not lz4, so a missing lz4 does not silently fall back to gzip. It is
     in the boot layer (conf/keel-boot), so a Core layer test does not
     measure it; the boot layer's own boot is the measurement.

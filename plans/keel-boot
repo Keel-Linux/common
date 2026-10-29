@@ -17,6 +17,7 @@
 grub-pc
 
 lz4                     /* initramfs-compress sets COMPRESS=lz4 */
+file                    /* initramfs-compress checks the initrd with file -b */
 
 tkl-installer           /* new custom TKL installer - replaces di-live */
 efivar                  /* installer depends - ISO UEFI boot */

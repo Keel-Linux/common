@@ -38,7 +38,7 @@ resolve() {
 @test "the boot layer has the kernel, the initrd, GRUB, the live boot and the installer" {
     run --separate-stderr resolve keel-boot
     [ "$status" -eq 0 ]
-    for name in linux-image-amd64 initramfs-tools lz4 firmware-linux-free grub-pc \
+    for name in linux-image-amd64 initramfs-tools lz4 file firmware-linux-free grub-pc \
             live-boot isolinux tkl-installer efivar qemu-guest-agent; do
         grep -qx "$name" <<< "$output"
     done
