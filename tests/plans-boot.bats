@@ -38,7 +38,7 @@ resolve() {
 @test "the boot layer has the kernel, the initrd, GRUB, the live boot and the installer" {
     run --separate-stderr resolve keel-boot
     [ "$status" -eq 0 ]
-    for name in linux-image-amd64 initramfs-tools firmware-linux-free grub-pc \
+    for name in linux-image-amd64 initramfs-tools lz4 firmware-linux-free grub-pc \
             live-boot isolinux tkl-installer efivar qemu-guest-agent; do
         grep -qx "$name" <<< "$output"
     done
@@ -88,4 +88,36 @@ stub_sed() {
     [ "$status" -eq 0 ]
     [ "$(wc -l < "$BATS_TEST_TMPDIR/calls")" -eq 1 ]
     grep -q 'debug ignore_loglevel.* /etc/default/grub$' "$BATS_TEST_TMPDIR/calls"
+}
+
+@test "initramfs-compress fails when the initrd is not lz4" {
+    mkdir -p "$BATS_TEST_TMPDIR/boot" "$BATS_TEST_TMPDIR/stubs"
+    printf 'COMPRESS=zstd\n' > "$BATS_TEST_TMPDIR/initramfs.conf"
+    touch "$BATS_TEST_TMPDIR/boot/initrd.img-6.12"
+    printf '#!/bin/sh\nexit 0\n' > "$BATS_TEST_TMPDIR/stubs/update-initramfs"
+    printf '#!/bin/sh\necho "Zstandard compressed data"\n' \
+        > "$BATS_TEST_TMPDIR/stubs/file"
+    chmod +x "$BATS_TEST_TMPDIR/stubs/"*
+    INITRAMFS_CONF="$BATS_TEST_TMPDIR/initramfs.conf" \
+        BOOT_DIR="$BATS_TEST_TMPDIR/boot" \
+        PATH="$BATS_TEST_TMPDIR/stubs:$PATH" \
+        run "$TESTS_DIR/../conf/keel-boot/initramfs-compress"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"not lz4 compressed"* ]]
+}
+
+@test "initramfs-compress accepts an lz4 initrd" {
+    mkdir -p "$BATS_TEST_TMPDIR/boot" "$BATS_TEST_TMPDIR/stubs"
+    printf 'COMPRESS=zstd\n' > "$BATS_TEST_TMPDIR/initramfs.conf"
+    touch "$BATS_TEST_TMPDIR/boot/initrd.img-6.12"
+    printf '#!/bin/sh\nexit 0\n' > "$BATS_TEST_TMPDIR/stubs/update-initramfs"
+    printf '#!/bin/sh\necho "LZ4 compressed data (v1.4+)"\n' \
+        > "$BATS_TEST_TMPDIR/stubs/file"
+    chmod +x "$BATS_TEST_TMPDIR/stubs/"*
+    INITRAMFS_CONF="$BATS_TEST_TMPDIR/initramfs.conf" \
+        BOOT_DIR="$BATS_TEST_TMPDIR/boot" \
+        PATH="$BATS_TEST_TMPDIR/stubs:$PATH" \
+        run "$TESTS_DIR/../conf/keel-boot/initramfs-compress"
+    [ "$status" -eq 0 ]
+    grep -qx 'COMPRESS=lz4' "$BATS_TEST_TMPDIR/initramfs.conf"
 }

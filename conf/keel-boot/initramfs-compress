@@ -2,5 +2,20 @@
 
 # lz4 decompresses several times faster than zstd; the initrd is a little
 # larger, which the boot time more than pays back.
-sed -i 's/^COMPRESS=.*/COMPRESS=lz4/' /etc/initramfs-tools/initramfs.conf
+initramfs_conf=${INITRAMFS_CONF:-/etc/initramfs-tools/initramfs.conf}
+boot_dir=${BOOT_DIR:-/boot}
+
+sed -i 's/^COMPRESS=.*/COMPRESS=lz4/' "$initramfs_conf"
 update-initramfs -u -k all
+
+# mkinitramfs warns and falls back to gzip when lz4 is missing, so check
+# the result: a non-lz4 initrd must fail the build, not boot slowly.
+shopt -s nullglob
+initrds=("$boot_dir"/initrd.img-*)
+[ "${#initrds[@]}" -gt 0 ] || { echo "FATAL: no initrd under $boot_dir" >&2; exit 1; }
+for initrd in "${initrds[@]}"; do
+    if ! file -b "$initrd" | grep -q 'LZ4 compressed'; then
+        echo "FATAL: $initrd is not lz4 compressed" >&2
+        exit 1
+    fi
+done
