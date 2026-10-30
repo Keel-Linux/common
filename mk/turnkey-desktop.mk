@@ -81,7 +81,7 @@ define _root.patched/post
 
 	$(FAB_PATH)/common/mk/turnkey/install-debs $O/root.patched
 
-	fab-chroot $O/root.patched "which insserv >/dev/null && insserv"
+	fab-chroot $O/root.patched "if command -v insserv >/dev/null; then insserv; fi"
 	fab-chroot $O/root.patched "which postsuper >/dev/null && postsuper -d ALL || true"
 endef
 root.patched/post += $(_root.patched/post)

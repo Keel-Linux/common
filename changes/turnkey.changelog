@@ -1,3 +1,14 @@
+turnkey-core-19.0 (8) turnkey; urgency=low
+
+  * mk/turnkey-desktop.mk: the insserv step exits 0 when insserv is not
+    installed. fab 1.1.1+keel4 makes fab chroot exit with the status of a
+    command string (fab#15), and "which insserv >/dev/null && insserv"
+    exits 1 with no insserv, so every desktop build would stop there. An
+    insserv that is installed and fails still stops the build.
+    tests/insserv-step.bats, 4 tests.
+
+ -- Keel Linux maintainers <admin@keellinux.org>  Fri, 30 Oct 2026 17:40:00 +0000
+
 turnkey-core-19.0 (7) turnkey; urgency=medium
 
   * cron-apt's failure to fetch the security index is no longer silent.
