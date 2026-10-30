@@ -100,14 +100,17 @@ define _root.patched/post
 	# tar's --mtime, or every .pyc is stale at the next boot, so the step
 	# runs only when SOURCE_DATE_EPOCH is set (handbook decision 0069).
 	# /usr/lib/confconsole is imported on the first boot; the inithooks
-	# bin scripts are __main__ and gain nothing. This runs after the
+	# bin scripts are __main__ and gain nothing. The test suites that
+	# packages ship (fail2ban's tests/) are not compiled: nothing imports
+	# them, and their string constants join into the test keys that the
+	# release key scan refuses. This runs after the
 	# product deb, which may add python files, and before seal-root, which
 	# must stay last.
 	fab-chroot $O/root.patched 'set -e; \
 		if [ -n "$$SOURCE_DATE_EPOCH" ]; then \
 			dirs="/usr/lib/python3.[0-9]* /usr/lib/python3/dist-packages /usr/lib/confconsole /etc/python3.13"; \
 			find $$dirs -name "*.py" -exec touch -h -d "@$$SOURCE_DATE_EPOCH" {} +; \
-			python3 -m compileall -q -f -j0 --invalidation-mode=timestamp $$dirs; \
+			python3 -m compileall -q -f -j0 --invalidation-mode=timestamp -x "/tests?/" $$dirs; \
 			find $$dirs -name "*.pyc" -exec touch -h -d "@$$SOURCE_DATE_EPOCH" {} +; \
 		fi'
 

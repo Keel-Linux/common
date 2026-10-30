@@ -1,3 +1,15 @@
+turnkey-core-19.0 (10) turnkey; urgency=medium
+
+  * The Python bytecode step (decision 0069) does not compile the test
+    suites that packages ship: compileall skips a path with a tests/ or
+    test/ directory in it. The stable 1 refresh build of core stopped at the
+    release key scan: fail2ban's tests/action_d/test_smtp.py splits a test
+    private key over string literals, and its .pyc holds the joined PEM
+    block. Nothing imports a package test suite, so its bytecode only adds
+    size. tests/mk-identity.bats compiles a tree with the same exclusion.
+
+ -- Keel Linux maintainers <admin@keellinux.org>  Fri, 30 Oct 2026 20:25:02 +0000
+
 turnkey-core-19.0 (9) turnkey; urgency=medium
 
   * The build chroot uses the resolvers of the build host, not 8.8.8.8 and
