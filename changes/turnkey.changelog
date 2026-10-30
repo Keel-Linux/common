@@ -1,4 +1,4 @@
-turnkey-core-19.0 (6) turnkey; urgency=medium
+turnkey-core-19.0 (7) turnkey; urgency=medium
 
   * cron-apt's failure to fetch the security index is no longer silent.
     apt-get update exits 0 when it cannot reach an archive, so on an
@@ -19,6 +19,19 @@ turnkey-core-19.0 (6) turnkey; urgency=medium
     tests/apt-sources.bats runs both actions with apt.
 
  -- Keel Linux maintainers <admin@keellinux.org>  Fri, 30 Oct 2026 16:40:00 +0000
+
+turnkey-core-19.0 (6) turnkey; urgency=low
+
+  * mk/turnkey/install-debs installs the product's .deb files in
+    root.patched/post, in place of fab-chroot "dpkg -i *.deb && rm *.deb"
+    (common#73). With no .deb the glob went to dpkg unexpanded, and every
+    build logged "cannot access archive '*.deb'". fab 1.1.1 exits 0 from
+    a command string whatever the command returns, so a real dpkg failure
+    did not stop the build either. The script does nothing when there is
+    no .deb, and after fab-chroot it fails the build if a .deb is still in
+    the root. tests/install-debs.bats covers both cases.
+
+ -- Keel Linux maintainers <admin@keellinux.org>  Fri, 30 Oct 2026 16:00:00 +0000
 
 turnkey-core-19.0 (5) turnkey; urgency=low
 
