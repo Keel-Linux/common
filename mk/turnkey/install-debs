@@ -1,0 +1,49 @@
+#!/bin/bash
+# install-debs ROOTFS
+#
+# Run in root.patched/post (mk/turnkey.mk, mk/turnkey-desktop.mk): installs
+# the .deb files a product put in the root of ROOTFS, then removes them.
+#
+# The recipe used to run fab-chroot ROOTFS "dpkg -i *.deb && rm *.deb".
+# With no .deb there, the shell passed the glob unexpanded and every build
+# logged "dpkg: error: cannot access archive '*.deb'" (common#73). And
+# fab 1.1.1 exits 0 from a command string whatever the command returns
+# (cmd_chroot keeps the status only for --script), so a real dpkg failure
+# did not stop the build either. This script does nothing when there is no
+# .deb, and after fab-chroot it checks the result on the host: a .deb that
+# is still in ROOTFS was not installed.
+#
+# exit 0  installed and removed, or nothing to install
+# exit 1  a .deb was not installed, or fab-chroot failed
+# exit 2  bad usage
+
+set -euo pipefail
+
+if [[ $# -ne 1 || ! -d "$1" ]]; then
+    echo "usage: install-debs ROOTFS" >&2
+    exit 2
+fi
+rootfs=$1
+
+shopt -s nullglob
+debs=("$rootfs"/*.deb)
+shopt -u nullglob
+
+if [[ ${#debs[@]} -eq 0 ]]; then
+    echo "install-debs: no .deb in $rootfs, nothing to install"
+    exit 0
+fi
+
+echo "install-debs: ${#debs[@]} .deb in $rootfs"
+if ! fab-chroot "$rootfs" "dpkg -i /*.deb && rm /*.deb && rm -f /var/log/dpkg.log"; then
+    echo "install-debs: fab-chroot failed" >&2
+    exit 1
+fi
+
+shopt -s nullglob
+left=("$rootfs"/*.deb)
+shopt -u nullglob
+if [[ ${#left[@]} -ne 0 ]]; then
+    echo "install-debs: dpkg did not install: ${left[*]##*/}" >&2
+    exit 1
+fi

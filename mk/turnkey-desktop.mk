@@ -79,7 +79,7 @@ define _root.patched/post
 		echo; \
 	fi
 
-	fab-chroot $O/root.patched "dpkg -i *.deb && rm *.deb && rm -f /var/log/dpkg.log"
+	$(FAB_PATH)/common/mk/turnkey/install-debs $O/root.patched
 
 	fab-chroot $O/root.patched "which insserv >/dev/null && insserv"
 	fab-chroot $O/root.patched "which postsuper >/dev/null && postsuper -d ALL || true"
