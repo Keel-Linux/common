@@ -1,0 +1,54 @@
+#!/bin/bash
+# Says whether this machine still fetches Debian's security index.
+#
+# cron-apt installs security fixes every day, but when apt cannot reach the
+# archive (no resolver, no route) it installs nothing and, with mail off, no
+# one is told. The InRelease apt keeps carries the archive's signed Date, and
+# a fetch that fails leaves the old one in place, so its age tells whether
+# the fixes still arrive. monit runs this script (etc/monit/conf.d/
+# security-lists): exit 0 when the index is recent, exit 1 with one line on
+# standard output, and on the system log, when it is not.
+set -uo pipefail
+
+LISTS="${KEEL_SECURITY_LISTS:-/var/lib/apt/lists}"
+MAX_AGE="${KEEL_SECURITY_MAX_AGE:-259200}"
+FIRST_BOOT="${KEEL_SECURITY_FIRST_BOOT:-/etc/machine-id}"
+RESOLV_CONF="${KEEL_SECURITY_RESOLV_CONF:-/etc/resolv.conf}"
+NOW="${KEEL_SECURITY_NOW:-$(date +%s)}"
+
+# hint: the likely cause when every name server is an IPv4 address and the
+# machine has no IPv4 default route, as Proxmox writes for an IPv6-only CT
+hint() {
+    local servers
+    servers=$(awk '/^nameserver/ { print $2 }' "$RESOLV_CONF" 2>/dev/null)
+    [[ -n "$servers" ]] || { echo "; no name server in $RESOLV_CONF"; return; }
+    grep -q ':' <<< "$servers" && return
+    [[ -z "$(ip -4 route show default 2>/dev/null)" ]] || return
+    echo "; every name server in $RESOLV_CONF is IPv4 and there is no IPv4 route: set an IPv6 name server (pct set <id> --nameserver)"
+}
+
+fail() {
+    local msg
+    msg="security index: $1$(hint)"
+    echo "$msg"
+    logger -p user.err -t keel-security-lists "$msg" 2>/dev/null || true
+    exit 1
+}
+
+newest=0
+shopt -s nullglob
+for release in "$LISTS"/*debian-security_dists_*_InRelease; do
+    stamp=$(date -d "$(sed -n 's/^Date: //p' "$release" | head -1)" +%s 2>/dev/null) || continue
+    (( stamp > newest )) && newest=$stamp
+done
+
+if (( newest == 0 )); then
+    # a fresh machine has not run its first update yet
+    since=$(stat -c %Y "$FIRST_BOOT" 2>/dev/null || echo 0)
+    (( NOW - since > MAX_AGE )) || exit 0
+    fail "never fetched in $(( (NOW - since) / 3600 )) h, cron-apt installs no fix"
+fi
+age=$(( NOW - newest ))
+(( age > MAX_AGE )) && fail "$(( age / 3600 )) h old, cron-apt installs no fix"
+echo "security index: $(( age / 3600 )) h old"
+exit 0

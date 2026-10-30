@@ -45,6 +45,7 @@ targets=(
     "packages/installer/etckeeper-ignore:tests/etckeeper-ignore.bats"
     "lib/version-files.sh:tests/version-files.bats"
     "bin/keel-version-files:tests/version-files.bats"
+    "overlays/turnkey.d/security-lists/usr/local/sbin/keel-security-lists-age:tests/security-lists.bats"
 )
 
 for tool in kcov bats; do

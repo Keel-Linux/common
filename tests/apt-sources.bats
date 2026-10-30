@@ -286,11 +286,66 @@ fetch_hosts() {
 
 @test "cron-apt's install actions read the security.sources the bootstrap writes" {
     local named
-    named="$(grep -o 'Dir::Etc::sourcelist=[^ ]*' "$CRONAPT" | sort -u)"
+    named="$(sed -n '/5-install\.[a-z]* << EOF$/,/^EOF$/p' "$CRONAPT" | grep -o 'Dir::Etc::sourcelist=[^ ]*' | sort -u)"
     [ "$named" = "Dir::Etc::sourcelist=/etc/apt/sources.list.d/security.sources" ]
-    [ "$(grep -c 'Dir::Etc::sourcelist=' "$CRONAPT")" -eq 2 ]
+    [ "$(grep -c 'Dir::Etc::sourcelist=/etc/apt/sources.list.d/security.sources' "$CRONAPT")" -eq 2 ]
     bootstrap_files | grep -qx security.sources
     run ! grep -q 'security\.sources\.sources' "$CRONAPT"
+}
+
+# cronapt_actions: conf/turnkey.d/cronapt run on a scratch /etc/cron-apt;
+# prints that directory
+cronapt_actions() {
+    local dir="$BATS_TEST_TMPDIR/cron-apt"
+    mkdir -p "$dir/action.d"
+    : > "$dir/config"
+    sed "s|/etc/cron-apt|$dir|g" "$CRONAPT" > "$BATS_TEST_TMPDIR/cronapt"
+    bash "$BATS_TEST_TMPDIR/cronapt" >&2
+    echo "$dir"
+}
+
+# action LINE: one cron-apt action line run as cron-apt runs it, on the
+# scratch tree (the image's sources.list.d path pointed at the scratch one)
+action() {
+    # shellcheck disable=SC2086
+    apt-get -s ${1//\/etc\/apt\/sources.list.d/$SOURCES}
+}
+
+@test "cron-apt's update fails when an index cannot be fetched, so the run is logged and stops" {
+    local dir
+    dir="$(cronapt_actions)"
+    [ "$(cat "$dir/action.d/0-update")" = "update -o quiet=2 --error-on=any" ]
+    printf 'Types: deb\nURIs: http://[::1]:9/debian\nSuites: trixie-security\nComponents: main\nTrusted: yes\n' \
+        > "$SOURCES/security.sources"
+    # what cron-apt ran before: apt says it failed and exits 0 anyway
+    run apt-get update -o quiet=2
+    [ "$status" -eq 0 ]
+    run apt-get $(cat "$dir/action.d/0-update")
+    [ "$status" -ne 0 ]
+}
+
+@test "cron-apt's tzdata action upgrades tzdata from trixie-updates and nothing else" {
+    local dir line
+    dir="$(cronapt_actions)"
+    make_archive debian Debian Debian trixie-updates tzdata=2026f-0 other=2.0-1
+    apt-get update -qq 2>/dev/null
+    installed tzdata=2026c-0 other=1.0-1
+    line="$(tr -d '\\\n' < "$dir/action.d/6-tzdata")"
+    run action "$line"
+    [ "$status" -eq 0 ]
+    grep -q '^Inst tzdata \[2026c-0\] (2026f-0 ' <<< "$output"
+    run ! grep -q '^Inst other' <<< "$output"
+}
+
+@test "cron-apt's tzdata action installs nothing where tzdata is not installed" {
+    local dir line
+    dir="$(cronapt_actions)"
+    make_archive debian Debian Debian trixie-updates tzdata=2026f-0
+    apt-get update -qq 2>/dev/null
+    line="$(tr -d '\\\n' < "$dir/action.d/6-tzdata")"
+    run action "$line"
+    [ "$status" -eq 0 ]
+    run ! grep -q '^Inst' <<< "$output"
 }
 
 # ----------------------------------------------------------- the pin, live

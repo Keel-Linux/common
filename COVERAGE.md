@@ -4,6 +4,14 @@ Measured on 2026-09-24 against upstream 19.x (b60dd23), following the
 project decision 0003 (90 percent floor per repository, 95 percent for every
 file our changes touch).
 
+## Branch feat/security-lists-visible: 100 percent, one new file (2026-10-30)
+
+`overlays/turnkey.d/security-lists/usr/local/sbin/keel-security-lists-age`
+is at 100: 30 of 30 lines, kcov 43 on Debian 13, from
+`tests/security-lists.bats` (12 tests). `conf/turnkey.d/cronapt` is not
+measured; `tests/apt-sources.bats` runs its two new actions with apt itself
+(an unreachable index fails the update, tzdata alone is upgraded).
+
 ## Branch fix/modules-load-container: 100 percent, one file changed (2026-10-10)
 
 `conf/turnkey.d/container-units` stays at 100: 8 of 8 lines, kcov 43 on
