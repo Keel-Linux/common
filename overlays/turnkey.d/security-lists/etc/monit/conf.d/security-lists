@@ -1,0 +1,5 @@
+# Debian's security index must be fetched: see
+# /usr/local/sbin/keel-security-lists-age. Once an hour.
+check program security-lists with path /usr/local/sbin/keel-security-lists-age
+  every 30 cycles
+  if status != 0 then alert
