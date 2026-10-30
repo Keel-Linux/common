@@ -170,6 +170,27 @@ run_post() {
     [ "$compile_line" -gt "$dpkg_line" ]
 }
 
+@test "turnkey.mk does not precompile the test suites that packages ship" {
+    run_post turnkey.mk
+    [ "$status" -eq 0 ]
+    line=$(printf '%s\n' "$output" | grep -m1 'compileall')
+    [[ "$line" =~ -x\ \"([^\"]+)\" ]]
+    regex="${BASH_REMATCH[1]}"
+    # not under BATS_TEST_TMPDIR, whose path has a /test/ in it
+    tree="$(mktemp -d /tmp/pyc.XXXXXX)/py"
+    mkdir -p "$tree/pkg/tests/action_d" "$tree/pkg/test" "$tree/pkg/testing"
+    : > "$tree/pkg/mod.py"
+    : > "$tree/pkg/testing/mod.py"
+    : > "$tree/pkg/tests/action_d/test_smtp.py"
+    : > "$tree/pkg/test/test_a.py"
+    python3 -m compileall -q -x "$regex" "$tree"
+    ls "$tree"/pkg/__pycache__/mod.*.pyc
+    ls "$tree"/pkg/testing/__pycache__/mod.*.pyc
+    run find "$tree/pkg/tests" "$tree/pkg/test" -name '*.pyc'
+    rm -rf "${tree%/py}"
+    [ -z "$output" ]
+}
+
 @test "turnkey.mk clamps python mtimes to SOURCE_DATE_EPOCH for reproducibility" {
     run_post turnkey.mk
     [ "$status" -eq 0 ]
