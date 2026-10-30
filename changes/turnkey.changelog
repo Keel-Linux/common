@@ -1,3 +1,25 @@
+turnkey-core-19.0 (7) turnkey; urgency=medium
+
+  * cron-apt's failure to fetch the security index is no longer silent.
+    apt-get update exits 0 when it cannot reach an archive, so on an
+    IPv6-only CT with an IPv4 resolver from Proxmox cron-apt installed no
+    fix and, with mail off, told no one (handbook decision 0073).
+
+    The update action now runs with --error-on=any: cron-apt logs the
+    failure and stops the run. overlays/turnkey.d/security-lists adds
+    keel-security-lists-age, which monit runs every hour: it fails when
+    Debian's security index is older than three days (the signed Date in
+    the InRelease apt keeps), says so on the system log, and names an
+    IPv4-only resolver on a machine with no IPv4 route as the likely cause.
+    tests/security-lists.bats (12 tests, 100 percent).
+
+  * cron-apt also upgrades tzdata, from trixie-updates only, which
+    security.sources does not name: the time zone rules change when a
+    country changes its clock. Only tzdata, and only where it is installed.
+    tests/apt-sources.bats runs both actions with apt.
+
+ -- Keel Linux maintainers <admin@keellinux.org>  Fri, 30 Oct 2026 16:40:00 +0000
+
 turnkey-core-19.0 (6) turnkey; urgency=low
 
   * mk/turnkey/install-debs installs the product's .deb files in
