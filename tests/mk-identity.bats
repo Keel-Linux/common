@@ -143,3 +143,36 @@ run_post() {
     [[ "$output" == *"can't tag local release"* ]]
     [ ! -e "$OUT/root.patched/etc/keel_version" ]
 }
+
+# python bytecode: the recipe precompiles it with
+# timestamp invalidation, as Debian, Arch and Fedora do, and clamps the
+# source mtimes to SOURCE_DATE_EPOCH so the result is reproducible. The
+# fab-chroot stub only logs the command, so these assert the command text
+# and its place in the recipe; the built image is verified separately.
+
+@test "turnkey.mk precompiles python bytecode with timestamp invalidation" {
+    run_post turnkey.mk
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"compileall"* ]]
+    [[ "$output" == *"--invalidation-mode=timestamp"* ]]
+    [[ "$output" == *"/usr/lib/confconsole"* ]]
+    [[ "$output" == *"/etc/python3.13"* ]]
+}
+
+@test "turnkey.mk precompiles after the product deb and before sealing root" {
+    run_post turnkey.mk
+    [ "$status" -eq 0 ]
+    dpkg_line=$(printf '%s\n' "$output" | grep -n 'dpkg -i' | head -1 | cut -d: -f1)
+    compile_line=$(printf '%s\n' "$output" | grep -n 'compileall' | head -1 | cut -d: -f1)
+    [ -n "$dpkg_line" ]
+    [ -n "$compile_line" ]
+    [ "$compile_line" -gt "$dpkg_line" ]
+}
+
+@test "turnkey.mk clamps python mtimes to SOURCE_DATE_EPOCH for reproducibility" {
+    run_post turnkey.mk
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'touch -h -d "@$SOURCE_DATE_EPOCH"'* ]]
+    [[ "$output" == *'[ -n "$SOURCE_DATE_EPOCH" ]'* ]]
+    [[ "$output" == *'-name "*.pyc"'* ]]
+}

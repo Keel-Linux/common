@@ -93,6 +93,25 @@ define _root.patched/post
 
 	fab-chroot $O/root.patched "which postsuper >/dev/null && postsuper -d ALL || true"
 
+	# python bytecode: Debian, Arch and Fedora ship it, and the first
+	# import pays the compilation cost without it (keel --help: 632ms
+	# cold, 184ms warm). Fedora's timestamp mode and clamp of the source
+	# mtime to SOURCE_DATE_EPOCH keep it reproducible; upstream's checksum
+	# mode would hash every import instead. The clamp must equal the layer
+	# tar's --mtime, or every .pyc is stale at the next boot, so the step
+	# runs only when SOURCE_DATE_EPOCH is set (handbook decision 0069).
+	# /usr/lib/confconsole is imported on the first boot; the inithooks
+	# bin scripts are __main__ and gain nothing. This runs after the
+	# product deb, which may add python files, and before seal-root, which
+	# must stay last.
+	fab-chroot $O/root.patched 'set -e; \
+		if [ -n "$$SOURCE_DATE_EPOCH" ]; then \
+			dirs="/usr/lib/python3.[0-9]* /usr/lib/python3/dist-packages /usr/lib/confconsole /etc/python3.13"; \
+			find $$dirs -name "*.py" -exec touch -h -d "@$$SOURCE_DATE_EPOCH" {} +; \
+			python3 -m compileall -q -f -j0 --invalidation-mode=timestamp $$dirs; \
+			find $$dirs -name "*.pyc" -exec touch -h -d "@$$SOURCE_DATE_EPOCH" {} +; \
+		fi'
+
 	# last: root locked or the build fails, and the build date stamped
 	$(FAB_PATH)/common/mk/turnkey/seal-root $O/root.patched
 endef
