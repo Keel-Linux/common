@@ -23,6 +23,7 @@ setup() {
     mkdir -p "$WORK" "$OUT/root.patched/etc/apt/apt.conf.d" "$FAB/common/mk/turnkey"
     ln -s "$ROOT/mk/turnkey/seal-root" "$FAB/common/mk/turnkey/seal-root"
     ln -s "$ROOT/mk/turnkey/seal-hostname" "$FAB/common/mk/turnkey/seal-hostname"
+    ln -s "$ROOT/mk/turnkey/install-debs" "$FAB/common/mk/turnkey/install-debs"
     printf 'root:*:20718:0:99999:7:::\n' > "$OUT/root.patched/etc/shadow"
     : > "$WORK/changelog"
     export PATH="$STUBS:$PATH"
@@ -162,7 +163,7 @@ run_post() {
 @test "turnkey.mk precompiles after the product deb and before sealing root" {
     run_post turnkey.mk
     [ "$status" -eq 0 ]
-    dpkg_line=$(printf '%s\n' "$output" | grep -n 'dpkg -i' | head -1 | cut -d: -f1)
+    dpkg_line=$(printf '%s\n' "$output" | grep -n 'mk/turnkey/install-debs' | head -1 | cut -d: -f1)
     compile_line=$(printf '%s\n' "$output" | grep -n 'compileall' | head -1 | cut -d: -f1)
     [ -n "$dpkg_line" ]
     [ -n "$compile_line" ]
