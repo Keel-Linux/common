@@ -1,3 +1,16 @@
+turnkey-core-19.0 (3) turnkey; urgency=low
+
+  * The boot layer uses an lz4 initrd: lz4 decompresses several times
+    faster than zstd. [ Marcos Mendez <mendez.foto@gmail.com> ]
+
+    initramfs-compress sets COMPRESS=lz4 before it rebuilds the initrd.
+    plans/keel-boot installs lz4 and file, and the script fails when the initrd is
+    not lz4, so a missing lz4 does not silently fall back to gzip. It is
+    in the boot layer (conf/keel-boot), so a Core layer test does not
+    measure it; the boot layer's own boot is the measurement.
+    MODULES=dep and mitigations=off are not taken.
+
+ -- Marcos Mendez <mendez.foto@gmail.com>  Tue, 27 Oct 2026 00:00:00 +0000
 turnkey-core-19.0 (2) turnkey; urgency=low
 
   * Images ship Python bytecode, compiled at build time with timestamp
