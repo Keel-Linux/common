@@ -69,6 +69,7 @@ STUBEOF
 @test "the two shared makefiles call install-debs, not dpkg -i *.deb" {
     for mk in turnkey.mk turnkey-desktop.mk; do
         grep -q 'mk/turnkey/install-debs \$O/root.patched' "$BATS_TEST_DIRNAME/../mk/$mk"
-        ! grep -q 'dpkg -i \*\.deb' "$BATS_TEST_DIRNAME/../mk/$mk"
+        run grep -c 'dpkg -i \*\.deb' "$BATS_TEST_DIRNAME/../mk/$mk"
+        [ "$output" = 0 ]
     done
 }
