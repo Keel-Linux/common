@@ -31,6 +31,7 @@ targets=(
     "mk/turnkey/seal-root:tests/seal-root.bats"
     "mk/turnkey/seal-hostname:tests/seal-hostname.bats"
     "mk/turnkey/install-debs:tests/install-debs.bats"
+    "mk/turnkey/bootstrap-resolv:tests/bootstrap-resolv.bats"
     "conf/turnkey.d/webmin-enable:tests/webmin-enable.bats"
     "conf/turnkey.d/webmin-pam:tests/webmin-pam.bats"
     "conf/turnkey.d/webmin-net:tests/webmin-net.bats"

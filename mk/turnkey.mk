@@ -40,8 +40,7 @@ APT_OVERLAY = fab-apply-overlay $(COMMON_OVERLAYS_PATH)/bootstrap_apt $O/bootstr
 define _bootstrap/post
 
 	$(APT_OVERLAY)
-	fab-chroot $O/bootstrap "echo nameserver 8.8.8.8 > /etc/resolv.conf";
-	fab-chroot $O/bootstrap "echo nameserver 8.8.4.4 >> /etc/resolv.conf";
+	$(FAB_PATH)/common/mk/turnkey/bootstrap-resolv $O/bootstrap;
 	mkdir -p $O/bootstrap/usr/local/share/ca-certificates/;
 	# temporarily allow cert to not exist
 	cp /usr/local/share/ca-certificates/squid_proxyCA.crt $O/bootstrap/usr/local/share/ca-certificates/ || true;

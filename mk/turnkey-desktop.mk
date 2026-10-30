@@ -44,8 +44,7 @@ define _bootstrap/post
 	mkdir -p $O/bootstrap/usr/local/share/ca-certificates/;
 	cp /usr/local/share/ca-certificates/squid_proxyCA.crt $O/bootstrap/usr/local/share/ca-certificates/;
 	fab-chroot $O/bootstrap --script $(COMMON_CONF_PATH)/bootstrap_apt;
-	fab-chroot $O/bootstrap "echo nameserver 8.8.8.8 > /etc/resolv.conf";
-	fab-chroot $O/bootstrap "echo nameserver 8.8.4.4 >> /etc/resolv.conf";
+	$(FAB_PATH)/common/mk/turnkey/bootstrap-resolv $O/bootstrap;
 endef
 bootstrap/post += $(_bootstrap/post)
 

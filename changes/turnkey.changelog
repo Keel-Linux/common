@@ -1,3 +1,17 @@
+turnkey-core-19.0 (9) turnkey; urgency=medium
+
+  * The build chroot uses the resolvers of the build host, not 8.8.8.8 and
+    8.8.4.4. Those are IPv4 only and public: on a build host with no IPv4
+    route the chroot could not resolve a name, and every build sent its
+    queries to a third party. mk/turnkey/bootstrap-resolv copies the
+    nameserver, search, domain and options lines of the host's
+    /etc/resolv.conf into the chroot, removes a link there first, and fails
+    when the host names no nameserver. The image does not keep the file:
+    resolvconf links /etc/resolv.conf to /run/resolvconf/resolv.conf, which
+    the platform fills at run time. tests/bootstrap-resolv.bats, 11 tests.
+
+ -- Keel Linux maintainers <admin@keellinux.org>  Fri, 30 Oct 2026 18:11:07 +0000
+
 turnkey-core-19.0 (8) turnkey; urgency=low
 
   * mk/turnkey-desktop.mk: the insserv step exits 0 when insserv is not
