@@ -1,3 +1,12 @@
+turnkey-core-19.0 (5) turnkey; urgency=low
+
+  * conf/turnkey.d/monit and roothome are idempotent: ln -sfn for the
+    monit system link and install -d -m 0700 for /etc/skel/.ssh, so a
+    build over an existing root does not fail and a second run sets the
+    mode.
+
+ -- Keel Linux maintainers <admin@keellinux.org>  Wed, 28 Oct 2026 00:00:00 +0000
+
 turnkey-core-19.0 (3) turnkey; urgency=low
 
   * The boot layer uses an lz4 initrd: lz4 decompresses several times
