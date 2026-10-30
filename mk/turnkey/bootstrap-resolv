@@ -1,0 +1,47 @@
+#!/bin/bash
+# bootstrap-resolv ROOTFS [HOST_RESOLV]
+#
+# Run in bootstrap/post (mk/turnkey.mk, mk/turnkey-desktop.mk): gives the
+# build chroot the resolvers of the build host, from HOST_RESOLV (default
+# /etc/resolv.conf).
+#
+# The recipe used to write "nameserver 8.8.8.8" and "nameserver 8.8.4.4".
+# Those are IPv4 only and public: on a build host with no IPv4 route the
+# chroot could not resolve a name, and the build sent its queries to a
+# third party in place of the resolvers of its own network (premise: IPv6
+# and poor networks). The image does not keep this file: the resolvconf
+# package makes /etc/resolv.conf a link to /run/resolvconf/resolv.conf,
+# which the platform (Proxmox, DHCP, router advertisements) fills at run
+# time.
+#
+# Only the nameserver, search, domain and options lines are copied. The
+# old file of ROOTFS is removed first, so a link in ROOTFS cannot make this
+# script write a file of the host.
+#
+# exit 0  written
+# exit 1  HOST_RESOLV names no nameserver, or cannot be read
+# exit 2  bad usage
+
+set -euo pipefail
+
+if [[ $# -lt 1 || $# -gt 2 || ! -d "$1" ]]; then
+    echo "usage: bootstrap-resolv ROOTFS [HOST_RESOLV]" >&2
+    exit 2
+fi
+rootfs=$1
+host_resolv=${2:-/etc/resolv.conf}
+
+if ! lines=$(grep -E '^[[:space:]]*(nameserver|search|domain|options)[[:space:]]' "$host_resolv"); then
+    echo "bootstrap-resolv: $host_resolv names no nameserver" >&2
+    exit 1
+fi
+if ! grep -qE '^[[:space:]]*nameserver[[:space:]]' <<< "$lines"; then
+    echo "bootstrap-resolv: $host_resolv names no nameserver" >&2
+    exit 1
+fi
+
+mkdir -p "$rootfs/etc"
+rm -f "$rootfs/etc/resolv.conf"
+printf '%s\n' "$lines" > "$rootfs/etc/resolv.conf"
+chmod 0644 "$rootfs/etc/resolv.conf"
+echo "bootstrap-resolv: $(grep -c '^[[:space:]]*nameserver' <<< "$lines") nameserver(s) from $host_resolv"
