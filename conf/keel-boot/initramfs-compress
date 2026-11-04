@@ -10,12 +10,21 @@ update-initramfs -u -k all
 
 # mkinitramfs warns and falls back to gzip when lz4 is missing, so check
 # the result: a non-lz4 initrd must fail the build, not boot slowly.
+# Modern initramfs prepend an early-microcode cpio archive to the
+# compressed rootfs, so `file` sees "ASCII cpio archive" rather than
+# the LZ4 frame that follows it. Check for the LZ4 frame magic
+# (04 22 4D 18) anywhere in the file instead.
 shopt -s nullglob
 initrds=("$boot_dir"/initrd.img-*)
 [ "${#initrds[@]}" -gt 0 ] || { echo "FATAL: no initrd under $boot_dir" >&2; exit 1; }
 for initrd in "${initrds[@]}"; do
-    if ! file -b "$initrd" | grep -q 'LZ4 compressed'; then
-        echo "FATAL: $initrd is not lz4 compressed" >&2
-        exit 1
+    if file -b "$initrd" | grep -q 'LZ4 compressed'; then
+        continue
     fi
+    # early-microcode header hides the LZ4 frame: check for its magic
+    if grep -qP '\x04\x22\x4d\x18' "$initrd" 2>/dev/null; then
+        continue
+    fi
+    echo "FATAL: $initrd is not lz4 compressed" >&2
+    exit 1
 done
