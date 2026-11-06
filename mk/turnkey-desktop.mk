@@ -2,7 +2,7 @@
 
 RELEASE ?= debian/$(shell lsb_release -s -c)
 
-CDROOT ?= gfxboot-turnkey
+CDROOT ?= gfxboot-keel
 HOSTNAME ?= $(shell basename $(shell pwd))
 CONF_VARS += HOSTNAME ROOT_PASS NONFREE
 
