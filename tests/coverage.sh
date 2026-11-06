@@ -90,6 +90,7 @@ bats "$root/tests/before-firstboot.bats" "$root/tests/pam-unix.bats"
 # make against stubs of fab. They must pass; they contribute no percentage.
 unmeasured=(
     tests/mk-identity.bats
+    tests/mk-cdroot.bats
 )
 for suite in "${unmeasured[@]}"; do
     if ! bats "$root/$suite"; then

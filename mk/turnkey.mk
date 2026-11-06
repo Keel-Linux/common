@@ -1,6 +1,8 @@
 RELEASE ?= debian/$(shell lsb_release -s -c)
 
-CDROOT ?= gfxboot-turnkey
+# the boot menu of the ISO: gfxboot-keel of Keel-Linux/cdroots, with the
+# Keel mark (the build host's cdroots checkout must have it)
+CDROOT ?= gfxboot-keel
 HOSTNAME ?= $(shell basename "$(shell pwd)")
 
 # general TKL vars

@@ -1,3 +1,14 @@
+turnkey-core-19.0 (11) turnkey; urgency=medium
+
+  * The boot menu of the ISO shows the Keel mark and "KEEL LINUX", not the
+    TurnKey Linux logo. mk/turnkey.mk and mk/turnkey-desktop.mk select the
+    cdroot gfxboot-keel of Keel-Linux/cdroots, a copy of gfxboot-turnkey
+    with a different splash image. The build host's cdroots checkout must
+    have gfxboot-keel before a build with this change. A product can still
+    set CDROOT. tests/mk-cdroot.bats reads the value that make gives.
+
+ -- Keel Linux maintainers <admin@keellinux.org>  Fri, 06 Nov 2026 01:52:12 +0000
+
 turnkey-core-19.0 (10) turnkey; urgency=medium
 
   * The Python bytecode step (decision 0069) does not compile the test
