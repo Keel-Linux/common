@@ -1,3 +1,13 @@
+keel-overlay-coraza (0.1.5) trixie; urgency=medium
+
+  * keel-rules.conf, rule 10014: a body with no Content-Type is not read,
+    the same as a body of an unknown type (rule 10013).
+  * keel-rules.conf, rule 10015: the text parts of a multipart body are
+    limited to 256 KiB, the same as a form body (rule 10012); its files
+    are not counted.
+
+ -- Marcos Mendez <mendez.foto@gmail.com>  Thu, 12 Nov 2026 04:00:00 +0000
+
 keel-overlay-coraza (0.1.4) trixie; urgency=medium
 
   * keel-rules.conf, rules 10010 and 10011: a JSON body gets the JSON

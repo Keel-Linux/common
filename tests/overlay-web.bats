@@ -623,6 +623,34 @@ body_test_on() {
     [ "$(posted text/plain "$BATS_TEST_TMPDIR/text")" = 403 ]
 }
 
+@test "a body with no Content-Type is not read: 3 MiB gets its answer at once" {
+    body_test_on
+    # The Core Rule Set scores content with no type (rule 920340), so the
+    # answer is 403. Without rule 10014 the body was read, and the request
+    # had no answer within the 5 s of code(): the status was 000.
+    head -c 3145728 /dev/urandom > "$BATS_TEST_TMPDIR/blob"
+    [ "$(code --request POST --header 'Content-Type:' --header 'Expect:' \
+        --data-binary "@$BATS_TEST_TMPDIR/blob" "$HEALTH")" = 403 ]
+    # a header that is there with an empty value is a type outside the
+    # list of rule 10013
+    [ "$(code --request POST --header 'Content-Type;' --header 'Expect:' \
+        --data-binary "@$BATS_TEST_TMPDIR/blob" "$HEALTH")" = 403 ]
+}
+
+@test "a multipart body with more than 256 KiB of text parts is refused with 413, its files not counted" {
+    body_test_on
+    filler 393216 a > "$BATS_TEST_TMPDIR/text"
+    filler 196608 a > "$BATS_TEST_TMPDIR/part"
+    # one text part, and two parts that are larger together
+    [ "$(code --request POST --header 'Expect:' --form "a=<$BATS_TEST_TMPDIR/text" "$HEALTH")" = 413 ]
+    [ "$(code --request POST --header 'Expect:' --form "a=<$BATS_TEST_TMPDIR/part" \
+        --form "b=<$BATS_TEST_TMPDIR/part" "$HEALTH")" = 413 ]
+    # one text part under the limit, with a file of 1 MiB
+    head -c 1048576 /dev/urandom > "$BATS_TEST_TMPDIR/file"
+    [ "$(code --request POST --header 'Expect:' --form "a=<$BATS_TEST_TMPDIR/part" \
+        --form "f=@$BATS_TEST_TMPDIR/file" "$HEALTH")" = 204 ]
+}
+
 @test "a form, JSON or XML body of more than 256 KiB is refused with 413 by Coraza" {
     body_test_on
     local before after
