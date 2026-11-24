@@ -1,0 +1,162 @@
+#!/bin/bash
+# keel-firewall ROOTFS: write keel's inbound firewall into the image, in
+# the state enforce, and do not load it (handbook decision 0097, section 5,
+# work item 10). Run on the build host in root.patched/post, after the
+# product's .deb files are in, so every appliance manifest is there.
+#
+# keel-firewall.service loads the file at the first boot, before the
+# network, so a new node is closed from its first packet. The first apply
+# of the chosen mode then writes the ruleset of that mode, and keeps
+# enforce: an apply with no state keeps a file in enforce.
+#
+# How:
+# - The keel of the image does the work, not a keel of the build host:
+#   the image's dist-packages come first on the path of python3. keel
+#   needs only the standard library and PyYAML.
+# - It runs on the build host with --root ROOTFS, never in the chroot:
+#   keel treats --root / as the live system and would load the ruleset,
+#   with a drop policy, on the build host. The run must say "not loaded".
+# - `spec apply --system-only --skip-network`: the system phase only.
+#   The conf phase does not follow --root, and would write the conf of
+#   the build host.
+# - The build spec names the appliance, the column of the simple mode
+#   (the first mode the manifest allows, when simple is not one of them;
+#   an `ask` is disabled), and `firewall.state: enforce`. Under --root
+#   keel sees no socket, so a spec with no state would write report. The
+#   spec is a file outside the image, removed at the end.
+# - The image changes in the firewall files only: the ruleset, keel's
+#   record and its last good copy. A run that changes anything else fails
+#   the build. The overlay record and Monit's derived file of the build
+#   are removed where the image did not have them: a preseeded spec that
+#   leaves out an overlay would fail at the first boot against a record
+#   of the build, and the first apply writes Monit's file for the mode.
+# - nftables.service is disabled (decision 0097, section 1, item 2): its
+#   /etc/nftables.conf flushes the whole ruleset and holds only an empty
+#   accept table.
+#
+# An image with no keel gets nothing. A keel older than 0.23.100 fails the
+# build: such a keel refuses the firewall outside cloud advanced.
+set -euo pipefail
+
+MINIMUM=0.23.100
+PYTHON=python3
+RULESET=etc/keel/firewall/keel-manifest.nft
+OVERLAY_RECORD=var/lib/keel/spec/overlays.yaml
+MONIT_FILE=etc/keel/monit/keel-manifest.conf
+# what keel may change in the image: the firewall files, the two files
+# removed below, and the directories that hold them
+ALLOWED='^(etc|etc/keel|etc/keel/firewall|etc/keel/firewall/keel-manifest\.nft|etc/keel/monit|etc/keel/monit/keel-manifest\.conf|var/lib|var/lib/keel|var/lib/keel/firewall|var/lib/keel/firewall/state|var/lib/keel/firewall/last-good\.nft|var/lib/keel/spec|var/lib/keel/spec/overlays\.yaml)$'
+
+fatal() {
+    echo "FATAL: keel-firewall: $*" >&2
+    exit 1
+}
+
+if [ $# -ne 1 ] || [ ! -d "${1:-}" ]; then
+    fatal "usage: keel-firewall ROOTFS"
+fi
+root=$(cd "$1" && pwd -P)
+[ "$root" != / ] || fatal "the image tree is /: keel would load the firewall on this host"
+packages=$root/usr/lib/python3/dist-packages
+if [ ! -d "$packages/keel" ]; then
+    echo "keel-firewall: no keel in the image: no firewall is written"
+    exit 0
+fi
+
+version=$(dpkg-query --admindir="$root/var/lib/dpkg" -W -f='${Version}' keel 2>/dev/null) || version=
+[ -n "$version" ] || fatal "the version of keel in the image is not known"
+dpkg --compare-versions "$version" ge "$MINIMUM" ||
+    fatal "keel $version is in the image, and the firewall of decision 0097 needs keel $MINIMUM or later; until that keel is in trixie, build with KEEL_APT_TRACK=testing"
+wants=$root/etc/systemd/system/multi-user.target.wants
+# a link to an absolute path: test the link, not the build host's target
+[ -L "$wants/keel-firewall.service" ] ||
+    fatal "keel-firewall.service is not enabled in the image: nothing would load the ruleset at boot"
+
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+spec=$work/build-spec.yaml
+
+# the build spec, from the manifests, by the keel of the image
+"$PYTHON" -I -B - "$packages" "$root" > "$spec" <<'PY' || fatal "no build spec for the image"
+import sys
+
+sys.path.insert(0, sys.argv[1])
+root = sys.argv[2]
+
+import yaml  # noqa: E402  (the image's PyYAML, as keel reads it)
+from keel.inspect.overlays import top_of  # noqa: E402
+from keel.manifest.catalog import Catalog  # noqa: E402
+from keel.manifest.constants import APPLIANCE  # noqa: E402
+from keel.manifest.facts import gather  # noqa: E402
+
+catalog = Catalog(root)
+tops = top_of(catalog, catalog.names(APPLIANCE))
+if len(tops) != 1:
+    sys.exit("keel-firewall: not one appliance manifest that no other is"
+             f" built on: {' '.join(tops) or 'no appliance manifest'}")
+facts = gather(root, tops[0])
+if facts.resolved is None:
+    sys.exit(f"keel-firewall: {'; '.join(facts.problems)}")
+mode = "simple" if "simple" in facts.modes else facts.modes[0]
+overlays = {name: "enabled" if states.get(mode) == "enabled" else "disabled"
+            for name, states in facts.defaults.items()}
+yaml.safe_dump({"version": 1, "appliance": {"name": tops[0]},
+                "installation": {"mode": mode}, "overlays": overlays,
+                "firewall": {"state": "enforce"}},
+               sys.stdout, sort_keys=False)
+PY
+
+# remove_new PATH: remove a file of the build that the image did not have,
+# and its directory when keel made it
+had() { [ -e "$root/$1" ] && echo yes || echo no; }
+had_record=$(had "$OVERLAY_RECORD")
+had_record_dir=$(had "$(dirname "$OVERLAY_RECORD")")
+had_monit=$(had "$MONIT_FILE")
+had_monit_dir=$(had "$(dirname "$MONIT_FILE")")
+remove_new() {
+    local path=$1 had_file=$2 had_dir=$3
+    [ "$had_file" = yes ] || rm -f -- "${root:?}/$path"
+    [ "$had_dir" = yes ] || rmdir --ignore-fail-on-non-empty -- "$root/$(dirname "$path")" 2>/dev/null || :
+}
+
+# keel ARGS: the keel of the image, from its dist-packages
+keel() {
+    "$PYTHON" -I -B - "$packages" "$@" <<'PY'
+import runpy
+import sys
+
+sys.path.insert(0, sys.argv[1])
+sys.argv = ["keel"] + sys.argv[2:]
+runpy.run_module("keel", run_name="__main__")
+PY
+}
+
+touch "$work/mark"
+status=0
+output=$(keel spec apply --system-only --skip-network --spec "$spec" --root "$root" 2>&1) || status=$?
+echo "$output"
+[ "$status" -eq 0 ] || fatal "keel spec apply failed (exit $status)"
+grep -q 'not loaded: not the live system' <<< "$output" ||
+    fatal "keel did not say that it left the ruleset unloaded"
+
+if ! grep -qx '# state: enforce' "$root/$RULESET" || ! grep -q 'policy drop;' "$root/$RULESET"; then
+    fatal "/$RULESET is not in enforce with a drop policy"
+fi
+if [ -L "$wants/turnkey-init-fence.service" ]; then
+    grep -q 'ct status dnat' "$root/$RULESET" ||
+        fatal "the init fence is enabled and /$RULESET does not accept its redirected ports: the fence page would not answer"
+fi
+
+pruned=( \( -path "$root/proc" -o -path "$root/sys" -o -path "$root/dev" -o -path "$root/run" -o -path "$root/tmp" \) -prune )
+changed=$(find "$root" -xdev "${pruned[@]}" -o -newer "$work/mark" -printf '%P\n' | { grep -v -E "$ALLOWED" || :; })
+[ -z "$changed" ] || fatal "keel changed more than the firewall in the image: ${changed//$'\n'/, }"
+remove_new "$OVERLAY_RECORD" "$had_record" "$had_record_dir"
+remove_new "$MONIT_FILE" "$had_monit" "$had_monit_dir"
+
+for unit in usr/lib/systemd/system/nftables.service lib/systemd/system/nftables.service; do
+    if [ -e "$root/$unit" ]; then
+        systemctl --root="$root" disable nftables.service
+        break
+    fi
+done
+echo "keel-firewall: enforce, written for $(sed -n 's/^  name: //p' "$spec") ($(sed -n 's/^  mode: //p' "$spec")); nftables.service disabled"

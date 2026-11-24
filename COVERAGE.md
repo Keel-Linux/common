@@ -1,5 +1,16 @@
 # Test coverage baseline
 
+## Branch feat/firewall-enforce-at-build: 100 percent, one new file (2026-11-24)
+
+`mk/turnkey/keel-firewall` is measured for the first time: 58 of 58
+lines, kcov on Debian 13, from `tests/keel-firewall.bats` (27 tests,
+with a stub keel package in a scratch image tree and a stub
+systemctl). `tests/mk-identity.bats` checks that `turnkey.mk` runs the
+step after the product deb and before the bytecode and the seal of root.
+The Python that the step gives to the keel of the image (the build spec,
+and the start of keel) is not measured by kcov; the stub tests run each
+of its paths.
+
 Measured on 2026-09-24 against upstream 19.x (b60dd23), following the
 project decision 0003 (90 percent floor per repository, 95 percent for every
 file our changes touch).

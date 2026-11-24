@@ -24,6 +24,7 @@ setup() {
     ln -s "$ROOT/mk/turnkey/seal-root" "$FAB/common/mk/turnkey/seal-root"
     ln -s "$ROOT/mk/turnkey/seal-hostname" "$FAB/common/mk/turnkey/seal-hostname"
     ln -s "$ROOT/mk/turnkey/install-debs" "$FAB/common/mk/turnkey/install-debs"
+    ln -s "$ROOT/mk/turnkey/keel-firewall" "$FAB/common/mk/turnkey/keel-firewall"
     printf 'root:*:20718:0:99999:7:::\n' > "$OUT/root.patched/etc/shadow"
     : > "$WORK/changelog"
     export PATH="$STUBS:$PATH"
@@ -168,6 +169,23 @@ run_post() {
     [ -n "$dpkg_line" ]
     [ -n "$compile_line" ]
     [ "$compile_line" -gt "$dpkg_line" ]
+}
+
+@test "turnkey.mk writes keel's firewall after the product deb, before the bytecode and the seal" {
+    # decision 0097: the product deb brings the appliance manifest, and the
+    # step runs on the build host (not through fab-chroot); this scratch
+    # root has no keel, so it writes nothing and the build goes on
+    run_post turnkey.mk
+    [ "$status" -eq 0 ]
+    dpkg_line=$(printf '%s\n' "$output" | grep -n 'mk/turnkey/install-debs' | head -1 | cut -d: -f1)
+    firewall_line=$(printf '%s\n' "$output" | grep -n -x '.*/mk/turnkey/keel-firewall .*/root.patched' | head -1 | cut -d: -f1)
+    compile_line=$(printf '%s\n' "$output" | grep -n 'compileall' | head -1 | cut -d: -f1)
+    seal_line=$(printf '%s\n' "$output" | grep -n 'mk/turnkey/seal-root' | head -1 | cut -d: -f1)
+    [ -n "$firewall_line" ] && [ -n "$seal_line" ]
+    [ "$firewall_line" -gt "$dpkg_line" ]
+    [ "$firewall_line" -lt "$compile_line" ]
+    [ "$firewall_line" -lt "$seal_line" ]
+    [[ "$output" == *"keel-firewall: no keel in the image"* ]]
 }
 
 @test "turnkey.mk does not precompile the test suites that packages ship" {

@@ -94,6 +94,13 @@ define _root.patched/post
 
 	fab-chroot $O/root.patched "which postsuper >/dev/null && postsuper -d ALL || true"
 
+	# keel's inbound firewall in enforce, written with the keel of the
+	# image and --root, not loaded (decision 0097, section 5):
+	# keel-firewall.service loads it at the first boot, before the
+	# network. After the product deb, which brings its manifest; on the
+	# build host, never in the chroot, where keel would load it here.
+	$(FAB_PATH)/common/mk/turnkey/keel-firewall $O/root.patched
+
 	# python bytecode: Debian, Arch and Fedora ship it, and the first
 	# import pays the compilation cost without it (keel --help: 632ms
 	# cold, 184ms warm). Fedora's timestamp mode and clamp of the source
