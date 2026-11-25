@@ -1,3 +1,14 @@
+keel-overlay-crowdsec (0.1.1) trixie; urgency=medium
+
+  * The manifest names no confconsole screen. It named
+    /usr/lib/confconsole/plugins.d/Security/crowdsec.py, a file that no
+    confconsole installs, and confconsole has no CrowdSec screen. keel
+    needs a screen only for an overlay state ask, which CrowdSec does not
+    have. tests/overlay-install.bats checks that each screen an overlay
+    manifest names is a file that confconsole installs.
+
+ -- Marcos Mendez <mendez.foto@gmail.com>  Wed, 25 Nov 2026 20:30:00 +0000
+
 keel-overlay-crowdsec (0.1.0) trixie; urgency=medium
 
   * First release (handbook decision 0041, first implementation, step 2).

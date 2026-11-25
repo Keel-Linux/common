@@ -3,7 +3,6 @@ kind: overlay
 name: crowdsec
 title: CrowdSec
 summary: Bans first, before anything else sees the request (0029, 0030)
-screen: /usr/lib/confconsole/plugins.d/Security/crowdsec.py
 processes:
   - name: crowdsec
     unit: crowdsec.service
