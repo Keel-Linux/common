@@ -1,3 +1,14 @@
+keel-overlay-wireguard (0.1.1) trixie; urgency=medium
+
+  * The manifest's screen is the Overlay network entry of confconsole's
+    Instance menu, /usr/lib/confconsole/plugins.d/Instance/Overlay_network.py.
+    It named /usr/lib/confconsole/plugins.d/Networking/wireguard.py, a file
+    that no confconsole installs (found by decision 0098).
+    tests/overlay-install.bats checks that confconsole installs the file
+    the manifest names.
+
+ -- Marcos Mendez <mendez.foto@gmail.com>  Wed, 25 Nov 2026 18:00:00 +0000
+
 keel-overlay-wireguard (0.1.0) trixie; urgency=medium
 
   * First release (handbook decision 0041, first implementation, step 2).

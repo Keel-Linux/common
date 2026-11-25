@@ -270,6 +270,20 @@ assert_simple_state() {
     done
 }
 
+# The confconsole screen an overlay manifest names (docs/manifest-v1.md,
+# "screen") must be a file confconsole installs. The wireguard manifest
+# named Networking/wireguard.py, which no confconsole ever shipped
+# (decision 0098 found it); the overlay's screen is the Instance menu's
+# Overlay network entry.
+@test "the screen the wireguard manifest names is a file that confconsole installs" {
+    local screen
+    screen=$(sed -n 's/^screen: //p' /usr/share/keel/overlays/wireguard.yaml)
+    [ "$screen" = /usr/lib/confconsole/plugins.d/Instance/Overlay_network.py ]
+    run dpkg-query -S "$screen"
+    [ "$status" -eq 0 ]
+    [ "$output" = "confconsole: $screen" ]
+}
+
 # ------------------------------------------------------- keel on the machine
 
 @test "keel manifest validate accepts each overlay on this machine" {

@@ -3,4 +3,4 @@ kind: overlay
 name: wireguard
 title: WireGuard
 summary: The mesh overlay (0024); the interface itself is the spec's (0018, 0020)
-screen: /usr/lib/confconsole/plugins.d/Networking/wireguard.py
+screen: /usr/lib/confconsole/plugins.d/Instance/Overlay_network.py
