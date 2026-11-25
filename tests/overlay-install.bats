@@ -284,6 +284,26 @@ assert_simple_state() {
     [ "$output" = "confconsole: $screen" ]
 }
 
+# Every screen an overlay manifest names is a file of the machine. The
+# crowdsec manifest named Security/crowdsec.py, which no confconsole ever
+# shipped; confconsole has no CrowdSec screen, so the manifest names none.
+@test "each screen an overlay manifest names is a file that confconsole installs" {
+    local name screen
+    for name in "${OVERLAYS[@]}"; do
+        screen=$(sed -n 's/^screen: //p' "/usr/share/keel/overlays/$name.yaml")
+        [ -n "$screen" ] || continue
+        run dpkg-query -S "$screen"
+        echo "$name: $screen: $output"
+        [ "$status" -eq 0 ]
+        [ "$output" = "confconsole: $screen" ]
+    done
+}
+
+@test "the crowdsec manifest names no screen" {
+    run grep -c '^screen:' /usr/share/keel/overlays/crowdsec.yaml
+    [ "$output" = 0 ]
+}
+
 # ------------------------------------------------------- keel on the machine
 
 @test "keel manifest validate accepts each overlay on this machine" {
