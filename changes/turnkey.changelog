@@ -1,3 +1,20 @@
+turnkey-core-19.0 (12) turnkey; urgency=medium
+
+  * The QEMU guest agent of the boot layer accepts only an allow-list of
+    commands (handbook decision 0099). overlays/keel-boot/etc/qemu/qemu-ga.conf
+    sets allow-rpcs: the commands that Proxmox VE 8 and 9 send by themselves
+    (handshake, ping, IP addresses, file system freeze and thaw, fstrim,
+    shutdown) and read-only information commands. qemu-ga refuses every
+    other command, so the host cannot run a command in the guest, read or
+    write a file, set a password, add an SSH key or set the clock. An image
+    built before this change keeps an agent that accepts every command.
+    tests/qemu-ga-conf.bats checks the list, that no other overlay has the
+    file and, where qemu-ga is installed, what a running agent accepts.
+    tests/coverage.sh now also runs tests/plans-boot.bats, which no CI job
+    ran before.
+
+ -- Keel Linux maintainers <admin@keellinux.org>  Thu, 26 Nov 2026 07:57:26 +0000
+
 turnkey-core-19.0 (11) turnkey; urgency=medium
 
   * The boot menu of the ISO shows the Keel mark and "KEEL LINUX", not the
