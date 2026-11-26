@@ -91,6 +91,8 @@ bats "$root/tests/before-firstboot.bats" "$root/tests/pam-unix.bats"
 unmeasured=(
     tests/mk-identity.bats
     tests/mk-cdroot.bats
+    tests/plans-boot.bats
+    tests/qemu-ga-conf.bats
 )
 for suite in "${unmeasured[@]}"; do
     if ! bats "$root/$suite"; then
